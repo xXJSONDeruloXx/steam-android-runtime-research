@@ -162,15 +162,17 @@ Java_com_xjsonderulo_steamandroid_novalab_MainActivity_nativeRunDmaBufBridge(
                             strstr(acknowledgement, "linux_import=pass") != NULL;
     int linux_gpu_pass = acknowledgement_bytes > 0 &&
                          strstr(acknowledgement, "linux_gpu_write=pass") != NULL;
-    if (linux_import_pass && linux_gpu_pass) {
+    int linux_image_pass = acknowledgement_bytes > 0 &&
+                           strstr(acknowledgement, "linux_image_write=pass") != NULL;
+    if (linux_import_pass && linux_gpu_pass && linux_image_pass) {
         void *after_linux = NULL;
         status = AHardwareBuffer_lock(buffer, AHARDWAREBUFFER_USAGE_CPU_READ_OFTEN,
                                       -1, NULL, &after_linux);
         append_line(report, sizeof(report), &used,
                     "ahardwarebuffer.lock_after_linux_status=%d\n", status);
-        uint32_t after_linux_value = 0;
+        uint8_t after_linux_pixel[4] = {0};
         if (status == 0 && after_linux != NULL) {
-            memcpy(&after_linux_value, after_linux, sizeof(after_linux_value));
+            memcpy(after_linux_pixel, after_linux, sizeof(after_linux_pixel));
             int32_t read_unlock_fence = -1;
             status = AHardwareBuffer_unlock(buffer, &read_unlock_fence);
             if (read_unlock_fence >= 0) {
@@ -178,20 +180,28 @@ Java_com_xjsonderulo_steamandroid_novalab_MainActivity_nativeRunDmaBufBridge(
             }
         }
         append_line(report, sizeof(report), &used,
-                    "ahardwarebuffer.value_after_linux=0x%08x\n",
-                    after_linux_value);
-        if (status == 0 && after_linux_value == 0xb16b00b5u) {
+                    "ahardwarebuffer.pixel_after_linux=%02x%02x%02x%02x\n",
+                    after_linux_pixel[0], after_linux_pixel[1],
+                    after_linux_pixel[2], after_linux_pixel[3]);
+        if (status == 0 && after_linux_pixel[0] == 0x40 &&
+            after_linux_pixel[1] == 0x80 && after_linux_pixel[2] == 0xc0 &&
+            after_linux_pixel[3] == 0xff) {
             append_line(report, sizeof(report), &used,
-                        "ahb_linux_gpu_write=pass\n");
+                        "ahb_linux_image_write=pass\n");
             append_line(report, sizeof(report), &used,
                         "ahb_linux_bridge=pass\n");
+            append_line(report, sizeof(report), &used, "ahb_bridge=pass\n");
             success = 1;
         } else {
             append_line(report, sizeof(report), &used,
-                        "ahb_linux_gpu_write=fail\n");
+                        "ahb_linux_image_write=fail\n");
             append_line(report, sizeof(report), &used,
                         "ahb_linux_bridge=fail\n");
         }
+    } else if (linux_import_pass && linux_gpu_pass) {
+        append_line(report, sizeof(report), &used,
+                    "ahb_linux_image_write=missing\n");
+        append_line(report, sizeof(report), &used, "ahb_linux_bridge=fail\n");
     } else {
         append_line(report, sizeof(report), &used, "ahb_linux_bridge=fail\n");
     }

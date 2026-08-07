@@ -200,7 +200,8 @@ iteration and can be removed after the driver experiment.
 
 ## Next experiment
 
-The next acceptance target is a Linux-rendered RGBA image presented through the
-existing Android `Surface`, with explicit acquire/release fences and frame pacing.
-That should become the smallest compositor-shaped loop before adding Wayland,
-gamescope, SteamRT3C, the native ARM64 Steam client, input, and lifecycle management.
+The Linux-rendered RGBA image-memory handoff now passes through the Android companion
+probe. The next acceptance target is to present that image through the existing
+Android `Surface`, with explicit acquire/release fences and frame pacing. That should
+become the smallest compositor-shaped loop before adding Wayland, gamescope, SteamRT3C,
+the native ARM64 Steam client, input, and lifecycle management.

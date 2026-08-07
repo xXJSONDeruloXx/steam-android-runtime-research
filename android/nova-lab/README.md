@@ -57,9 +57,10 @@ The important output is:
   write-back result;
 - `device-screenshot.png`: a visual check that the SurfaceView received posted frames.
 
-The fixed ARM64 glibc rootfs and KGSL Turnip probe are now automated by the scripts
-below. The next acceptance target is a Linux-rendered image presented through the
-existing Android `Surface`, including explicit acquire/release synchronization.
+The fixed ARM64 glibc rootfs, KGSL Turnip probe, and Android image-memory handoff are
+now automated by the scripts below. The next acceptance target is to present that
+Linux-rendered image through the existing Android `Surface`, including explicit
+acquire/release synchronization.
 
 ## Holo ARM64 glibc probe
 

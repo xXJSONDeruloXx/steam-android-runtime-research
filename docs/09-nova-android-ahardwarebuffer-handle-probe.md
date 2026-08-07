@@ -10,8 +10,8 @@ library to the existing lab APK. The probe now covers three layers: Android
 `AHardwareBuffer` handle transport, Android system Vulkan import/render, and a real
 cross-process Android-to-Holo DMA-BUF handoff. The final handoff keeps a marker written
 by Android, imports the matching raw `/dmabuf:` FD in the Holo glibc process, writes a
-second marker with Linux Turnip, and reads that second marker back through Android's
-buffer lock API.
+second marker with Linux Turnip, imports the same allocation as a Vulkan RGBA image,
+clears it, and reads the resulting pixel back through Android's buffer lock API.
 
 ## Reproduction
 
@@ -67,9 +67,11 @@ extension.VK_ANDROID_external_memory_android_hardware_buffer=present
 extension.VK_KHR_external_memory=present
 extension.VK_KHR_external_memory_fd=present
 extension.VK_EXT_external_memory_dma_buf=missing
+extension.VK_EXT_image_drm_format_modifier=missing
 vkGetAndroidHardwareBufferProperties_status=0 allocation_size=16384 memory_type_bits=0x12
 vkCreateImage_status=0
 vkAllocateMemory_import_status=0 memory_type_index=1
+vkBindImageMemory_status=0
 vkQueueSubmit_status=0
 vulkan_clear_pixel=4080c0ff
 android_vulkan_ahardwarebuffer=pass
@@ -90,27 +92,49 @@ the first one imported successfully into Mesa KGSL Turnip:
 mount./data/local/tmp/nova-holo-rootfs/run/nova-lab-app=pass
 ahb_bridge_recv_bytes=148 ahb_bridge_fd_count=2
 ahb_bridge_vkCreateBuffer_status=0
+ahb_bridge_image_fd_dup_0_status=0
 ahb_bridge_fd_0_allocate_status=0
 ahb_bridge_fd_0_bind_status=0
 ahb_bridge_fd_0_map_status=0
 ahb_bridge_fd_0_value=0x4e4f5641
+ahb_bridge_vkCreateCommandPool_status=0
+ahb_bridge_vkAllocateCommandBuffer_status=0
+ahb_bridge_linux_gpu_status=0
+ahb_bridge_linux_gpu_value=0xb16b00b5
+ahb_bridge_vkCreateImage_optimal_status=0
+ahb_bridge_image_allocate_optimal_status=0
+ahb_bridge_image_bind_optimal_status=0
+ahb_bridge_image_gpu_optimal_status=0
+ahb_bridge_linux_image_submit=pass tiling=optimal
+ahb_bridge_vkCreateImage_linear_status=0
+ahb_bridge_image_allocate_linear_status=0
+ahb_bridge_image_bind_linear_status=0
+ahb_bridge_image_gpu_linear_status=0
+ahb_bridge_linux_image_submit=pass tiling=linear
+ahb_bridge=pass
+ahb_bridge_status=0
 ```
 
 The Linux process then submitted `vkCmdFillBuffer` to that imported allocation,
-waited on a Vulkan fence, and wrote `0xb16b00b5`. The Android process read the new
-value from the original AHardwareBuffer after receiving the acknowledgement:
+waited on a Vulkan fence, and wrote `0xb16b00b5`. It then submitted image clears using
+both Vulkan tiling modes as a diagnostic because Nova's Android Vulkan driver does not
+advertise `VK_EXT_image_drm_format_modifier`. The Android process accepted the bridge
+only after reading the final RGBA pixel from the original AHardwareBuffer:
 
 ```text
-ahb_bridge_linux_gpu_status=0
-ahb_bridge_linux_gpu_value=0xb16b00b5
-ahb_bridge=pass
-ahb_bridge_status=0
-bridge_ack_bytes=39 ack=linux_import=pass linux_gpu_write=pass
+bridge_ack_bytes=62 ack=linux_import=pass linux_gpu_write=pass linux_image_write=pass
 ahardwarebuffer.lock_after_linux_status=0
-ahardwarebuffer.value_after_linux=0xb16b00b5
-ahb_linux_gpu_write=pass
+ahardwarebuffer.pixel_after_linux=4080c0ff
+ahb_linux_image_write=pass
 ahb_linux_bridge=pass
+ahb_bridge=pass
 ```
+
+The acceptance criterion is the Android readback, not a successful Vulkan submit by
+itself. During iteration, an optimal-only clear completed with `VK_SUCCESS` but Android
+read `11111111`; running a linear clear afterward produced the expected `4080c0ff`.
+The checked-in probe therefore keeps both attempts and leaves modifier/layout
+negotiation as an explicit follow-up.
 
 ## What this proves
 
@@ -125,17 +149,18 @@ ahb_linux_bridge=pass
 - A raw AHardwareBuffer handle can cross the Android-to-Holo Unix socket boundary as
   DMA-BUF FDs; the Holo glibc process can import the matching FD with KGSL Turnip.
 - Linux Turnip can write the imported Android allocation and Android can observe the
-  result, proving the bidirectional memory/GPU handoff needed before compositor work.
+  result, then import the same allocation as a Vulkan RGBA image and clear it; Android
+  observes the expected pixel, proving the image-memory handoff needed before
+  compositor work.
 
 ## What remains unproven
 
-This still does not present a Linux-rendered image through the app's `Surface` or
-SurfaceControl. The bridge uses CPU-written/CPU-read markers and a Vulkan buffer, not
-an image with Android release fences, frame pacing, or compositor ownership. It also
-does not prove Wayland, gamescope, Xwayland, SteamRT3C, the native Steam client, input,
-audio, or lifecycle recovery.
+The image memory path now passes, but this still does not present a Linux-rendered
+image through the app's `Surface` or SurfaceControl. No acquire/release fence crosses
+the socket boundary, and the test has no frame pacing, buffer queue, or compositor
+ownership protocol. It also does not prove Wayland, gamescope, Xwayland, SteamRT3C, the
+native Steam client, input, audio, or lifecycle recovery.
 
-The next implementation should turn this proven shared allocation into a visible
-image path: use an exportable/importable RGBA image, carry acquire/release fences, and
-present one Linux-rendered frame through the existing app Surface before adding a
-headless compositor or gamescope.
+The next implementation should carry the verified RGBA image through the existing app
+Surface with explicit acquire/release fences and frame pacing, then grow that loop into
+a headless compositor or gamescope integration.

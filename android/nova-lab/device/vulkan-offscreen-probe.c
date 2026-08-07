@@ -155,6 +155,215 @@ receive_dma_buf_fds(const char *socket_path, int *file_descriptors,
 }
 
 static int
+render_android_hardware_image(VkPhysicalDevice physical_device, VkDevice device,
+                               VkQueue queue, uint32_t queue_family,
+                               int dma_buf_fd)
+{
+    const VkImageTiling tilings[] = {
+        VK_IMAGE_TILING_OPTIMAL,
+        VK_IMAGE_TILING_LINEAR,
+    };
+    const char *tiling_names[] = {
+        "optimal",
+        "linear",
+    };
+    int image_pass = 0;
+
+    /* The Android driver does not expose a DRM modifier query; let Android's
+     * readback decide which basic layout matches this shared allocation. */
+    for (size_t tiling_index = 0;
+         tiling_index < sizeof(tilings) / sizeof(tilings[0]); ++tiling_index) {
+        image_pass = 0;
+        VkExternalMemoryImageCreateInfo external_image_info = {
+            .sType = VK_STRUCTURE_TYPE_EXTERNAL_MEMORY_IMAGE_CREATE_INFO,
+            .handleTypes = VK_EXTERNAL_MEMORY_HANDLE_TYPE_DMA_BUF_BIT_EXT,
+        };
+        VkImageCreateInfo image_info = {
+            .sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
+            .pNext = &external_image_info,
+            .imageType = VK_IMAGE_TYPE_2D,
+            .format = VK_FORMAT_R8G8B8A8_UNORM,
+            .extent = {64, 64, 1},
+            .mipLevels = 1,
+            .arrayLayers = 1,
+            .samples = VK_SAMPLE_COUNT_1_BIT,
+            .tiling = tilings[tiling_index],
+            .usage = VK_IMAGE_USAGE_TRANSFER_DST_BIT |
+                     VK_IMAGE_USAGE_SAMPLED_BIT |
+                     VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
+            .sharingMode = VK_SHARING_MODE_EXCLUSIVE,
+            .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
+        };
+        VkImage image = VK_NULL_HANDLE;
+        VkResult result = vkCreateImage(device, &image_info, NULL, &image);
+        printf("ahb_bridge_vkCreateImage_%s_status=%d\n",
+               tiling_names[tiling_index], result);
+        if (result != VK_SUCCESS) {
+            continue;
+        }
+
+        VkMemoryRequirements memory_requirements;
+        vkGetImageMemoryRequirements(device, image, &memory_requirements);
+        int import_fd = dup(dma_buf_fd);
+        printf("ahb_bridge_image_dup_%s_status=%d\n",
+               tiling_names[tiling_index], import_fd >= 0 ? 0 : -1);
+        if (import_fd < 0) {
+            vkDestroyImage(device, image, NULL);
+            continue;
+        }
+        VkImportMemoryFdInfoKHR import_info = {
+            .sType = VK_STRUCTURE_TYPE_IMPORT_MEMORY_FD_INFO_KHR,
+            .handleType = VK_EXTERNAL_MEMORY_HANDLE_TYPE_DMA_BUF_BIT_EXT,
+            .fd = import_fd,
+        };
+        VkMemoryAllocateInfo allocation_info = {
+            .sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
+            .pNext = &import_info,
+            .allocationSize = memory_requirements.size,
+            .memoryTypeIndex = find_memory_type(
+                physical_device, memory_requirements.memoryTypeBits, 0),
+        };
+        VkDeviceMemory memory = VK_NULL_HANDLE;
+        result = vkAllocateMemory(device, &allocation_info, NULL, &memory);
+        import_fd = -1;
+        printf("ahb_bridge_image_allocate_%s_status=%d\n",
+               tiling_names[tiling_index], result);
+        if (result != VK_SUCCESS) {
+            vkDestroyImage(device, image, NULL);
+            continue;
+        }
+        result = vkBindImageMemory(device, image, memory, 0);
+        printf("ahb_bridge_image_bind_%s_status=%d\n",
+               tiling_names[tiling_index], result);
+        if (result != VK_SUCCESS) {
+            vkFreeMemory(device, memory, NULL);
+            vkDestroyImage(device, image, NULL);
+            continue;
+        }
+
+        VkCommandPoolCreateInfo pool_info = {
+            .sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
+            .flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT,
+            .queueFamilyIndex = queue_family,
+        };
+        VkCommandPool command_pool = VK_NULL_HANDLE;
+        result = vkCreateCommandPool(device, &pool_info, NULL, &command_pool);
+        printf("ahb_bridge_image_command_pool_status=%d\n", result);
+        VkCommandBuffer command_buffer = VK_NULL_HANDLE;
+        if (result == VK_SUCCESS) {
+            VkCommandBufferAllocateInfo command_info = {
+                .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
+                .commandPool = command_pool,
+                .level = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
+                .commandBufferCount = 1,
+            };
+            result = vkAllocateCommandBuffers(device, &command_info,
+                                              &command_buffer);
+            printf("ahb_bridge_image_command_buffer_status=%d\n", result);
+        }
+
+        if (result == VK_SUCCESS) {
+            VkCommandBufferBeginInfo begin_info = {
+                .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
+                .flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT,
+            };
+            result = vkBeginCommandBuffer(command_buffer, &begin_info);
+            if (result == VK_SUCCESS) {
+                VkImageSubresourceRange subresource_range = {
+                    .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+                    .baseMipLevel = 0,
+                    .levelCount = 1,
+                    .baseArrayLayer = 0,
+                    .layerCount = 1,
+                };
+                VkImageMemoryBarrier to_transfer = {
+                    .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
+                    .srcAccessMask = 0,
+                    .dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT,
+                    .oldLayout = VK_IMAGE_LAYOUT_UNDEFINED,
+                    .newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                    .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+                    .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+                    .image = image,
+                    .subresourceRange = subresource_range,
+                };
+                vkCmdPipelineBarrier(command_buffer,
+                                     VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+                                     VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0, NULL,
+                                     0, NULL, 1, &to_transfer);
+                VkClearColorValue clear_color = {
+                    .float32 = {64.0f / 255.0f, 128.0f / 255.0f,
+                                192.0f / 255.0f, 1.0f},
+                };
+                vkCmdClearColorImage(command_buffer, image,
+                                     VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                                     &clear_color, 1, &subresource_range);
+                VkImageMemoryBarrier to_general = {
+                    .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
+                    .srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT,
+                    .dstAccessMask = 0,
+                    .oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                    .newLayout = VK_IMAGE_LAYOUT_GENERAL,
+                    .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+                    .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+                    .image = image,
+                    .subresourceRange = subresource_range,
+                };
+                vkCmdPipelineBarrier(command_buffer,
+                                     VK_PIPELINE_STAGE_TRANSFER_BIT,
+                                     VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, 0,
+                                     0, NULL, 0, NULL, 1, &to_general);
+                result = vkEndCommandBuffer(command_buffer);
+            }
+        }
+
+        VkFence fence = VK_NULL_HANDLE;
+        if (result == VK_SUCCESS) {
+            VkFenceCreateInfo fence_info = {
+                .sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO,
+            };
+            result = vkCreateFence(device, &fence_info, NULL, &fence);
+            if (result == VK_SUCCESS) {
+                VkSubmitInfo submit_info = {
+                    .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
+                    .commandBufferCount = 1,
+                    .pCommandBuffers = &command_buffer,
+                };
+                result = vkQueueSubmit(queue, 1, &submit_info, fence);
+                if (result == VK_SUCCESS) {
+                    result = vkWaitForFences(device, 1, &fence, VK_TRUE,
+                                             5000000000ull);
+                }
+            }
+        }
+        printf("ahb_bridge_image_gpu_%s_status=%d\n",
+               tiling_names[tiling_index], result);
+        image_pass = result == VK_SUCCESS;
+
+        if (fence != VK_NULL_HANDLE) {
+            vkDestroyFence(device, fence, NULL);
+        }
+        if (command_buffer != VK_NULL_HANDLE) {
+            vkFreeCommandBuffers(device, command_pool, 1, &command_buffer);
+        }
+        if (command_pool != VK_NULL_HANDLE) {
+            vkDestroyCommandPool(device, command_pool, NULL);
+        }
+        vkFreeMemory(device, memory, NULL);
+        vkDestroyImage(device, image, NULL);
+        if (image_pass) {
+            printf("ahb_bridge_linux_image_submit=pass tiling=%s\n",
+                   tiling_names[tiling_index]);
+        }
+    }
+    close(dma_buf_fd);
+    if (!image_pass) {
+        printf("ahb_bridge_linux_image_submit=fail\n");
+    }
+    return image_pass;
+}
+
+static int
 probe_android_hardware_buffer(VkPhysicalDevice physical_device, VkDevice device,
                               VkQueue queue, uint32_t queue_family,
                               const char *socket_path)
@@ -199,7 +408,11 @@ probe_android_hardware_buffer(VkPhysicalDevice physical_device, VkDevice device,
         VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
     int pass = 0;
     int linux_gpu_pass = 0;
+    int android_image_fd = -1;
     for (int index = 0; index < descriptor_count; ++index) {
+        int image_candidate_fd = dup(file_descriptors[index]);
+        printf("ahb_bridge_image_fd_dup_%d_status=%d\n", index,
+               image_candidate_fd >= 0 ? 0 : -1);
         VkImportMemoryFdInfoKHR import_info = {
             .sType = VK_STRUCTURE_TYPE_IMPORT_MEMORY_FD_INFO_KHR,
             .handleType = VK_EXTERNAL_MEMORY_HANDLE_TYPE_DMA_BUF_BIT_EXT,
@@ -227,6 +440,8 @@ probe_android_hardware_buffer(VkPhysicalDevice physical_device, VkDevice device,
                     printf("ahb_bridge_fd_%d_value=0x%08x\n", index, *mapped);
                     if (*mapped == 0x4e4f5641u) {
                         pass = 1;
+                        android_image_fd = image_candidate_fd;
+                        image_candidate_fd = -1;
                         vkUnmapMemory(device, memory);
 
                         VkCommandPoolCreateInfo bridge_pool_info = {
@@ -322,6 +537,9 @@ probe_android_hardware_buffer(VkPhysicalDevice physical_device, VkDevice device,
             }
             vkFreeMemory(device, memory, NULL);
         }
+        if (image_candidate_fd >= 0) {
+            close(image_candidate_fd);
+        }
         if (file_descriptors[index] >= 0) {
             close(file_descriptors[index]);
             file_descriptors[index] = -1;
@@ -336,16 +554,28 @@ probe_android_hardware_buffer(VkPhysicalDevice physical_device, VkDevice device,
         }
     }
     vkDestroyBuffer(device, buffer, NULL);
+    int linux_image_pass = 0;
+    if (pass && linux_gpu_pass && android_image_fd >= 0) {
+        linux_image_pass = render_android_hardware_image(
+            physical_device, device, queue, queue_family, android_image_fd);
+        android_image_fd = -1;
+    }
+    if (android_image_fd >= 0) {
+        close(android_image_fd);
+    }
     {
         const char *acknowledgement =
-            pass && linux_gpu_pass
-                ? "linux_import=pass linux_gpu_write=pass\n"
-                : "linux_import=fail linux_gpu_write=fail\n";
+            pass && linux_gpu_pass && linux_image_pass
+                ? "linux_import=pass linux_gpu_write=pass linux_image_write=pass\n"
+                : pass && linux_gpu_pass
+                      ? "linux_import=pass linux_gpu_write=pass linux_image_write=fail\n"
+                      : "linux_import=fail linux_gpu_write=fail linux_image_write=fail\n";
         send(connection_fd, acknowledgement, strlen(acknowledgement), 0);
     }
     close(connection_fd);
-    printf("ahb_bridge=%s\n", pass && linux_gpu_pass ? "pass" : "fail");
-    return pass && linux_gpu_pass ? 0 : 1;
+    printf("ahb_bridge=%s\n",
+           pass && linux_gpu_pass && linux_image_pass ? "pass" : "fail");
+    return pass && linux_gpu_pass && linux_image_pass ? 0 : 1;
 
 fail:
     if (buffer != VK_NULL_HANDLE) {

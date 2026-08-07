@@ -193,6 +193,7 @@ Java_com_xjsonderulo_steamandroid_novalab_MainActivity_nativeRunAndroidVulkanHar
     const char *optional_external_extensions[] = {
         VK_KHR_EXTERNAL_MEMORY_FD_EXTENSION_NAME,
         VK_EXT_EXTERNAL_MEMORY_DMA_BUF_EXTENSION_NAME,
+        VK_EXT_IMAGE_DRM_FORMAT_MODIFIER_EXTENSION_NAME,
     };
     for (uint32_t index = 0;
          index < sizeof(optional_external_extensions) /
@@ -234,7 +235,7 @@ Java_com_xjsonderulo_steamandroid_novalab_MainActivity_nativeRunAndroidVulkanHar
         .queueCount = 1,
         .pQueuePriorities = &priority,
     };
-    const char *device_extensions[4] = {
+    const char *device_extensions[5] = {
         VK_ANDROID_EXTERNAL_MEMORY_ANDROID_HARDWARE_BUFFER_EXTENSION_NAME,
         VK_KHR_EXTERNAL_MEMORY_EXTENSION_NAME,
     };
@@ -345,6 +346,25 @@ Java_com_xjsonderulo_steamandroid_novalab_MainActivity_nativeRunAndroidVulkanHar
                 result);
     if (result != VK_SUCCESS) {
         goto done;
+    }
+    if (has_device_extension(
+            physical_device, VK_EXT_IMAGE_DRM_FORMAT_MODIFIER_EXTENSION_NAME)) {
+        PFN_vkGetImageDrmFormatModifierPropertiesEXT get_modifier_properties =
+            (PFN_vkGetImageDrmFormatModifierPropertiesEXT)vkGetDeviceProcAddr(
+                device, "vkGetImageDrmFormatModifierPropertiesEXT");
+        if (get_modifier_properties != NULL) {
+            VkImageDrmFormatModifierPropertiesEXT modifier_properties = {
+                .sType = VK_STRUCTURE_TYPE_IMAGE_DRM_FORMAT_MODIFIER_PROPERTIES_EXT,
+            };
+            result = get_modifier_properties(device, image, &modifier_properties);
+            append_line(report, sizeof(report), &used,
+                        "android_vulkan_image_modifier_status=%d modifier=0x%llx\n",
+                        result,
+                        (unsigned long long)modifier_properties.drmFormatModifier);
+        } else {
+            append_line(report, sizeof(report), &used,
+                        "android_vulkan_image_modifier_status=unavailable\n");
+        }
     }
 
     VkQueue queue;
