@@ -183,10 +183,50 @@ send_acknowledgement(int connection_fd, const char *acknowledgement,
     return sent == (ssize_t)strlen(acknowledgement) ? 0 : -1;
 }
 
+struct pending_image {
+    int active;
+    VkImage image;
+    VkDeviceMemory memory;
+    VkFence fence;
+    VkCommandPool command_pool;
+    VkCommandBuffer command_buffer;
+};
+
+static int
+finish_pending_image(VkDevice device, VkQueue queue,
+                     struct pending_image *pending)
+{
+    if (!pending->active) {
+        return 0;
+    }
+    VkResult result = vkQueueWaitIdle(queue);
+    printf("ahb_bridge_async_cleanup_status=%d\n", result);
+    if (pending->command_buffer != VK_NULL_HANDLE) {
+        vkFreeCommandBuffers(device, pending->command_pool, 1,
+                              &pending->command_buffer);
+    }
+    if (pending->command_pool != VK_NULL_HANDLE) {
+        vkDestroyCommandPool(device, pending->command_pool, NULL);
+    }
+    if (pending->fence != VK_NULL_HANDLE) {
+        vkDestroyFence(device, pending->fence, NULL);
+    }
+    if (pending->image != VK_NULL_HANDLE) {
+        vkDestroyImage(device, pending->image, NULL);
+    }
+    if (pending->memory != VK_NULL_HANDLE) {
+        vkFreeMemory(device, pending->memory, NULL);
+    }
+    pending->active = 0;
+    return result == VK_SUCCESS ? 0 : 1;
+}
+
 static int
 render_android_hardware_image(VkPhysicalDevice physical_device, VkDevice device,
                                VkQueue queue, uint32_t queue_family,
-                               int dma_buf_fd, int *acquire_fence_fd)
+                               int dma_buf_fd, int async_fence,
+                               int *acquire_fence_fd,
+                               struct pending_image *pending)
 {
     const VkImageTiling tilings[] = {
         VK_IMAGE_TILING_OPTIMAL,
@@ -198,6 +238,7 @@ render_android_hardware_image(VkPhysicalDevice physical_device, VkDevice device,
     };
     int image_pass = 0;
     *acquire_fence_fd = -1;
+    pending->active = 0;
     PFN_vkGetFenceFdKHR get_fence_fd =
         (PFN_vkGetFenceFdKHR)vkGetDeviceProcAddr(device, "vkGetFenceFdKHR");
 
@@ -268,8 +309,8 @@ render_android_hardware_image(VkPhysicalDevice physical_device, VkDevice device,
         printf("ahb_bridge_image_bind_%s_status=%d\n",
                tiling_names[tiling_index], result);
         if (result != VK_SUCCESS) {
-            vkFreeMemory(device, memory, NULL);
             vkDestroyImage(device, image, NULL);
+            vkFreeMemory(device, memory, NULL);
             continue;
         }
 
@@ -282,6 +323,8 @@ render_android_hardware_image(VkPhysicalDevice physical_device, VkDevice device,
         result = vkCreateCommandPool(device, &pool_info, NULL, &command_pool);
         printf("ahb_bridge_image_command_pool_status=%d\n", result);
         VkCommandBuffer command_buffer = VK_NULL_HANDLE;
+        int is_final_tiling = tiling_index + 1 == sizeof(tilings) /
+                                          sizeof(tilings[0]);
         if (result == VK_SUCCESS) {
             VkCommandBufferAllocateInfo command_info = {
                 .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
@@ -367,17 +410,19 @@ render_android_hardware_image(VkPhysicalDevice physical_device, VkDevice device,
                     .pCommandBuffers = &command_buffer,
                 };
                 result = vkQueueSubmit(queue, 1, &submit_info, fence);
-                if (result == VK_SUCCESS) {
+                if (result == VK_SUCCESS && !(async_fence && is_final_tiling)) {
                     result = vkWaitForFences(device, 1, &fence, VK_TRUE,
                                              5000000000ull);
+                } else if (result == VK_SUCCESS && async_fence &&
+                           is_final_tiling) {
+                    printf("ahb_bridge_image_fence_wait=skipped\n");
                 }
             }
         }
         printf("ahb_bridge_image_gpu_%s_status=%d\n",
                tiling_names[tiling_index], result);
         image_pass = result == VK_SUCCESS;
-        if (image_pass && tiling_index + 1 == sizeof(tilings) /
-                                          sizeof(tilings[0])) {
+        if (image_pass && is_final_tiling) {
             if (get_fence_fd != NULL) {
                 VkFenceGetFdInfoKHR fence_fd_info = {
                     .sType = VK_STRUCTURE_TYPE_FENCE_GET_FD_INFO_KHR,
@@ -396,17 +441,26 @@ render_android_hardware_image(VkPhysicalDevice physical_device, VkDevice device,
             }
         }
 
-        if (fence != VK_NULL_HANDLE) {
-            vkDestroyFence(device, fence, NULL);
+        if (async_fence && is_final_tiling && image_pass) {
+            pending->active = 1;
+            pending->image = image;
+            pending->memory = memory;
+            pending->fence = fence;
+            pending->command_pool = command_pool;
+            pending->command_buffer = command_buffer;
+        } else {
+            if (fence != VK_NULL_HANDLE) {
+                vkDestroyFence(device, fence, NULL);
+            }
+            if (command_buffer != VK_NULL_HANDLE) {
+                vkFreeCommandBuffers(device, command_pool, 1, &command_buffer);
+            }
+            if (command_pool != VK_NULL_HANDLE) {
+                vkDestroyCommandPool(device, command_pool, NULL);
+            }
+            vkFreeMemory(device, memory, NULL);
+            vkDestroyImage(device, image, NULL);
         }
-        if (command_buffer != VK_NULL_HANDLE) {
-            vkFreeCommandBuffers(device, command_pool, 1, &command_buffer);
-        }
-        if (command_pool != VK_NULL_HANDLE) {
-            vkDestroyCommandPool(device, command_pool, NULL);
-        }
-        vkFreeMemory(device, memory, NULL);
-        vkDestroyImage(device, image, NULL);
         if (image_pass) {
             printf("ahb_bridge_linux_image_submit=pass tiling=%s\n",
                    tiling_names[tiling_index]);
@@ -422,7 +476,7 @@ render_android_hardware_image(VkPhysicalDevice physical_device, VkDevice device,
 static int
 probe_android_hardware_buffer(VkPhysicalDevice physical_device, VkDevice device,
                               VkQueue queue, uint32_t queue_family,
-                              const char *socket_path)
+                              const char *socket_path, int async_fence)
 {
     printf("ahb_bridge.begin\n");
     int file_descriptors[16] = {-1};
@@ -612,10 +666,11 @@ probe_android_hardware_buffer(VkPhysicalDevice physical_device, VkDevice device,
     vkDestroyBuffer(device, buffer, NULL);
     int linux_image_pass = 0;
     int linux_acquire_fence_fd = -1;
+    struct pending_image pending = {0};
     if (pass && linux_gpu_pass && android_image_fd >= 0) {
         linux_image_pass = render_android_hardware_image(
             physical_device, device, queue, queue_family, android_image_fd,
-            &linux_acquire_fence_fd);
+            async_fence, &linux_acquire_fence_fd, &pending);
         android_image_fd = -1;
     }
     if (android_image_fd >= 0) {
@@ -626,7 +681,9 @@ probe_android_hardware_buffer(VkPhysicalDevice physical_device, VkDevice device,
     {
         const char *acknowledgement =
             bridge_pass
-                ? "linux_import=pass linux_gpu_write=pass linux_image_write=pass linux_acquire_fence=pass\n"
+                ? async_fence
+                      ? "linux_import=pass linux_gpu_write=pass linux_image_write=pass linux_acquire_fence=pass linux_async_fence=pass\n"
+                      : "linux_import=pass linux_gpu_write=pass linux_image_write=pass linux_acquire_fence=pass\n"
                 : pass && linux_gpu_pass
                       ? "linux_import=pass linux_gpu_write=pass linux_image_write=fail linux_acquire_fence=fail\n"
                       : "linux_import=fail linux_gpu_write=fail linux_image_write=fail linux_acquire_fence=fail\n";
@@ -635,6 +692,12 @@ probe_android_hardware_buffer(VkPhysicalDevice physical_device, VkDevice device,
         printf("ahb_bridge_ack_status=%d\n", acknowledgement_status);
         linux_acquire_fence_fd = -1;
         if (acknowledgement_status != 0) {
+            bridge_pass = 0;
+        }
+    }
+    if (pending.active) {
+        int async_cleanup_status = finish_pending_image(device, queue, &pending);
+        if (async_cleanup_status != 0) {
             bridge_pass = 0;
         }
     }
@@ -949,9 +1012,12 @@ main(void)
         getenv("NOVA_AHB_HANDLE_SOCKET");
     if (android_hardware_buffer_socket != NULL &&
         android_hardware_buffer_socket[0] != '\0') {
+        const char *async_fence_value = getenv("NOVA_AHB_ASYNC_FENCE");
+        int async_fence = async_fence_value != NULL &&
+                          strcmp(async_fence_value, "1") == 0;
         int bridge_status = probe_android_hardware_buffer(
             physical_device, device, queue, queue_family,
-            android_hardware_buffer_socket);
+            android_hardware_buffer_socket, async_fence);
         printf("ahb_bridge_status=%d\n", bridge_status);
         if (bridge_status != 0) {
             return 1;

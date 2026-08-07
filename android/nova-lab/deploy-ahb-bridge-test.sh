@@ -29,6 +29,7 @@ VULKAN_NODEVICE_SELECT=1 \
 VULKAN_OFFSCREEN_PROBE=/opt/nova-kgsl-driver/vulkan-offscreen-probe \
 VULKAN_AHB_SOCKET_HOST_DIR="$SOCKET_HOST_DIR" \
 VULKAN_AHB_SOCKET_NAME="$SOCKET_NAME" \
+VULKAN_AHB_ASYNC_FENCE="${VULKAN_AHB_ASYNC_FENCE:-}" \
     "$SCRIPT_DIR/deploy-holo-probe.sh"
 probe_status=$?
 set -e

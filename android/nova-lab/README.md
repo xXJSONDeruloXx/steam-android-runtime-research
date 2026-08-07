@@ -44,6 +44,8 @@ Run the full cross-process check with:
 
 ```sh
 android/nova-lab/deploy-ahb-bridge-test.sh
+# Optional asynchronous acquire-fence ordering probe:
+VULKAN_AHB_ASYNC_FENCE=1 android/nova-lab/deploy-ahb-bridge-test.sh
 ```
 
 ## Evidence to collect
@@ -89,5 +91,8 @@ and the current KGSL/DRM and DMA-BUF boundaries are documented in
 allocation as `VK_EXT_external_memory_dma_buf`, imports that FD into a second Vulkan
 allocation, and verifies the GPU-written value survives the handoff. The bridge
 script extends that result across the Android/Holo process boundary and submits the
-verified buffer through SurfaceControl; it does not yet implement a reusable compositor
-queue, Wayland, or gamescope.
+verified buffer through SurfaceControl. With `VULKAN_AHB_ASYNC_FENCE=1`, it exports the
+final image's Linux acquire fence before waiting and lets SurfaceControl consume it;
+the current run observed the fence as unsignaled at Android handoff. It does not yet
+implement a reusable compositor queue, Android release-fence return, Wayland, or
+gamescope.

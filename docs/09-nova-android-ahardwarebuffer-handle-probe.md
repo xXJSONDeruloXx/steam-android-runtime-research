@@ -22,6 +22,8 @@ The checked-in build uses the locally installed Android NDK and packages
 android/nova-lab/build.sh
 android/nova-lab/deploy-and-test.sh
 android/nova-lab/deploy-ahb-bridge-test.sh
+# Optional: submit the final Linux image before waiting and pass its sync FD to Android.
+VULKAN_AHB_ASYNC_FENCE=1 android/nova-lab/deploy-ahb-bridge-test.sh
 ```
 
 The automated launcher passes `--ez run_native true` and
@@ -145,7 +147,7 @@ ahb_surface=pass
 ahb_bridge=pass
 ```
 
-The current fence-enabled run reports the full acknowledgement as:
+The earlier wait-before-export fence-enabled run reports the full acknowledgement as:
 
 ```text
 bridge_ack_bytes=87 ack=linux_import=pass linux_gpu_write=pass linux_image_write=pass linux_acquire_fence=pass
@@ -155,6 +157,48 @@ surface_transaction_complete=pass latch_time=7389202948482 present_fence=1 previ
 ahb_surface=pass
 ahb_bridge=pass
 ```
+
+### Asynchronous acquire-fence iteration
+
+The optional `VULKAN_AHB_ASYNC_FENCE=1` mode changes the ordering for the final linear
+image. Holo submits the image, exports the `VK_KHR_external_fence_fd` sync FD before
+waiting, sends the FD with the acknowledgement, and retains the Vulkan image and
+command resources until after Android has accepted the frame. Android does not take a
+CPU read lock in this mode; it performs a zero-time fence poll and passes the same FD to
+`ASurfaceTransaction_setBuffer`.
+
+The Holo report from the current run contains the ordering evidence:
+
+```text
+ahb_bridge_image_gpu_linear_status=0
+ahb_bridge_image_fence_wait=skipped
+ahb_bridge_image_fence_status=0 fd=9
+ahb_bridge_ack_status=0
+ahb_bridge_async_cleanup_status=0
+ahb_bridge=pass
+```
+
+The Android report and captured presentation were:
+
+```text
+bridge_ack_bytes=110 ack=linux_import=pass linux_gpu_write=pass linux_image_write=pass linux_acquire_fence=pass linux_async_fence=pass
+linux_acquire_fence_fd=received
+linux_acquire_fence_initial=unsignaled
+ahardwarebuffer.pixel_after_linux=deferred
+ahb_linux_image_write=deferred_pass
+ahb_linux_bridge=pass
+surface_acquire_fence=passed
+surface_transaction_complete=pass latch_time=8025964751729 present_fence=1 previous_release_fence=0
+ahb_surface=pass
+ahb_bridge=pass
+```
+
+The zero-time poll observed the fence as unsignaled in this run, so Android accepted a
+genuinely pending Linux GPU write without taking a CPU readback first. The stronger
+ordering evidence is still the Holo-side `ahb_bridge_image_fence_wait=skipped` line:
+Holo submitted and exported the fence before waiting, Android deferred its CPU readback,
+and SurfaceControl accepted the fence and completed a blue frame. The screenshot is saved as
+`android/nova-lab/build/device-ahb-bridge-screenshot.png`.
 
 The acceptance criterion is the Android readback and SurfaceControl completion, not a successful Vulkan submit by
 itself. During iteration, an optimal-only clear completed with `VK_SUCCESS` but Android
@@ -186,14 +230,14 @@ negotiation as an explicit follow-up.
 ## What remains unproven
 
 The one-frame image path now reaches SurfaceControl with a Linux-produced acquire
-fence. This first synchronization version exports the fence after Holo has already
-waited on it, so it proves the FD transport and SurfaceControl ownership contract but
-not asynchronous overlap. It still has no reusable double-buffer queue, Android
-release-fence handoff back to Linux, frame pacing, or compositor ownership loop. It
-also does not prove Wayland, gamescope, Xwayland, SteamRT3C, the native Steam client,
-input, audio, or lifecycle recovery.
+fence in both wait-before-export and export-before-wait modes. The asynchronous mode
+proves the ordering and lifetime handoff, but this tiny workload completed before
+Android's zero-time poll, so asynchronous overlap remains unmeasured. There is still
+no reusable double-buffer queue, Android release-fence handoff back to Linux, frame
+pacing, or compositor ownership loop. It also does not prove Wayland, gamescope,
+Xwayland, SteamRT3C, the native Steam client, input, audio, or lifecycle recovery.
 
-The next implementation should export the Linux acquire fence before waiting, retain
-buffers until the SurfaceControl completion/release fence, and run a double-buffered
-frame loop. That is the smallest compositor-shaped step before a headless compositor
-or gamescope integration.
+The next implementation should keep two AHardwareBuffers alive, submit repeated frames,
+return Android's previous release fence to Holo, and pace reuse from that fence instead
+of calling `vkQueueWaitIdle` after every frame. That is the smallest compositor-shaped
+step before a headless compositor or gamescope integration.

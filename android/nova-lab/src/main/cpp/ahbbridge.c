@@ -6,6 +6,7 @@
 
 #include <jni.h>
 
+#include <poll.h>
 #include <pthread.h>
 #include <stdarg.h>
 #include <stdint.h>
@@ -393,34 +394,65 @@ Java_com_xjsonderulo_steamandroid_novalab_MainActivity_nativeRunDmaBufBridge(
     int linux_acquire_fence_pass = acknowledgement_bytes > 0 &&
                                    strstr(acknowledgement,
                                           "linux_acquire_fence=pass") != NULL;
+    int linux_async_fence_pass = acknowledgement_bytes > 0 &&
+                                 strstr(acknowledgement,
+                                        "linux_async_fence=pass") != NULL;
     append_line(report, sizeof(report), &used,
                 "linux_acquire_fence_fd=%s\n",
                 acquire_fence_fd >= 0 ? "received" : "missing");
     if (linux_import_pass && linux_gpu_pass && linux_image_pass &&
         linux_acquire_fence_pass && acquire_fence_fd >= 0) {
-        void *after_linux = NULL;
-        status = AHardwareBuffer_lock(buffer, AHARDWAREBUFFER_USAGE_CPU_READ_OFTEN,
-                                      -1, NULL, &after_linux);
-        append_line(report, sizeof(report), &used,
-                    "ahardwarebuffer.lock_after_linux_status=%d\n", status);
-        uint8_t after_linux_pixel[4] = {0};
-        if (status == 0 && after_linux != NULL) {
-            memcpy(after_linux_pixel, after_linux, sizeof(after_linux_pixel));
-            int32_t read_unlock_fence = -1;
-            status = AHardwareBuffer_unlock(buffer, &read_unlock_fence);
-            if (read_unlock_fence >= 0) {
-                close(read_unlock_fence);
+        int image_write_pass = 0;
+        if (linux_async_fence_pass) {
+            struct pollfd fence_poll = {
+                .fd = acquire_fence_fd,
+                .events = POLLIN,
+            };
+            int poll_status = poll(&fence_poll, 1, 0);
+            if (poll_status < 0 || (fence_poll.revents & POLLNVAL) != 0) {
+                append_line(report, sizeof(report), &used,
+                            "linux_acquire_fence_initial=error\n");
+            } else if (poll_status == 0) {
+                append_line(report, sizeof(report), &used,
+                            "linux_acquire_fence_initial=unsignaled\n");
+                image_write_pass = 1;
+            } else {
+                append_line(report, sizeof(report), &used,
+                            "linux_acquire_fence_initial=signaled\n");
+                image_write_pass = 1;
             }
-        }
-        append_line(report, sizeof(report), &used,
-                    "ahardwarebuffer.pixel_after_linux=%02x%02x%02x%02x\n",
-                    after_linux_pixel[0], after_linux_pixel[1],
-                    after_linux_pixel[2], after_linux_pixel[3]);
-        if (status == 0 && after_linux_pixel[0] == 0x40 &&
-            after_linux_pixel[1] == 0x80 && after_linux_pixel[2] == 0xc0 &&
-            after_linux_pixel[3] == 0xff) {
             append_line(report, sizeof(report), &used,
-                        "ahb_linux_image_write=pass\n");
+                        "ahardwarebuffer.pixel_after_linux=deferred\n");
+        } else {
+            void *after_linux = NULL;
+            status = AHardwareBuffer_lock(buffer,
+                                          AHARDWAREBUFFER_USAGE_CPU_READ_OFTEN,
+                                          -1, NULL, &after_linux);
+            append_line(report, sizeof(report), &used,
+                        "ahardwarebuffer.lock_after_linux_status=%d\n", status);
+            uint8_t after_linux_pixel[4] = {0};
+            if (status == 0 && after_linux != NULL) {
+                memcpy(after_linux_pixel, after_linux, sizeof(after_linux_pixel));
+                int32_t read_unlock_fence = -1;
+                status = AHardwareBuffer_unlock(buffer, &read_unlock_fence);
+                if (read_unlock_fence >= 0) {
+                    close(read_unlock_fence);
+                }
+            }
+            append_line(report, sizeof(report), &used,
+                        "ahardwarebuffer.pixel_after_linux=%02x%02x%02x%02x\n",
+                        after_linux_pixel[0], after_linux_pixel[1],
+                        after_linux_pixel[2], after_linux_pixel[3]);
+            image_write_pass = status == 0 && after_linux_pixel[0] == 0x40 &&
+                               after_linux_pixel[1] == 0x80 &&
+                               after_linux_pixel[2] == 0xc0 &&
+                               after_linux_pixel[3] == 0xff;
+        }
+        if (image_write_pass) {
+            append_line(report, sizeof(report), &used,
+                        linux_async_fence_pass
+                            ? "ahb_linux_image_write=deferred_pass\n"
+                            : "ahb_linux_image_write=pass\n");
             append_line(report, sizeof(report), &used,
                         "ahb_linux_bridge=pass\n");
             if (present_surface_buffer(env, surface_object, buffer,
