@@ -221,6 +221,16 @@ static void paint(struct shm_buffer *buffer, unsigned long frame)
     }
 }
 
+static unsigned long max_frames(void)
+{
+    const char *value = getenv("NOVA_WAYLAND_SHM_MAX_FRAMES");
+    if (!value || !*value)
+        return 0;
+    char *end = NULL;
+    unsigned long result = strtoul(value, &end, 10);
+    return end != value && *end == '\0' ? result : 0;
+}
+
 static int draw(struct client_state *state)
 {
     if (!state->configured || state->frame_pending)
@@ -333,9 +343,13 @@ int main(void)
            socket_name ? socket_name : "default");
     fflush(stdout);
 
+    const unsigned long frame_limit = max_frames();
     uint64_t deadline = monotonic_ms() + RUN_SECONDS * 1000u;
     while (!state.closed && monotonic_ms() < deadline) {
         if (wl_display_dispatch_pending(state.display) < 0)
+            break;
+        if (frame_limit > 0 && state.frame_count >= frame_limit &&
+            !state.frame_pending)
             break;
         if (draw(&state) != 0)
             break;

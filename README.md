@@ -26,6 +26,7 @@ The useful results are split across several projects:
 - [Nova Android AHardwareBuffer probe](docs/09-nova-android-ahardwarebuffer-handle-probe.md) records Android Vulkan import, a bidirectional Android-to-Holo DMA-BUF/GPU handoff, export-before-wait acquire-fence ordering, and a five-frame two-buffer SurfaceControl loop with release-fence backpressure.
 - [Nova stock gamescope control](docs/10-nova-stock-gamescope-control.md) records the first gamescope run on the same KGSL Vulkan path: stock gamescope reaches the Adreno device, then stops because its DRM-device discovery contract is not available.
 - [Nova headless gamescope seam](docs/11-nova-headless-gamescope-seam.md) records a patched ARM64 headless gamescope compositor crossing that DRM-identity boundary, compositing 298 Wayland SHM frames on the Nova, and leaving persistent Android output as the next seam.
+- [Nova Gamescope Android output](docs/12-nova-gamescope-ahb-output.md) records the first five-frame imported AHardwareBuffer output path from Gamescope through Android SurfaceControl, including acquire and release fence handoff.
 
 ## Recommended direction
 
@@ -56,6 +57,7 @@ the gamescope frames on its own surface.
 - [Nova Android AHardwareBuffer handle probe](docs/09-nova-android-ahardwarebuffer-handle-probe.md)
 - [Nova stock gamescope control](docs/10-nova-stock-gamescope-control.md)
 - [Nova headless gamescope seam](docs/11-nova-headless-gamescope-seam.md)
+- [Nova Gamescope Android AHardwareBuffer output](docs/12-nova-gamescope-ahb-output.md)
 - [Retroid Pocket Nova flashing kit](tools/retroid-pocket-nova/README.md)
 
 ## Evidence standard

@@ -92,6 +92,7 @@ GAMESCOPE_SOURCE=/path/to/gamescope android/nova-lab/build-gamescope-headless.sh
 android/nova-lab/build-wayland-shm-control.sh
 android/nova-lab/deploy-gamescope-headless-test.sh
 android/nova-lab/deploy-gamescope-headless-composite-test.sh
+android/nova-lab/deploy-gamescope-headless-ahb-test.sh
 ```
 
 `deploy-holo-probe.sh` returns the Vulkan probe status but always pulls its report,
@@ -151,5 +152,9 @@ gamescope checkout.
 
 The accepted Nova run produced 298 Wayland SHM frames and 298 synchronous
 `headless_composite_frame` submissions. The output is still held in Gamescope's
-three exportable Vulkan images; the next step is importing the existing Android
-AHardwareBuffer pool at this connector seam.
+three exportable Vulkan images. The next
+`deploy-gamescope-headless-ahb-test.sh` iteration imports the existing Android
+AHardwareBuffer pool at this connector seam, composites five frames into the
+two-buffer queue, and checks the Linux acquire plus Android release fences.
+The details and exact evidence are in
+`docs/12-nova-gamescope-ahb-output.md`.

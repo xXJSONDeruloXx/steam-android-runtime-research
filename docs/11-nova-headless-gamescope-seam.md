@@ -126,8 +126,8 @@ expected headless limitations: no `CAP_SYS_NICE`, no DRM FD from the wlroots ren
 and Xwayland glamor falling back to software. Those are useful next measurements, not
 evidence that the Android presentation path works.
 
-The next implementation step is to add an optional Android output connector to this
-same `Present()` seam. It should import the already-proven two-buffer
-AHardwareBuffer/DMA-BUF pool, render or copy into one imported buffer, and carry the
-Vulkan acquire fence into SurfaceControl. Only after that connector has a continuous
-Android screenshot should the control client be replaced by Steam Gamepad UI.
+The next implementation step was the optional Android output connector described in
+[doc 12](12-nova-gamescope-ahb-output.md). Its first bounded run imports the
+already-proven two-buffer AHardwareBuffer/DMA-BUF pool, composites five frames into
+it, and carries valid acquire/release fences across SurfaceControl. It is not yet a
+continuous display-size session or Steam Gamepad UI.

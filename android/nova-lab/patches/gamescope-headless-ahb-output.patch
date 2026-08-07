@@ -1,0 +1,376 @@
+--- a/src/Backends/HeadlessBackend.cpp
++++ b/src/Backends/HeadlessBackend.cpp
+@@ -5,0 +6,5 @@
++#include <poll.h>
++#include <sys/socket.h>
++#include <sys/un.h>
++#include <unistd.h>
++
+@@ -12,0 +18,173 @@
++    static int connect_android_socket( const char *path )
++    {
++        if ( path == nullptr || strlen( path ) >= sizeof( ( (sockaddr_un *)nullptr )->sun_path ) )
++            return -1;
++
++        sockaddr_un address = {
++            .sun_family = AF_UNIX,
++        };
++        strcpy( address.sun_path, path );
++
++        int lastErrno = ENOENT;
++        for ( int attempt = 0; attempt < 150; attempt++ )
++        {
++            int fd = socket( AF_UNIX, SOCK_STREAM | SOCK_CLOEXEC, 0 );
++            if ( fd >= 0 && connect( fd, reinterpret_cast<sockaddr *>( &address ), sizeof( address ) ) == 0 )
++                return fd;
++
++            lastErrno = errno;
++            if ( fd >= 0 )
++                close( fd );
++            if ( lastErrno != ENOENT && lastErrno != ECONNREFUSED )
++                break;
++
++            usleep( 100000 );
++        }
++
++        errno = lastErrno;
++        headless_log.errorf_errno( "connect Android output socket failed" );
++        return -1;
++    }
++
++    static int receive_android_handle( int connection )
++    {
++        char payload[256] = {};
++        char control[CMSG_SPACE( sizeof( int ) * 16 )] = {};
++        iovec vector = {
++            .iov_base = payload,
++            .iov_len = sizeof( payload ),
++        };
++        msghdr message = {
++            .msg_iov = &vector,
++            .msg_iovlen = 1,
++            .msg_control = control,
++            .msg_controllen = sizeof( control ),
++        };
++
++        ssize_t received = recvmsg( connection, &message, 0 );
++        if ( received < 0 )
++        {
++            headless_log.errorf_errno( "recv Android output handle failed" );
++            return -1;
++        }
++
++        int receivedFd = -1;
++        for ( cmsghdr *header = CMSG_FIRSTHDR( &message ); header != nullptr; header = CMSG_NXTHDR( &message, header ) )
++        {
++            if ( header->cmsg_level != SOL_SOCKET || header->cmsg_type != SCM_RIGHTS )
++                continue;
++
++            size_t descriptorCount = ( header->cmsg_len - CMSG_LEN( 0 ) ) / sizeof( int );
++            int *descriptors = reinterpret_cast<int *>( CMSG_DATA( header ) );
++            for ( size_t i = 0; i < descriptorCount; i++ )
++            {
++                if ( receivedFd < 0 )
++                    receivedFd = descriptors[i];
++                else
++                    close( descriptors[i] );
++            }
++        }
++
++        if ( received <= 0 || receivedFd < 0 )
++        {
++            if ( receivedFd >= 0 )
++                close( receivedFd );
++            headless_log.errorf( "Android output handle message had no DMA-BUF FD" );
++            return -1;
++        }
++
++        return receivedFd;
++    }
++
++    static bool send_android_ack( int connection, int acquireFenceFd )
++    {
++        static constexpr char acknowledgement[] =
++            "linux_import=pass linux_gpu_write=pass linux_image_write=pass linux_acquire_fence=pass linux_loop=pass\n";
++        iovec vector = {
++            .iov_base = const_cast<char *>( acknowledgement ),
++            .iov_len = sizeof( acknowledgement ) - 1,
++        };
++        char control[CMSG_SPACE( sizeof( int ) )] = {};
++        msghdr message = {
++            .msg_iov = &vector,
++            .msg_iovlen = 1,
++        };
++        message.msg_control = control;
++        message.msg_controllen = sizeof( control );
++        cmsghdr *header = CMSG_FIRSTHDR( &message );
++        header->cmsg_level = SOL_SOCKET;
++        header->cmsg_type = SCM_RIGHTS;
++        header->cmsg_len = CMSG_LEN( sizeof( acquireFenceFd ) );
++        memcpy( CMSG_DATA( header ), &acquireFenceFd, sizeof( acquireFenceFd ) );
++
++        ssize_t sent = sendmsg( connection, &message, MSG_NOSIGNAL );
++        close( acquireFenceFd );
++        return sent == static_cast<ssize_t>( sizeof( acknowledgement ) - 1 );
++    }
++
++    static bool wait_android_release( int connection, int expectedBuffer )
++    {
++        pollfd socketPoll = {
++            .fd = connection,
++            .events = POLLIN,
++        };
++        int pollResult;
++        do
++        {
++            pollResult = poll( &socketPoll, 1, 5000 );
++        } while ( pollResult < 0 && errno == EINTR );
++        if ( pollResult <= 0 || ( socketPoll.revents & ( POLLIN | POLLERR | POLLHUP ) ) == 0 )
++            return false;
++
++        char payload[128] = {};
++        char control[CMSG_SPACE( sizeof( int ) * 4 )] = {};
++        iovec vector = {
++            .iov_base = payload,
++            .iov_len = sizeof( payload ) - 1,
++        };
++        msghdr message = {
++            .msg_iov = &vector,
++            .msg_iovlen = 1,
++            .msg_control = control,
++            .msg_controllen = sizeof( control ),
++        };
++        ssize_t received = recvmsg( connection, &message, 0 );
++        int releaseFenceFd = -1;
++        for ( cmsghdr *header = CMSG_FIRSTHDR( &message ); header != nullptr; header = CMSG_NXTHDR( &message, header ) )
++        {
++            if ( header->cmsg_level != SOL_SOCKET || header->cmsg_type != SCM_RIGHTS )
++                continue;
++
++            size_t descriptorCount = ( header->cmsg_len - CMSG_LEN( 0 ) ) / sizeof( int );
++            int *descriptors = reinterpret_cast<int *>( CMSG_DATA( header ) );
++            for ( size_t i = 0; i < descriptorCount; i++ )
++            {
++                if ( releaseFenceFd < 0 )
++                    releaseFenceFd = descriptors[i];
++                else
++                    close( descriptors[i] );
++            }
++        }
++
++        char expectedMessage[32];
++        snprintf( expectedMessage, sizeof( expectedMessage ), "release_buffer=%d", expectedBuffer );
++        bool validMessage = received > 0 && strstr( payload, expectedMessage ) != nullptr && releaseFenceFd >= 0;
++        if ( !validMessage )
++        {
++            if ( releaseFenceFd >= 0 )
++                close( releaseFenceFd );
++            return false;
++        }
++
++        pollfd fencePoll = {
++            .fd = releaseFenceFd,
++            .events = POLLIN,
++        };
++        do
++        {
++            pollResult = poll( &fencePoll, 1, 5000 );
++        } while ( pollResult < 0 && errno == EINTR );
++        close( releaseFenceFd );
++        return pollResult > 0 && ( fencePoll.revents & ( POLLIN | POLLERR | POLLHUP ) ) != 0;
++    }
++
+@@ -19,3 +197,8 @@
+-        virtual ~CHeadlessConnector()
+-        {
+-        }
++		virtual ~CHeadlessConnector()
++		{
++			for ( int connection : m_androidConnections )
++			{
++				if ( connection >= 0 )
++					close( connection );
++			}
++		}
+@@ -22,0 +206,45 @@
++		bool InitAndroidOutput()
++		{
++			const char *socketBase = getenv( "NOVA_AHB_OUTPUT_SOCKET" );
++			if ( socketBase == nullptr || socketBase[0] == '\0' )
++				return true;
++
++			for ( int index = 0; index < 2; index++ )
++			{
++				char socketPath[sizeof( ( (sockaddr_un *)nullptr )->sun_path )];
++				int pathLength = snprintf( socketPath, sizeof( socketPath ), "%s.%d", socketBase, index );
++				if ( pathLength < 0 || static_cast<size_t>( pathLength ) >= sizeof( socketPath ) )
++					return false;
++
++				m_androidConnections[index] = connect_android_socket( socketPath );
++				if ( m_androidConnections[index] < 0 )
++					return false;
++
++				int handleFd = receive_android_handle( m_androidConnections[index] );
++				if ( handleFd < 0 )
++					return false;
++
++				wlr_dmabuf_attributes attributes = {};
++				attributes.width = 64;
++				attributes.height = 64;
++				attributes.format = DRM_FORMAT_ABGR8888;
++				attributes.modifier = DRM_FORMAT_MOD_INVALID;
++				attributes.n_planes = 1;
++				attributes.fd[0] = handleFd;
++				attributes.offset[0] = 0;
++				attributes.stride[0] = 64 * 4;
++
++				m_androidTextures[index] = vulkan_create_output_texture_from_dmabuf( &attributes );
++				close( handleFd );
++				if ( m_androidTextures[index] == nullptr )
++				{
++					headless_log.errorf( "failed to import Android output buffer %d", index );
++					return false;
++				}
++			}
++
++			m_androidOutput = true;
++			headless_log.infof( "Android AHardwareBuffer output imported: 2 x 64x64 RGBA" );
++			return true;
++		}
++
+@@ -91,0 +320,40 @@
++			if ( m_androidOutput )
++			{
++				int index = m_androidFrameCount & 1;
++				if ( m_androidSubmitted[index] )
++				{
++					if ( !wait_android_release( m_androidConnections[index], index ) )
++					{
++						headless_log.errorf( "Android output release fence wait failed for buffer %d", index );
++						return -1;
++					}
++					m_androidSubmitted[index] = false;
++				}
++
++				std::optional<uint64_t> oSequence = vulkan_composite(
++					const_cast<FrameInfo_t *>( pFrameInfo ), nullptr, false,
++					m_androidTextures[index], false );
++				if ( !oSequence )
++				{
++					headless_log.errorf( "Android output compositor submission failed" );
++					return -1;
++				}
++
++				vulkan_wait( *oSequence, true );
++				int acquireFenceFd = vulkan_export_signaled_fence();
++				if ( acquireFenceFd < 0 || !send_android_ack( m_androidConnections[index], acquireFenceFd ) )
++				{
++					headless_log.errorf( "Android output acquire fence handoff failed for buffer %d", index );
++					return -1;
++				}
++
++				m_androidSubmitted[index] = true;
++				m_androidFrameCount++;
++				if ( m_androidFrameCount <= 3 || ( m_androidFrameCount % 60 ) == 0 )
++				{
++					headless_log.infof( "android_ahb_composite_frame=%llu layers=%d async=%d",
++						(unsigned long long)m_androidFrameCount, pFrameInfo->layerCount, bAsync ? 1 : 0 );
++				}
++				return 0;
++			}
++
+@@ -116,0 +385,5 @@
++		bool m_androidOutput = false;
++		int m_androidConnections[2] = {-1, -1};
++		gamescope::OwningRc<CVulkanTexture> m_androidTextures[2];
++		bool m_androidSubmitted[2] = {false, false};
++		uint64_t m_androidFrameCount = 0;
+@@ -154,0 +428,6 @@
++			if ( !m_Connector.InitAndroidOutput() )
++			{
++				fprintf( stderr, "Failed to initialize Android AHardwareBuffer output\n" );
++				return false;
++			}
++
+@@ -301 +580 @@
+-}
+\ No newline at end of file
++}
+--- a/src/rendervulkan.cpp
++++ b/src/rendervulkan.cpp
+@@ -3614,0 +3615,11 @@
++
++gamescope::OwningRc<CVulkanTexture> vulkan_create_output_texture_from_dmabuf( struct wlr_dmabuf_attributes *pDMA )
++{
++	gamescope::OwningRc<CVulkanTexture> pTex = new CVulkanTexture();
++
++	CVulkanTexture::createFlags texCreateFlags;
++	texCreateFlags.bSampled = true;
++	texCreateFlags.bStorage = true;
++	texCreateFlags.bTransferSrc = true;
++	texCreateFlags.bLinear = true;
++	texCreateFlags.bOutputImage = true;
+@@ -3615,0 +3627,7 @@
++	if ( !pTex->BInit( pDMA->width, pDMA->height, 1u, pDMA->format,
++		texCreateFlags, pDMA ) )
++		return nullptr;
++
++	return pTex;
++}
++
+@@ -4294,0 +4313,49 @@
++int vulkan_export_signaled_fence()
++{
++	VkExportSemaphoreCreateInfo exportInfo = {
++		.sType = VK_STRUCTURE_TYPE_EXPORT_SEMAPHORE_CREATE_INFO,
++		.handleTypes = VK_EXTERNAL_SEMAPHORE_HANDLE_TYPE_SYNC_FD_BIT,
++	};
++	VkSemaphoreCreateInfo semaphoreInfo = {
++		.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO,
++		.pNext = &exportInfo,
++	};
++	VkSemaphore semaphore = VK_NULL_HANDLE;
++	VkResult result = g_device.vk.CreateSemaphore(
++		g_device.device(), &semaphoreInfo, nullptr, &semaphore);
++	if ( result != VK_SUCCESS )
++	{
++		vk_errorf( result, "vkCreateSemaphore for Android acquire fence failed" );
++		return -1;
++	}
++
++	VkSubmitInfo submitInfo = {
++		.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
++		.signalSemaphoreCount = 1,
++		.pSignalSemaphores = &semaphore,
++	};
++	result = g_device.vk.QueueSubmit( g_device.queue(), 1, &submitInfo, VK_NULL_HANDLE );
++	if ( result != VK_SUCCESS )
++	{
++		vk_errorf( result, "vkQueueSubmit for Android acquire fence failed" );
++		g_device.vk.DestroySemaphore( g_device.device(), semaphore, nullptr );
++		return -1;
++	}
++
++	VkSemaphoreGetFdInfoKHR fdInfo = {
++		.sType = VK_STRUCTURE_TYPE_SEMAPHORE_GET_FD_INFO_KHR,
++		.semaphore = semaphore,
++		.handleType = VK_EXTERNAL_SEMAPHORE_HANDLE_TYPE_SYNC_FD_BIT,
++	};
++	int fenceFd = -1;
++	result = g_device.vk.GetSemaphoreFdKHR( g_device.device(), &fdInfo, &fenceFd );
++	g_device.vk.DestroySemaphore( g_device.device(), semaphore, nullptr );
++	if ( result != VK_SUCCESS )
++	{
++		vk_errorf( result, "vkGetSemaphoreFdKHR for Android acquire fence failed" );
++		return -1;
++	}
++
++	return fenceFd;
++}
++
+--- a/src/rendervulkan.hpp
++++ b/src/rendervulkan.hpp
+@@ -407,0 +408 @@
++gamescope::OwningRc<CVulkanTexture> vulkan_create_output_texture_from_dmabuf( struct wlr_dmabuf_attributes *pDMA );
+@@ -412,0 +414 @@
++int vulkan_export_signaled_fence();

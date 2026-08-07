@@ -98,8 +98,8 @@ The target should not be considered proven until all of these work on one device
 - Does the client require additional Steam Deck environment/configuration outside Armada/PockNix?
 - Does native ARM64 Steam still depend on SysV semaphore behavior missing from some Android kernels?
 - Can the kit’s CEF environment shim be used unchanged inside the Holo rootfs?
-- Can the headless Gamescope seam present Steam’s actual frames continuously, not just the
-  current Wayland SHM control frames, and can it import the Android AHardwareBuffer pool?
+- Can the headless Gamescope seam sustain display-size Android AHardwareBuffer output for
+  Steam’s actual frames, not just the current five-frame 64x64 Wayland SHM control?
 - What input protocol is least invasive: Android HID injection, Wayland input, SDL, or a custom socket?
 - Can a rooted Android app give a Linux userspace enough GPU/DMABUF/Surface access without booting a separate kernel?
 - For rootless mode, can an app-owned `Surface`/`ANativeWindow` replace the current privileged/low-level presentation path without a copy bottleneck?
