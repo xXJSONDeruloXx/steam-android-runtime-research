@@ -21,6 +21,7 @@ The useful results are split across several projects:
 - The attached [Termux:X11 kit assessment](docs/02-termux-x11-kit-assessment.md) is a useful simpler bring-up path for normal ARM64 Steam desktop mode, but its own README explicitly excludes Gamescope and Steam Deck Big Picture.
 - [Current ARM64 Steam research](docs/05-current-arm64-steam-research.md) records the live Valve endpoints, Holo's ARM64 package/rootfs channel, and the current Armada/PockNix session implementations.
 - [Android/Linux/gamescope roadmap](docs/06-android-linux-gamescope-roadmap.md) turns the evidence into a rooted MVP and a staged rootless target.
+- [Nova rooted bridge lab](docs/07-nova-rooted-bridge-smoke-test.md) records the first real Android-app Surface/HardwareBuffer and rooted chroot smoke test.
 
 ## Recommended direction
 
@@ -46,6 +47,7 @@ the gamescope frames on its own surface.
 - [Open questions and next experiments](docs/04-open-questions.md)
 - [Current ARM64 Steam research](docs/05-current-arm64-steam-research.md)
 - [Android/Linux/gamescope roadmap](docs/06-android-linux-gamescope-roadmap.md)
+- [Nova rooted bridge smoke test](docs/07-nova-rooted-bridge-smoke-test.md)
 - [Retroid Pocket Nova flashing kit](tools/retroid-pocket-nova/README.md)
 
 ## Evidence standard
