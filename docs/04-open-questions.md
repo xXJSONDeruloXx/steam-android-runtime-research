@@ -72,9 +72,9 @@ Once Steam renders in the Linux/gamescope session:
   proves the two-buffer version of this contract.
 - Carry the proven acquire/release-fence queue into the real Wayland/gamescope session.
 - The stock Holo gamescope control reaches the KGSL Turnip Adreno device, then fails at
-  `VK_EXT_physical_device_drm`. The explicit headless experiment now crosses that seam and
-  starts Wayland/Xwayland; the next step is to replace its discarded presentation with the
-  persistent AHardwareBuffer output integration.
+  `VK_EXT_physical_device_drm`. The explicit headless experiment now crosses that seam,
+  accepts a real Wayland SHM surface, and completes Vulkan compositor submissions; the next
+  step is to replace its internal output image with the persistent AHardwareBuffer integration.
 - Forward Android controller and touch events into the gamescope/Wayland session.
 - Keep gamescope alive independently of short-lived test children.
 - Test Steam suspend/resume and clean shutdown.
@@ -98,7 +98,8 @@ The target should not be considered proven until all of these work on one device
 - Does the client require additional Steam Deck environment/configuration outside Armada/PockNix?
 - Does native ARM64 Steam still depend on SysV semaphore behavior missing from some Android kernels?
 - Can the kit’s CEF environment shim be used unchanged inside the Holo rootfs?
-- Can Gamescope’s Android backend present Steam’s actual frames continuously, not just `vkcube` frames?
+- Can the headless Gamescope seam present Steam’s actual frames continuously, not just the
+  current Wayland SHM control frames, and can it import the Android AHardwareBuffer pool?
 - What input protocol is least invasive: Android HID injection, Wayland input, SDL, or a custom socket?
 - Can a rooted Android app give a Linux userspace enough GPU/DMABUF/Surface access without booting a separate kernel?
 - For rootless mode, can an app-owned `Surface`/`ANativeWindow` replace the current privileged/low-level presentation path without a copy bottleneck?

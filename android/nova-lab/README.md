@@ -89,7 +89,9 @@ android/nova-lab/deploy-ahb-bridge-test.sh
 android/nova-lab/deploy-ahb-double-buffer-test.sh
 android/nova-lab/deploy-gamescope-control.sh
 GAMESCOPE_SOURCE=/path/to/gamescope android/nova-lab/build-gamescope-headless.sh
+android/nova-lab/build-wayland-shm-control.sh
 android/nova-lab/deploy-gamescope-headless-test.sh
+android/nova-lab/deploy-gamescope-headless-composite-test.sh
 ```
 
 `deploy-holo-probe.sh` returns the Vulkan probe status but always pulls its report,
@@ -122,22 +124,32 @@ package closure is already installed. The report is saved as
 ## Headless gamescope seam
 
 The next experiment builds a disposable ARM64 gamescope checkout with
-`patches/gamescope-headless-no-drm-identity.patch`, then launches the explicit
-non-session headless backend inside the same Holo rootfs. It proves that gamescope
-can initialize Turnip and start its Wayland/Xwayland compositor without
-`VK_EXT_physical_device_drm`; it does not yet export a compositor frame to
-Android.
+`patches/gamescope-headless-no-drm-identity.patch` and
+`patches/gamescope-headless-composite.patch`, then launches the explicit non-session
+headless backend inside the same Holo rootfs. It proves that gamescope can initialize
+Turnip and synchronously composite a real Wayland surface without
+`VK_EXT_physical_device_drm`.
 
 Build and run it with:
 
 ```sh
 GAMESCOPE_SOURCE=/path/to/gamescope \
   android/nova-lab/build-gamescope-headless.sh
+android/nova-lab/build-wayland-shm-control.sh
 INSTALL_HOLO_GAMESCOPE=0 \
-  android/nova-lab/deploy-gamescope-headless-test.sh
+  android/nova-lab/deploy-gamescope-headless-composite-test.sh
 ```
 
 The deploy test stages only disposable copies below
 `/data/local/tmp/nova-holo-rootfs/opt/nova-kgsl-driver` and saves
-`build/device-gamescope-headless-report.txt`. The build script uses an ARM64
-Debian Docker container and does not modify the original gamescope checkout.
+`build/device-gamescope-headless-composite-report.txt`. The control client is a
+small ARM64 Wayland `wl_shm` program; it exists because the Holo Turnip ICD exposes
+no `VK_KHR_surface`/Wayland/XCB surface extension for `vkcube`. The no-client
+`deploy-gamescope-headless-test.sh` remains useful for startup-only checks. The
+build scripts use ARM64 Debian Docker containers and do not modify the original
+gamescope checkout.
+
+The accepted Nova run produced 298 Wayland SHM frames and 298 synchronous
+`headless_composite_frame` submissions. The output is still held in Gamescope's
+three exportable Vulkan images; the next step is importing the existing Android
+AHardwareBuffer pool at this connector seam.

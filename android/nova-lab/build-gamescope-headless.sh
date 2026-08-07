@@ -4,7 +4,10 @@ set -euo pipefail
 
 SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 BUILD_DIR="$SCRIPT_DIR/build"
-PATCH_FILE="$SCRIPT_DIR/patches/gamescope-headless-no-drm-identity.patch"
+PATCH_FILES=(
+    "$SCRIPT_DIR/patches/gamescope-headless-no-drm-identity.patch"
+    "$SCRIPT_DIR/patches/gamescope-headless-composite.patch"
+)
 SOURCE_DIR="${GAMESCOPE_SOURCE:-}"
 WORKTREE="${GAMESCOPE_HEADLESS_SOURCE:-$BUILD_DIR/gamescope-headless-source}"
 OUT_DIR="${GAMESCOPE_HEADLESS_BUILD:-$BUILD_DIR/gamescope-headless-build}"
@@ -20,12 +23,14 @@ if [ ! -d "$WORKTREE/.git" ]; then
 fi
 
 git -C "$WORKTREE" submodule update --init --recursive
-if git -C "$WORKTREE" apply --unidiff-zero --check "$PATCH_FILE" 2>/dev/null; then
-    git -C "$WORKTREE" apply --unidiff-zero "$PATCH_FILE"
-elif ! git -C "$WORKTREE" apply --unidiff-zero --reverse --check "$PATCH_FILE" 2>/dev/null; then
-    echo "gamescope source is not compatible with $PATCH_FILE" >&2
-    exit 1
-fi
+for PATCH_FILE in "${PATCH_FILES[@]}"; do
+    if git -C "$WORKTREE" apply --unidiff-zero --check "$PATCH_FILE" 2>/dev/null; then
+        git -C "$WORKTREE" apply --unidiff-zero "$PATCH_FILE"
+    elif ! git -C "$WORKTREE" apply --unidiff-zero --reverse --check "$PATCH_FILE" 2>/dev/null; then
+        echo "gamescope source is not compatible with $PATCH_FILE" >&2
+        exit 1
+    fi
+done
 
 mkdir -p "$OUT_DIR"
 docker run --rm --platform linux/arm64 \

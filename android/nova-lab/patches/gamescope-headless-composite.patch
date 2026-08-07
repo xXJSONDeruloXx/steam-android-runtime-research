@@ -1,0 +1,30 @@
+diff --git a/src/Backends/HeadlessBackend.cpp b/src/Backends/HeadlessBackend.cpp
+index 8e45400..7af628c 100644
+--- a/src/Backends/HeadlessBackend.cpp
++++ b/src/Backends/HeadlessBackend.cpp
+@@ -10,0 +11,2 @@ namespace gamescope
++    static LogScope headless_log( "headless" );
++
+@@ -90 +92,21 @@ namespace gamescope
+-            return 0;
++			static uint64_t s_ulCompositeFrames = 0;
++
++			std::optional<uint64_t> oSequence = vulkan_composite(
++				const_cast<FrameInfo_t *>( pFrameInfo ), nullptr, false );
++			if ( !oSequence )
++			{
++				headless_log.errorf( "headless compositor submission failed" );
++				return -1;
++			}
++
++			// The first seam is deliberately synchronous. This gives the next
++			// Android-buffer iteration a completed Vulkan image and a clear
++			// lifetime boundary before adding external queue ownership.
++			vulkan_wait( *oSequence, true );
++			s_ulCompositeFrames++;
++			if ( s_ulCompositeFrames <= 3 || ( s_ulCompositeFrames % 60 ) == 0 )
++			{
++				headless_log.infof( "headless_composite_frame=%llu layers=%d async=%d",
++					(unsigned long long)s_ulCompositeFrames, pFrameInfo->layerCount, bAsync ? 1 : 0 );
++			}
++			return 0;
