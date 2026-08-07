@@ -93,7 +93,21 @@ android/nova-lab/build-wayland-shm-control.sh
 android/nova-lab/deploy-gamescope-headless-test.sh
 android/nova-lab/deploy-gamescope-headless-composite-test.sh
 android/nova-lab/deploy-gamescope-headless-ahb-test.sh
+android/nova-lab/fetch-steam-arm64-seed.sh --all
+NOVA_STEAM_UID=1000 NOVA_STEAM_GID=1000 android/nova-lab/deploy-steam-arm64-seed.sh
+android/nova-lab/build-posix-sync-probe.sh
+android/nova-lab/deploy-posix-sync-probe.sh
+android/nova-lab/build-sysv-sem-shim.sh
+android/nova-lab/build-ffmpeg-avutil-compat.sh
+android/nova-lab/build-sdl3-compat.sh
 ```
+
+The Steam seed and SteamRT archives are downloaded only into the ignored
+`build/steam-arm64/` directory. `deploy-steam-arm64-seed.sh` can write a
+reproducible `UID:GID` marker so the bounded client runs with `setpriv` under a
+non-root user. The seed/bootstrap and current ABI boundary are documented in
+`docs/14-nova-steam-arm64-seed-and-startup.md`; the current checkpoint reaches
+the native update UI but not login or Gamepad UI.
 
 `deploy-holo-probe.sh` returns the Vulkan probe status but always pulls its report,
 including expected failures. Set `VULKAN_LOADER_DEBUG=all` for loader diagnostics or

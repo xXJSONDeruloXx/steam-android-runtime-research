@@ -1,0 +1,8 @@
+LIBAVUTIL_60 {
+    global:
+        av_malloc_tracked;
+        av_mallocz_tracked;
+        av_register_malloc;
+    local:
+        *;
+};

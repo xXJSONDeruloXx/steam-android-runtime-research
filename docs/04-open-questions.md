@@ -94,16 +94,17 @@ The target should not be considered proven until all of these work on one device
 
 ## Open technical questions
 
-- Does the ARM64 Steam client reach login under the attached kit’s normal X11 path, and does `-gamepadui` work there?
+- Does the ARM64 Steam client reach login under the attached kit’s normal X11 path, and does `-gamepadui` work there? The Nova rootfs now launches the native process and reaches its update UI, but has not yet produced the installed manifest or Gamepad UI.
 - Does the client require additional Steam Deck environment/configuration outside Armada/PockNix?
-- Does native ARM64 Steam still depend on SysV semaphore behavior missing from some Android kernels?
+- Does native ARM64 Steam still depend on SysV semaphore behavior missing from some Android kernels? Confirmed for this Nova kernel: the direct probe returns `ENOSYS`; a disposable POSIX-backed adapter lets Steam pass that startup path.
 - Can the kit’s CEF environment shim be used unchanged inside the Holo rootfs?
 - Partially answered: can the headless Gamescope seam sustain display-size Android
   AHardwareBuffer output for Steam’s actual frames? The Nova connector now completes both a
   30-frame 960x540 `wl_shm` run and a 30-frame 960x540 animated ARM64 X11 client run through
   Xwayland, with 30 acquire-fence handoffs, 30 SurfaceControl completions, and 29 release-fence
-  returns. Steam’s actual Xwayland workload and `steamwebhelper` remain untested; the current
-  Xwayland path also falls back from glamor to software because GBM Wayland interfaces are absent.
+  returns. Steam’s actual Xwayland workload now reaches its update UI through this path, but
+  `steamwebhelper` and a persistent Steam frame remain untested; the current Xwayland path also
+  falls back from glamor to software because GBM Wayland interfaces are absent. See [doc 14](14-nova-steam-arm64-seed-and-startup.md).
 - What input protocol is least invasive: Android HID injection, Wayland input, SDL, or a custom socket?
 - Can a rooted Android app give a Linux userspace enough GPU/DMABUF/Surface access without booting a separate kernel?
 - For rootless mode, can an app-owned `Surface`/`ANativeWindow` replace the current privileged/low-level presentation path without a copy bottleneck?
@@ -113,8 +114,10 @@ The target should not be considered proven until all of these work on one device
 
 ## Current recommendation
 
-Do not build a large custom Android UI yet. First obtain a screenshot and logs of native ARM64 Steam's
-actual Gamepad UI either from a supported Armada/PockNix device or, if that hardware is unavailable,
-from the attached Termux:X11 kit. Then make the rooted Android app a supervisor + Linux session + display
-bridge. Rootless work should begin only after those three contracts pass independently: Steam UI,
-gamescope session, and Android presentation.
+Do not build a large custom Android UI yet. First complete the offline client
+bootstrap and obtain a screenshot and logs of native ARM64 Steam's actual
+Gamepad UI either from a supported Armada/PockNix device or, if that hardware
+is unavailable, from the attached Termux:X11 kit. Then make the rooted Android
+app a supervisor + Linux session + display bridge. Rootless work should begin
+only after those three contracts pass independently: Steam UI, gamescope
+session, and Android presentation.

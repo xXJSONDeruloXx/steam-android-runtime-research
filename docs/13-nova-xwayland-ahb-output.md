@@ -95,8 +95,10 @@ glamor cannot use GBM Wayland interfaces in this headless Holo rootfs, so the
 server falls back to software rendering. This is a known performance and
 compatibility constraint, not a failure of the buffer handoff.
 
-The actual native ARM64 Steam client and `steamwebhelper` have not yet been
-launched through this path. The next gate is to stage the native Steam client
-seed from the documented Valve/SteamRT ARM64 sources, launch its real
-Xwayland workload under the same Gamescope control, and capture login or
-Gamepad UI evidence before optimizing asynchronous fencing or adding input.
+The actual native ARM64 Steam process has now been launched through this path;
+the loader, System V semaphore, and X11 authorization boundaries are recorded
+in [doc 14](14-nova-steam-arm64-seed-and-startup.md). It reaches Steam's update
+UI, but the rootfs has no default route/DNS and therefore no verified
+`.installed` manifest. No login/Gamepad UI frame has been produced yet. The
+next gate is an offline bootstrap validated by Steam itself, followed by
+`steamwebhelper` and persistent Android output evidence.
