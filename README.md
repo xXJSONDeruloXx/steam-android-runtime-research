@@ -6,7 +6,11 @@ Status: evidence gathered through 2026-08-07.
 
 ## Bottom line
 
-No previous attempt has reached the actual Steam login/library or Big Picture/Gamepad UI on Android.
+No previous Android-app attempt has reached the actual Steam login/library or Big Picture/Gamepad UI
+on Android. The current ARM handheld Linux ecosystem has moved further than the earlier experiments:
+Valve's ARM64 client and Steam runtime are directly reachable from live distribution endpoints, and
+Armada/PockNix document complete native-ARM64 Steam + gamescope sessions on supported Snapdragon
+handhelds.
 
 The useful results are split across several projects:
 
@@ -15,18 +19,24 @@ The useful results are split across several projects:
 - [steam-droid](https://github.com/xXJSONDeruloXx/steam-droid) proves Valve's ARM64 Android Steam libraries can be loaded, but the public package is not sufficient to boot the native service.
 - [steam-arm-findings](https://github.com/xXJSONDeruloXx/steam-arm-findings) proves the strongest display path so far: ARM64 Linux userspace, KGSL Turnip, AHardwareBuffer exchange, SurfaceControl presentation, and a gamescope Android backend capable of presenting 600 compositor frames.
 - The attached [Termux:X11 kit assessment](docs/02-termux-x11-kit-assessment.md) is a useful simpler bring-up path for normal ARM64 Steam desktop mode, but its own README explicitly excludes Gamescope and Steam Deck Big Picture.
+- [Current ARM64 Steam research](docs/05-current-arm64-steam-research.md) records the live Valve endpoints, Holo's ARM64 package/rootfs channel, and the current Armada/PockNix session implementations.
+- [Android/Linux/gamescope roadmap](docs/06-android-linux-gamescope-roadmap.md) turns the evidence into a rooted MVP and a staged rootless target.
 
 ## Recommended direction
 
 Use a layered strategy:
 
 1. Reuse GameNative's Android-side lifecycle, storage, download, controller, and session-management patterns.
-2. Prove native ARM64 Steam first through the attached Termux:X11 kit. This is the fastest way to answer whether the ARM64 Steam client and `steamwebhelper` can render on the target device.
-3. Move the proven client into the rooted Holo/chroot + gamescope path from `steam-arm-findings`.
-4. Use the Android AHardwareBuffer/SurfaceControl backend for the final fullscreen presentation path.
-5. Keep FEX as an experimental no-root backend, not the first product-critical runtime.
+2. Use Armada/PockNix as the current reference for the Steam Deck-like session: native ARM64 Steam, gamescope, Xwayland, input, audio, Proton, and FEX for x86 games.
+3. Use Holo's aarch64 Arch package channel for compatible glibc/graphics/gamescope dependencies, while fetching the native Steam client from Valve's client/runtime channels.
+4. Prove the first Android product path with root: app-owned Linux userspace plus the existing AHardwareBuffer/SurfaceControl gamescope direction from `steam-arm-findings`.
+5. Keep the Termux:X11 kit as a desktop-mode diagnostic/fallback path, and keep FEX as the game-compatibility layer—not the native Steam-client runtime.
+6. Remove root only after the session, graphics, input, and lifecycle contracts are independently passing.
 
-The first meaningful acceptance test is: native ARM64 Steam reaches its login or Gamepad UI screen, with hardware `steamwebhelper` rendering and controller input, on one known Snapdragon/Adreno device.
+The first meaningful acceptance test is: native ARM64 Steam reaches its login or Gamepad UI screen,
+with hardware `steamwebhelper` rendering and controller input, on one known Snapdragon/Adreno device.
+The first Android-app acceptance test adds: the Android app starts/stops that Linux session and presents
+the gamescope frames on its own surface.
 
 ## Documents
 
@@ -34,6 +44,8 @@ The first meaningful acceptance test is: native ARM64 Steam reaches its login or
 - [Termux:X11 kit assessment](docs/02-termux-x11-kit-assessment.md)
 - [Architecture decision matrix](docs/03-decision-matrix.md)
 - [Open questions and next experiments](docs/04-open-questions.md)
+- [Current ARM64 Steam research](docs/05-current-arm64-steam-research.md)
+- [Android/Linux/gamescope roadmap](docs/06-android-linux-gamescope-roadmap.md)
 
 ## Evidence standard
 
