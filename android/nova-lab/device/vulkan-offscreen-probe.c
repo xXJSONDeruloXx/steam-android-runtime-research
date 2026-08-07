@@ -1,6 +1,10 @@
+#define _POSIX_C_SOURCE 200809L
+
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
 
 #include <vulkan/vulkan.h>
 
@@ -28,6 +32,39 @@ find_memory_type(VkPhysicalDevice physical_device,
     }
     fprintf(stderr, "no compatible memory type\n");
     exit(1);
+}
+
+static int
+has_device_extension(VkPhysicalDevice physical_device, const char *name)
+{
+    uint32_t extension_count = 0;
+    if (vkEnumerateDeviceExtensionProperties(
+            physical_device, NULL, &extension_count, NULL) != VK_SUCCESS) {
+        return 0;
+    }
+
+    VkExtensionProperties *extensions =
+        calloc(extension_count, sizeof(*extensions));
+    if (extensions == NULL) {
+        fprintf(stderr, "device extension allocation failed\n");
+        exit(1);
+    }
+    VkResult result = vkEnumerateDeviceExtensionProperties(
+        physical_device, NULL, &extension_count, extensions);
+    if (result != VK_SUCCESS) {
+        free(extensions);
+        return 0;
+    }
+
+    int found = 0;
+    for (uint32_t index = 0; index < extension_count; ++index) {
+        if (strcmp(extensions[index].extensionName, name) == 0) {
+            found = 1;
+            break;
+        }
+    }
+    free(extensions);
+    return found;
 }
 
 int
@@ -88,6 +125,24 @@ main(void)
         return 1;
     }
 
+    const char *external_memory_extensions[] = {
+        VK_KHR_EXTERNAL_MEMORY_EXTENSION_NAME,
+        VK_KHR_EXTERNAL_MEMORY_FD_EXTENSION_NAME,
+        VK_EXT_EXTERNAL_MEMORY_DMA_BUF_EXTENSION_NAME,
+    };
+    for (uint32_t index = 0;
+         index < sizeof(external_memory_extensions) /
+                     sizeof(external_memory_extensions[0]);
+         ++index) {
+        if (!has_device_extension(physical_device,
+                                  external_memory_extensions[index])) {
+            printf("extension.%s=missing\n", external_memory_extensions[index]);
+            fprintf(stderr, "required external-memory extension is missing\n");
+            return 1;
+        }
+        printf("extension.%s=present\n", external_memory_extensions[index]);
+    }
+
     float priority = 1.0f;
     VkDeviceQueueCreateInfo queue_info = {
         .sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO,
@@ -99,6 +154,9 @@ main(void)
         .sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO,
         .queueCreateInfoCount = 1,
         .pQueueCreateInfos = &queue_info,
+        .enabledExtensionCount = sizeof(external_memory_extensions) /
+                                  sizeof(external_memory_extensions[0]),
+        .ppEnabledExtensionNames = external_memory_extensions,
     };
     VkDevice device;
     check_vk(vkCreateDevice(physical_device, &device_info, NULL, &device),
@@ -127,8 +185,13 @@ main(void)
              "vkAllocateCommandBuffers");
 
     const VkDeviceSize buffer_size = 4096;
+    VkExternalMemoryBufferCreateInfo external_buffer_info = {
+        .sType = VK_STRUCTURE_TYPE_EXTERNAL_MEMORY_BUFFER_CREATE_INFO,
+        .handleTypes = VK_EXTERNAL_MEMORY_HANDLE_TYPE_DMA_BUF_BIT_EXT,
+    };
     VkBufferCreateInfo buffer_info = {
         .sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
+        .pNext = &external_buffer_info,
         .size = buffer_size,
         .usage = VK_BUFFER_USAGE_TRANSFER_DST_BIT,
         .sharingMode = VK_SHARING_MODE_EXCLUSIVE,
@@ -138,8 +201,13 @@ main(void)
 
     VkMemoryRequirements memory_requirements;
     vkGetBufferMemoryRequirements(device, buffer, &memory_requirements);
+    VkExportMemoryAllocateInfo export_info = {
+        .sType = VK_STRUCTURE_TYPE_EXPORT_MEMORY_ALLOCATE_INFO,
+        .handleTypes = VK_EXTERNAL_MEMORY_HANDLE_TYPE_DMA_BUF_BIT_EXT,
+    };
     VkMemoryAllocateInfo allocation_info = {
         .sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
+        .pNext = &export_info,
         .allocationSize = memory_requirements.size,
         .memoryTypeIndex = find_memory_type(
             physical_device,
@@ -150,6 +218,34 @@ main(void)
     check_vk(vkAllocateMemory(device, &allocation_info, NULL, &memory),
              "vkAllocateMemory");
     check_vk(vkBindBufferMemory(device, buffer, memory, 0), "vkBindBufferMemory");
+
+    PFN_vkGetMemoryFdKHR get_memory_fd =
+        (PFN_vkGetMemoryFdKHR)vkGetDeviceProcAddr(device, "vkGetMemoryFdKHR");
+    if (get_memory_fd == NULL) {
+        fprintf(stderr, "vkGetMemoryFdKHR is unavailable\n");
+        return 1;
+    }
+    VkMemoryGetFdInfoKHR fd_info = {
+        .sType = VK_STRUCTURE_TYPE_MEMORY_GET_FD_INFO_KHR,
+        .memory = memory,
+        .handleType = VK_EXTERNAL_MEMORY_HANDLE_TYPE_DMA_BUF_BIT_EXT,
+    };
+    int dma_buf_fd = -1;
+    check_vk(get_memory_fd(device, &fd_info, &dma_buf_fd), "vkGetMemoryFdKHR");
+    if (dma_buf_fd < 0) {
+        fprintf(stderr, "vkGetMemoryFdKHR returned an invalid fd\n");
+        return 1;
+    }
+    printf("dma_buf_fd=%d\n", dma_buf_fd);
+    char fd_path[64];
+    char fd_target[256];
+    snprintf(fd_path, sizeof(fd_path), "/proc/self/fd/%d", dma_buf_fd);
+    ssize_t target_length = readlink(fd_path, fd_target, sizeof(fd_target) - 1);
+    if (target_length >= 0) {
+        fd_target[target_length] = '\0';
+        printf("dma_buf_fd_target=%s\n", fd_target);
+    }
+    printf("dma_buf_export=pass\n");
 
     VkCommandBufferBeginInfo begin_info = {
         .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
@@ -185,7 +281,50 @@ main(void)
     }
     printf("offscreen_fill=pass\n");
 
+    VkBuffer imported_buffer;
+    check_vk(vkCreateBuffer(device, &buffer_info, NULL, &imported_buffer),
+             "vkCreateBuffer(imported)");
+    VkMemoryRequirements imported_requirements;
+    vkGetBufferMemoryRequirements(device, imported_buffer,
+                                  &imported_requirements);
+    VkImportMemoryFdInfoKHR import_info = {
+        .sType = VK_STRUCTURE_TYPE_IMPORT_MEMORY_FD_INFO_KHR,
+        .handleType = VK_EXTERNAL_MEMORY_HANDLE_TYPE_DMA_BUF_BIT_EXT,
+        .fd = dma_buf_fd,
+    };
+    VkMemoryAllocateInfo import_allocation_info = {
+        .sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
+        .pNext = &import_info,
+        .allocationSize = imported_requirements.size,
+        .memoryTypeIndex = find_memory_type(
+            physical_device,
+            imported_requirements.memoryTypeBits,
+            VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT),
+    };
+    VkDeviceMemory imported_memory;
+    check_vk(vkAllocateMemory(device, &import_allocation_info, NULL,
+                              &imported_memory),
+             "vkAllocateMemory(imported)");
+    dma_buf_fd = -1;
+    check_vk(vkBindBufferMemory(device, imported_buffer, imported_memory, 0),
+             "vkBindBufferMemory(imported)");
+
+    uint32_t *imported_mapped = NULL;
+    check_vk(vkMapMemory(device, imported_memory, 0, sizeof(*imported_mapped),
+                         0, (void **)&imported_mapped),
+             "vkMapMemory(imported)");
+    uint32_t imported_value = *imported_mapped;
+    vkUnmapMemory(device, imported_memory);
+    printf("imported_fill_value=0x%08x\n", imported_value);
+    if (imported_value != 0xc0dec0deu) {
+        fprintf(stderr, "imported dma-buf did not retain the fill value\n");
+        return 1;
+    }
+    printf("dma_buf_import=pass\n");
+
     vkDestroyFence(device, fence, NULL);
+    vkFreeMemory(device, imported_memory, NULL);
+    vkDestroyBuffer(device, imported_buffer, NULL);
     vkFreeMemory(device, memory, NULL);
     vkDestroyBuffer(device, buffer, NULL);
     vkFreeCommandBuffers(device, command_pool, 1, &command_buffer);

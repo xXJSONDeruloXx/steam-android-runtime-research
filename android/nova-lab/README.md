@@ -61,5 +61,7 @@ android/nova-lab/deploy-holo-probe.sh
 `deploy-holo-probe.sh` returns the Vulkan probe status but always pulls its report,
 including expected failures. Set `VULKAN_LOADER_DEBUG=all` for loader diagnostics or
 `VULKAN_NODEVICE_SELECT=1` to disable Mesa's implicit device-select layer. The result
-and the current KGSL/DRM boundary are documented in
-`docs/08-nova-holo-glibc-vulkan-probe.md`.
+and the current KGSL/DRM and DMA-BUF boundaries are documented in
+`docs/08-nova-holo-glibc-vulkan-probe.md`. The offscreen probe now exports a Vulkan
+allocation as `VK_EXT_external_memory_dma_buf`, imports that FD into a second Vulkan
+allocation, and verifies the GPU-written value survives the handoff.

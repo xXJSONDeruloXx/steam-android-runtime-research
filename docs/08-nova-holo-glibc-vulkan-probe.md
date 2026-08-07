@@ -35,9 +35,9 @@ mounts before returning. It does not modify Android partitions or the boot image
 
 ## Userspace result
 
-The base Holo rootfs was extended with a 17-package closure resolved from its current
+The base Holo rootfs was extended with an 18-package closure resolved from its current
 core/extra aarch64 databases. The closure includes `vulkan-tools`,
-`vulkan-freedreno`, `vulkan-icd-loader`, `vulkan-mesa-device-select`, `libdrm`, and
+`vulkan-freedreno`, `vulkan-headers`, `vulkan-icd-loader`, `vulkan-mesa-device-select`, `libdrm`, and
 their X11/Wayland/SPIR-V dependencies. Package files are downloaded with SHA-256
 verification by `fetch-holo-packages.py`, then installed by pacman inside the chroot.
 
@@ -140,6 +140,24 @@ offscreen_probe_status=0
 probe_status=0
 ```
 
+The same probe then exercised the external-memory handoff needed by a compositor:
+
+```text
+extension.VK_KHR_external_memory=present
+extension.VK_KHR_external_memory_fd=present
+extension.VK_EXT_external_memory_dma_buf=present
+dma_buf_fd_target=/dmabuf:
+dma_buf_export=pass
+imported_fill_value=0xc0dec0de
+dma_buf_import=pass
+```
+
+The first Vulkan allocation was exported through `vkGetMemoryFdKHR` as a real Linux
+DMA-BUF FD. A second Vulkan buffer imported that FD and read back the value written by
+the GPU before export. This is still a same-process/same-driver interoperability test;
+it does not yet prove Android `AHardwareBuffer` import, SurfaceControl, fences, or
+cross-process lifetime management.
+
 This is the first proof in this repository that a native Linux Vulkan command reaches
 the Nova's Adreno GPU from the Android-rooted Holo namespace. It is still an offscreen
 transfer-style boundary test; no display surface, Wayland compositor,
@@ -154,7 +172,10 @@ AHardwareBuffer import/export, or Steam process is involved.
   bridge Nova's KGSL GPU into a Linux Vulkan physical device.
 - A KGSL-enabled Turnip build does bridge the GPU and can submit a verified command
   buffer from native ARM64 glibc.
-- The next work can target a headless compositor path and Android buffer exchange;
+- Vulkan external-memory extensions can export/import a real DMA-BUF while retaining
+  GPU-written contents, so the Linux-side buffer handoff contract is now proven.
+- The next work can target an Android-side DMA-BUF/AHardwareBuffer bridge and a headless
+  compositor path;
   gamescope, Wayland, Steam, and FEX remain unproven.
 
 It does **not** yet prove that Steam can run, that a KGSL-enabled driver can initialize,
@@ -164,8 +185,9 @@ iteration and can be removed after the driver experiment.
 
 ## Next experiment
 
-The next acceptance target is a minimal headless Vulkan compositor or gamescope build
-that can render into an exportable buffer. Then test the AHardwareBuffer/SurfaceControl
-exchange on the Android app's existing Surface. Only after that boundary is stable
-should the lab add SteamRT3C, the native ARM64 Steam client, input, and lifecycle
-management.
+The next acceptance target is a tiny Android-side native bridge that receives the
+Linux-produced DMA-BUF and imports or aliases it into the app's existing
+`AHardwareBuffer`/Surface path. In parallel, build a minimal headless Vulkan compositor
+that renders a recognizable frame into the exportable allocation. Only after that
+boundary is stable should the lab add SteamRT3C, the native ARM64 Steam client, input,
+and lifecycle management.
