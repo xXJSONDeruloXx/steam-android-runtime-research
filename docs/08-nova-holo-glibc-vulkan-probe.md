@@ -202,8 +202,8 @@ iteration and can be removed after the driver experiment.
 ## Next experiment
 
 The Linux-rendered RGBA image-memory handoff and one-frame `ASurfaceControl`
-presentation now pass through the Android companion probe. The next acceptance target
-is a reusable double-buffered loop with an explicit Linux-to-Android acquire fence,
-Android release-fence handling, and frame pacing. That should become the smallest
-compositor-shaped loop before adding Wayland, gamescope, SteamRT3C, the native ARM64
-Steam client, input, and lifecycle management.
+presentation now pass through the Android companion probe with a transferred Linux
+acquire fence. The next acceptance target is a reusable double-buffered loop that
+exports the fence before waiting, handles the Android release fence, and paces frames.
+That should become the smallest compositor-shaped loop before adding Wayland,
+gamescope, SteamRT3C, the native ARM64 Steam client, input, and lifecycle management.

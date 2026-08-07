@@ -15,6 +15,7 @@
 #include <sys/socket.h>
 #include <sys/time.h>
 #include <sys/un.h>
+#include <sys/uio.h>
 #include <time.h>
 #include <unistd.h>
 
@@ -131,10 +132,13 @@ surface_transaction_complete(void *context, ASurfaceTransactionStats *stats)
 
 static int
 present_surface_buffer(JNIEnv *env, jobject surface_object,
-                        AHardwareBuffer *buffer, char *report, size_t capacity,
-                        size_t *used)
+                        AHardwareBuffer *buffer, int acquire_fence_fd,
+                        char *report, size_t capacity, size_t *used)
 {
     if (surface_object == NULL) {
+        if (acquire_fence_fd >= 0) {
+            close(acquire_fence_fd);
+        }
         append_line(report, capacity, used, "surface_control=missing_surface\n");
         return 0;
     }
@@ -142,6 +146,9 @@ present_surface_buffer(JNIEnv *env, jobject surface_object,
     append_line(report, capacity, used, "native_window=%s\n",
                 window != NULL ? "created" : "missing");
     if (window == NULL) {
+        if (acquire_fence_fd >= 0) {
+            close(acquire_fence_fd);
+        }
         return 0;
     }
     ASurfaceControl *surface_control = ASurfaceControl_createFromWindow(
@@ -150,11 +157,17 @@ present_surface_buffer(JNIEnv *env, jobject surface_object,
     append_line(report, capacity, used, "surface_control=%s\n",
                 surface_control != NULL ? "created" : "missing");
     if (surface_control == NULL) {
+        if (acquire_fence_fd >= 0) {
+            close(acquire_fence_fd);
+        }
         return 0;
     }
 
     struct surface_completion *completion = calloc(1, sizeof(*completion));
     if (completion == NULL) {
+        if (acquire_fence_fd >= 0) {
+            close(acquire_fence_fd);
+        }
         ASurfaceControl_release(surface_control);
         append_line(report, capacity, used,
                     "surface_transaction=allocation_failed\n");
@@ -166,6 +179,9 @@ present_surface_buffer(JNIEnv *env, jobject surface_object,
 
     ASurfaceTransaction *transaction = ASurfaceTransaction_create();
     if (transaction == NULL) {
+        if (acquire_fence_fd >= 0) {
+            close(acquire_fence_fd);
+        }
         append_line(report, capacity, used,
                     "surface_transaction=creation_failed\n");
         pthread_cond_destroy(&completion->condition);
@@ -174,7 +190,9 @@ present_surface_buffer(JNIEnv *env, jobject surface_object,
         ASurfaceControl_release(surface_control);
         return 0;
     }
-    ASurfaceTransaction_setBuffer(transaction, surface_control, buffer, -1);
+    ASurfaceTransaction_setBuffer(transaction, surface_control, buffer,
+                                  acquire_fence_fd);
+    append_line(report, capacity, used, "surface_acquire_fence=passed\n");
     ARect source = {0, 0, 64, 64};
     ARect destination = {0, 0, 960, 540};
     ASurfaceTransaction_setGeometry(transaction, surface_control, &source,
@@ -329,10 +347,39 @@ Java_com_xjsonderulo_steamandroid_novalab_MainActivity_nativeRunDmaBufBridge(
     }
     setsockopt(client, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout));
     char acknowledgement[128] = {0};
+    char acknowledgement_control[CMSG_SPACE(sizeof(int))] = {0};
+    struct iovec acknowledgement_vector = {
+        .iov_base = acknowledgement,
+        .iov_len = sizeof(acknowledgement) - 1,
+    };
+    struct msghdr acknowledgement_message = {
+        .msg_iov = &acknowledgement_vector,
+        .msg_iovlen = 1,
+        .msg_control = acknowledgement_control,
+        .msg_controllen = sizeof(acknowledgement_control),
+    };
     ssize_t acknowledgement_bytes =
-        read(client, acknowledgement, sizeof(acknowledgement) - 1);
+        recvmsg(client, &acknowledgement_message, 0);
     if (acknowledgement_bytes > 0) {
         acknowledgement[acknowledgement_bytes] = '\0';
+    }
+    int acquire_fence_fd = -1;
+    for (struct cmsghdr *header = CMSG_FIRSTHDR(&acknowledgement_message);
+         header != NULL; header = CMSG_NXTHDR(&acknowledgement_message, header)) {
+        if (header->cmsg_level != SOL_SOCKET ||
+            header->cmsg_type != SCM_RIGHTS) {
+            continue;
+        }
+        size_t byte_count = header->cmsg_len - CMSG_LEN(0);
+        size_t descriptor_count = byte_count / sizeof(int);
+        int *descriptors = (int *)CMSG_DATA(header);
+        for (size_t index = 0; index < descriptor_count; ++index) {
+            if (acquire_fence_fd < 0) {
+                acquire_fence_fd = descriptors[index];
+            } else {
+                close(descriptors[index]);
+            }
+        }
     }
     append_line(report, sizeof(report), &used,
                 "bridge_ack_bytes=%zd ack=%s", acknowledgement_bytes,
@@ -343,7 +390,14 @@ Java_com_xjsonderulo_steamandroid_novalab_MainActivity_nativeRunDmaBufBridge(
                          strstr(acknowledgement, "linux_gpu_write=pass") != NULL;
     int linux_image_pass = acknowledgement_bytes > 0 &&
                            strstr(acknowledgement, "linux_image_write=pass") != NULL;
-    if (linux_import_pass && linux_gpu_pass && linux_image_pass) {
+    int linux_acquire_fence_pass = acknowledgement_bytes > 0 &&
+                                   strstr(acknowledgement,
+                                          "linux_acquire_fence=pass") != NULL;
+    append_line(report, sizeof(report), &used,
+                "linux_acquire_fence_fd=%s\n",
+                acquire_fence_fd >= 0 ? "received" : "missing");
+    if (linux_import_pass && linux_gpu_pass && linux_image_pass &&
+        linux_acquire_fence_pass && acquire_fence_fd >= 0) {
         void *after_linux = NULL;
         status = AHardwareBuffer_lock(buffer, AHARDWAREBUFFER_USAGE_CPU_READ_OFTEN,
                                       -1, NULL, &after_linux);
@@ -369,8 +423,10 @@ Java_com_xjsonderulo_steamandroid_novalab_MainActivity_nativeRunDmaBufBridge(
                         "ahb_linux_image_write=pass\n");
             append_line(report, sizeof(report), &used,
                         "ahb_linux_bridge=pass\n");
-            if (present_surface_buffer(env, surface_object, buffer, report,
+            if (present_surface_buffer(env, surface_object, buffer,
+                                        acquire_fence_fd, report,
                                         sizeof(report), &used)) {
+                acquire_fence_fd = -1;
                 append_line(report, sizeof(report), &used,
                             "ahb_surface=pass\n");
                 success = 1;
@@ -385,10 +441,18 @@ Java_com_xjsonderulo_steamandroid_novalab_MainActivity_nativeRunDmaBufBridge(
                         "ahb_linux_bridge=fail\n");
         }
     } else if (linux_import_pass && linux_gpu_pass) {
+        if (acquire_fence_fd >= 0) {
+            close(acquire_fence_fd);
+            acquire_fence_fd = -1;
+        }
         append_line(report, sizeof(report), &used,
                     "ahb_linux_image_write=missing\n");
         append_line(report, sizeof(report), &used, "ahb_linux_bridge=fail\n");
     } else {
+        if (acquire_fence_fd >= 0) {
+            close(acquire_fence_fd);
+            acquire_fence_fd = -1;
+        }
         append_line(report, sizeof(report), &used, "ahb_linux_bridge=fail\n");
     }
 
@@ -398,6 +462,9 @@ done:
     }
     if (server >= 0) {
         close(server);
+    }
+    if (acquire_fence_fd >= 0) {
+        close(acquire_fence_fd);
     }
     unlink(socket_path);
     if (buffer != NULL) {

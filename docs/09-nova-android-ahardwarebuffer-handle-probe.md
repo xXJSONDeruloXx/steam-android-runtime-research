@@ -94,6 +94,8 @@ into Mesa KGSL Turnip:
 
 ```text
 mount./data/local/tmp/nova-holo-rootfs/run/nova-lab-app=pass
+extension.VK_KHR_external_fence=present
+extension.VK_KHR_external_fence_fd=present
 ahb_bridge_recv_bytes=148 ahb_bridge_fd_count=2
 ahb_bridge_vkCreateBuffer_status=0
 ahb_bridge_image_fd_dup_0_status=0
@@ -115,6 +117,8 @@ ahb_bridge_image_allocate_linear_status=0
 ahb_bridge_image_bind_linear_status=0
 ahb_bridge_image_gpu_linear_status=0
 ahb_bridge_linux_image_submit=pass tiling=linear
+ahb_bridge_image_fence_status=0 fd=9
+ahb_bridge_ack_status=0
 ahb_bridge=pass
 ahb_bridge_status=0
 ```
@@ -126,20 +130,33 @@ advertise `VK_EXT_image_drm_format_modifier`. The Android process accepted the b
 only after reading the final RGBA pixel from the original AHardwareBuffer:
 
 ```text
-bridge_ack_bytes=62 ack=linux_import=pass linux_gpu_write=pass linux_image_write=pass
+bridge_ack_bytes=87 ack=linux_import=pass linux_gpu_write=pass linux_image_write=pass linux_acquire_fence=pass
+linux_acquire_fence_fd=received
 ahardwarebuffer.lock_after_linux_status=0
 ahardwarebuffer.pixel_after_linux=4080c0ff
 ahb_linux_image_write=pass
 ahb_linux_bridge=pass
 native_window=created
 surface_control=created
+surface_acquire_fence=passed
 surface_transaction_apply=pass
 surface_transaction_complete=pass latch_time=6863880341130 present_fence=1 previous_release_fence=0
 ahb_surface=pass
 ahb_bridge=pass
 ```
 
-The acceptance criterion is the Android readback, not a successful Vulkan submit by
+The current fence-enabled run reports the full acknowledgement as:
+
+```text
+bridge_ack_bytes=87 ack=linux_import=pass linux_gpu_write=pass linux_image_write=pass linux_acquire_fence=pass
+linux_acquire_fence_fd=received
+surface_acquire_fence=passed
+surface_transaction_complete=pass latch_time=7389202948482 present_fence=1 previous_release_fence=0
+ahb_surface=pass
+ahb_bridge=pass
+```
+
+The acceptance criterion is the Android readback and SurfaceControl completion, not a successful Vulkan submit by
 itself. During iteration, an optimal-only clear completed with `VK_SUCCESS` but Android
 read `11111111`; running a linear clear afterward produced the expected `4080c0ff`.
 The checked-in probe therefore keeps both attempts and leaves modifier/layout
@@ -163,18 +180,20 @@ negotiation as an explicit follow-up.
   compositor work.
 - The Android app can submit that Linux-rendered AHardwareBuffer through an
   `ASurfaceControl` child of its `SurfaceView`; the transaction completes with a
-  present fence, and the captured screen shows the blue RGBA clear.
+  Linux-provided acquire fence and a present fence, and the captured screen shows the
+  blue RGBA clear.
 
 ## What remains unproven
 
-The one-frame image path now reaches SurfaceControl, but no Linux-produced acquire
-fence crosses the socket boundary: the bridge uses `-1` only because it waits for the
-Holo Vulkan fence before applying the transaction. The test has no reusable
-double-buffer queue, Android release-fence handoff, frame pacing, or compositor
-ownership loop. It also does not prove Wayland, gamescope, Xwayland, SteamRT3C, the
-native Steam client, input, audio, or lifecycle recovery.
+The one-frame image path now reaches SurfaceControl with a Linux-produced acquire
+fence. This first synchronization version exports the fence after Holo has already
+waited on it, so it proves the FD transport and SurfaceControl ownership contract but
+not asynchronous overlap. It still has no reusable double-buffer queue, Android
+release-fence handoff back to Linux, frame pacing, or compositor ownership loop. It
+also does not prove Wayland, gamescope, Xwayland, SteamRT3C, the native Steam client,
+input, audio, or lifecycle recovery.
 
-The next implementation should export a Linux acquire fence, retain buffers until the
-SurfaceControl completion/release fence, and run a double-buffered frame loop. That is
-the smallest compositor-shaped step before a headless compositor or gamescope
-integration.
+The next implementation should export the Linux acquire fence before waiting, retain
+buffers until the SurfaceControl completion/release fence, and run a double-buffered
+frame loop. That is the smallest compositor-shaped step before a headless compositor
+or gamescope integration.

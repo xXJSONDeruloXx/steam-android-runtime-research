@@ -155,9 +155,38 @@ receive_dma_buf_fds(const char *socket_path, int *file_descriptors,
 }
 
 static int
+send_acknowledgement(int connection_fd, const char *acknowledgement,
+                     int acquire_fence_fd)
+{
+    struct iovec vector = {
+        .iov_base = (void *)acknowledgement,
+        .iov_len = strlen(acknowledgement),
+    };
+    char control[CMSG_SPACE(sizeof(int))] = {0};
+    struct msghdr message = {
+        .msg_iov = &vector,
+        .msg_iovlen = 1,
+    };
+    if (acquire_fence_fd >= 0) {
+        message.msg_control = control;
+        message.msg_controllen = sizeof(control);
+        struct cmsghdr *header = CMSG_FIRSTHDR(&message);
+        header->cmsg_level = SOL_SOCKET;
+        header->cmsg_type = SCM_RIGHTS;
+        header->cmsg_len = CMSG_LEN(sizeof(int));
+        memcpy(CMSG_DATA(header), &acquire_fence_fd, sizeof(acquire_fence_fd));
+    }
+    ssize_t sent = sendmsg(connection_fd, &message, 0);
+    if (acquire_fence_fd >= 0) {
+        close(acquire_fence_fd);
+    }
+    return sent == (ssize_t)strlen(acknowledgement) ? 0 : -1;
+}
+
+static int
 render_android_hardware_image(VkPhysicalDevice physical_device, VkDevice device,
                                VkQueue queue, uint32_t queue_family,
-                               int dma_buf_fd)
+                               int dma_buf_fd, int *acquire_fence_fd)
 {
     const VkImageTiling tilings[] = {
         VK_IMAGE_TILING_OPTIMAL,
@@ -168,6 +197,9 @@ render_android_hardware_image(VkPhysicalDevice physical_device, VkDevice device,
         "linear",
     };
     int image_pass = 0;
+    *acquire_fence_fd = -1;
+    PFN_vkGetFenceFdKHR get_fence_fd =
+        (PFN_vkGetFenceFdKHR)vkGetDeviceProcAddr(device, "vkGetFenceFdKHR");
 
     /* The Android driver does not expose a DRM modifier query; let Android's
      * readback decide which basic layout matches this shared allocation. */
@@ -319,8 +351,13 @@ render_android_hardware_image(VkPhysicalDevice physical_device, VkDevice device,
 
         VkFence fence = VK_NULL_HANDLE;
         if (result == VK_SUCCESS) {
+            VkExportFenceCreateInfo export_fence_info = {
+                .sType = VK_STRUCTURE_TYPE_EXPORT_FENCE_CREATE_INFO,
+                .handleTypes = VK_EXTERNAL_FENCE_HANDLE_TYPE_SYNC_FD_BIT,
+            };
             VkFenceCreateInfo fence_info = {
                 .sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO,
+                .pNext = get_fence_fd != NULL ? &export_fence_info : NULL,
             };
             result = vkCreateFence(device, &fence_info, NULL, &fence);
             if (result == VK_SUCCESS) {
@@ -339,6 +376,25 @@ render_android_hardware_image(VkPhysicalDevice physical_device, VkDevice device,
         printf("ahb_bridge_image_gpu_%s_status=%d\n",
                tiling_names[tiling_index], result);
         image_pass = result == VK_SUCCESS;
+        if (image_pass && tiling_index + 1 == sizeof(tilings) /
+                                          sizeof(tilings[0])) {
+            if (get_fence_fd != NULL) {
+                VkFenceGetFdInfoKHR fence_fd_info = {
+                    .sType = VK_STRUCTURE_TYPE_FENCE_GET_FD_INFO_KHR,
+                    .fence = fence,
+                    .handleType = VK_EXTERNAL_FENCE_HANDLE_TYPE_SYNC_FD_BIT,
+                };
+                VkResult fence_result = get_fence_fd(
+                    device, &fence_fd_info, acquire_fence_fd);
+                printf("ahb_bridge_image_fence_status=%d fd=%d\n",
+                       fence_result, *acquire_fence_fd);
+                if (fence_result != VK_SUCCESS) {
+                    *acquire_fence_fd = -1;
+                }
+            } else {
+                printf("ahb_bridge_image_fence_status=unavailable\n");
+            }
+        }
 
         if (fence != VK_NULL_HANDLE) {
             vkDestroyFence(device, fence, NULL);
@@ -555,27 +611,36 @@ probe_android_hardware_buffer(VkPhysicalDevice physical_device, VkDevice device,
     }
     vkDestroyBuffer(device, buffer, NULL);
     int linux_image_pass = 0;
+    int linux_acquire_fence_fd = -1;
     if (pass && linux_gpu_pass && android_image_fd >= 0) {
         linux_image_pass = render_android_hardware_image(
-            physical_device, device, queue, queue_family, android_image_fd);
+            physical_device, device, queue, queue_family, android_image_fd,
+            &linux_acquire_fence_fd);
         android_image_fd = -1;
     }
     if (android_image_fd >= 0) {
         close(android_image_fd);
     }
+    int bridge_pass = pass && linux_gpu_pass && linux_image_pass &&
+                      linux_acquire_fence_fd >= 0;
     {
         const char *acknowledgement =
-            pass && linux_gpu_pass && linux_image_pass
-                ? "linux_import=pass linux_gpu_write=pass linux_image_write=pass\n"
+            bridge_pass
+                ? "linux_import=pass linux_gpu_write=pass linux_image_write=pass linux_acquire_fence=pass\n"
                 : pass && linux_gpu_pass
-                      ? "linux_import=pass linux_gpu_write=pass linux_image_write=fail\n"
-                      : "linux_import=fail linux_gpu_write=fail linux_image_write=fail\n";
-        send(connection_fd, acknowledgement, strlen(acknowledgement), 0);
+                      ? "linux_import=pass linux_gpu_write=pass linux_image_write=fail linux_acquire_fence=fail\n"
+                      : "linux_import=fail linux_gpu_write=fail linux_image_write=fail linux_acquire_fence=fail\n";
+        int acknowledgement_status = send_acknowledgement(
+            connection_fd, acknowledgement, linux_acquire_fence_fd);
+        printf("ahb_bridge_ack_status=%d\n", acknowledgement_status);
+        linux_acquire_fence_fd = -1;
+        if (acknowledgement_status != 0) {
+            bridge_pass = 0;
+        }
     }
     close(connection_fd);
-    printf("ahb_bridge=%s\n",
-           pass && linux_gpu_pass && linux_image_pass ? "pass" : "fail");
-    return pass && linux_gpu_pass && linux_image_pass ? 0 : 1;
+    printf("ahb_bridge=%s\n", bridge_pass ? "pass" : "fail");
+    return bridge_pass ? 0 : 1;
 
 fail:
     if (buffer != VK_NULL_HANDLE) {
@@ -587,7 +652,7 @@ fail:
         }
     }
     if (connection_fd >= 0) {
-        send(connection_fd, "linux_import=fail\n", 18, 0);
+        send_acknowledgement(connection_fd, "linux_import=fail\n", -1);
         close(connection_fd);
     }
     return 1;
@@ -668,6 +733,25 @@ main(void)
         }
         printf("extension.%s=present\n", external_memory_extensions[index]);
     }
+    const char *external_fence_extensions[] = {
+        VK_KHR_EXTERNAL_FENCE_EXTENSION_NAME,
+        VK_KHR_EXTERNAL_FENCE_FD_EXTENSION_NAME,
+    };
+    for (uint32_t index = 0;
+         index < sizeof(external_fence_extensions) /
+                     sizeof(external_fence_extensions[0]);
+         ++index) {
+        printf("extension.%s=%s\n", external_fence_extensions[index],
+               has_device_extension(physical_device,
+                                    external_fence_extensions[index])
+                   ? "present"
+                   : "missing");
+    }
+    int external_fence_enabled =
+        has_device_extension(physical_device,
+                             VK_KHR_EXTERNAL_FENCE_EXTENSION_NAME) &&
+        has_device_extension(physical_device,
+                             VK_KHR_EXTERNAL_FENCE_FD_EXTENSION_NAME);
 
     float priority = 1.0f;
     VkDeviceQueueCreateInfo queue_info = {
@@ -676,13 +760,26 @@ main(void)
         .queueCount = 1,
         .pQueuePriorities = &priority,
     };
+    const char *device_extensions[5] = {
+        external_memory_extensions[0],
+        external_memory_extensions[1],
+        external_memory_extensions[2],
+    };
+    uint32_t device_extension_count =
+        sizeof(external_memory_extensions) /
+        sizeof(external_memory_extensions[0]);
+    if (external_fence_enabled) {
+        device_extensions[device_extension_count++] =
+            VK_KHR_EXTERNAL_FENCE_EXTENSION_NAME;
+        device_extensions[device_extension_count++] =
+            VK_KHR_EXTERNAL_FENCE_FD_EXTENSION_NAME;
+    }
     VkDeviceCreateInfo device_info = {
         .sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO,
         .queueCreateInfoCount = 1,
         .pQueueCreateInfos = &queue_info,
-        .enabledExtensionCount = sizeof(external_memory_extensions) /
-                                  sizeof(external_memory_extensions[0]),
-        .ppEnabledExtensionNames = external_memory_extensions,
+        .enabledExtensionCount = device_extension_count,
+        .ppEnabledExtensionNames = device_extensions,
     };
     VkDevice device;
     check_vk(vkCreateDevice(physical_device, &device_info, NULL, &device),

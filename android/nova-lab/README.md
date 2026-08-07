@@ -61,9 +61,9 @@ The important output is:
 - `device-screenshot.png`: a visual check that the SurfaceView received posted frames.
 
 The fixed ARM64 glibc rootfs, KGSL Turnip probe, Android image-memory handoff, and
-one-frame SurfaceControl presentation are now automated by the scripts below. The next
-acceptance target is a reusable double-buffered loop with explicit acquire/release
-synchronization.
+one-frame SurfaceControl presentation with a transferred acquire fence are now
+automated by the scripts below. The next acceptance target is a reusable
+double-buffered loop with asynchronous acquire/release synchronization.
 
 ## Holo ARM64 glibc probe
 
