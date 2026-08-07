@@ -46,6 +46,8 @@ Run the full cross-process check with:
 android/nova-lab/deploy-ahb-bridge-test.sh
 # Optional asynchronous acquire-fence ordering probe:
 VULKAN_AHB_ASYNC_FENCE=1 android/nova-lab/deploy-ahb-bridge-test.sh
+# Two persistent buffers with SurfaceControl release-fence backpressure:
+android/nova-lab/deploy-ahb-double-buffer-test.sh
 ```
 
 ## Evidence to collect
@@ -60,12 +62,14 @@ The important output is:
   write-back, SurfaceControl transaction, and fence result;
 - `device-ahb-bridge-screenshot.png`: a visual check that the Linux-rendered blue
   image reached the Android surface;
+- `device-ahb-double-buffer-logcat.txt` and `device-ahb-double-buffer-screenshot.png`:
+  the five-frame acquire/release-fence loop and its clean visual result;
 - `device-screenshot.png`: a visual check that the SurfaceView received posted frames.
 
 The fixed ARM64 glibc rootfs, KGSL Turnip probe, Android image-memory handoff, and
-one-frame SurfaceControl presentation with a transferred acquire fence are now
-automated by the scripts below. The next acceptance target is a reusable
-double-buffered loop with asynchronous acquire/release synchronization.
+one-frame SurfaceControl presentation with a transferred acquire fence and a
+five-frame two-buffer acquire/release loop are now automated by the scripts below. The
+next target is a compositor-facing render target and minimal Wayland/gamescope session.
 
 ## Holo ARM64 glibc probe
 
@@ -81,6 +85,7 @@ android/nova-lab/build-vulkan-offscreen-probe.sh
 android/nova-lab/deploy-vulkan-offscreen-probe.sh
 android/nova-lab/deploy-holo-probe.sh
 android/nova-lab/deploy-ahb-bridge-test.sh
+android/nova-lab/deploy-ahb-double-buffer-test.sh
 ```
 
 `deploy-holo-probe.sh` returns the Vulkan probe status but always pulls its report,
@@ -94,5 +99,6 @@ script extends that result across the Android/Holo process boundary and submits 
 verified buffer through SurfaceControl. With `VULKAN_AHB_ASYNC_FENCE=1`, it exports the
 final image's Linux acquire fence before waiting and lets SurfaceControl consume it;
 the current run observed the fence as unsignaled at Android handoff. It does not yet
-implement a reusable compositor queue, Android release-fence return, Wayland, or
-gamescope.
+implement a real compositor protocol, Wayland, or gamescope; the separate
+`deploy-ahb-double-buffer-test.sh` now proves the reusable two-buffer and release-fence
+queue contract.

@@ -5,6 +5,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <poll.h>
 #include <sys/socket.h>
 #include <sys/un.h>
 #include <sys/uio.h>
@@ -471,6 +472,528 @@ render_android_hardware_image(VkPhysicalDevice physical_device, VkDevice device,
         printf("ahb_bridge_linux_image_submit=fail\n");
     }
     return image_pass;
+}
+
+struct loop_image {
+    VkImage image;
+    VkDeviceMemory memory;
+    VkCommandPool command_pool;
+    VkCommandBuffer command_buffer;
+    VkFence fence;
+    VkImageLayout layout;
+    int pending;
+};
+
+static void
+destroy_loop_image(VkDevice device, struct loop_image *loop)
+{
+    if (loop->command_buffer != VK_NULL_HANDLE) {
+        vkFreeCommandBuffers(device, loop->command_pool, 1,
+                              &loop->command_buffer);
+    }
+    if (loop->fence != VK_NULL_HANDLE) {
+        vkDestroyFence(device, loop->fence, NULL);
+    }
+    if (loop->command_pool != VK_NULL_HANDLE) {
+        vkDestroyCommandPool(device, loop->command_pool, NULL);
+    }
+    if (loop->image != VK_NULL_HANDLE) {
+        vkDestroyImage(device, loop->image, NULL);
+    }
+    if (loop->memory != VK_NULL_HANDLE) {
+        vkFreeMemory(device, loop->memory, NULL);
+    }
+    memset(loop, 0, sizeof(*loop));
+}
+
+static void
+recycle_loop_image(VkDevice device, struct loop_image *loop)
+{
+    if (!loop->pending) {
+        return;
+    }
+    if (loop->command_buffer != VK_NULL_HANDLE) {
+        vkFreeCommandBuffers(device, loop->command_pool, 1,
+                              &loop->command_buffer);
+        loop->command_buffer = VK_NULL_HANDLE;
+    }
+    if (loop->fence != VK_NULL_HANDLE) {
+        vkDestroyFence(device, loop->fence, NULL);
+        loop->fence = VK_NULL_HANDLE;
+    }
+    loop->pending = 0;
+    printf("ahb_double_buffer_recycle=pass\n");
+}
+
+static int
+initialize_loop_image(VkPhysicalDevice physical_device, VkDevice device,
+                      int *file_descriptors, int descriptor_count,
+                      int buffer_index, struct loop_image *loop)
+{
+    if (descriptor_count <= 0) {
+        return -1;
+    }
+    int image_fd = dup(file_descriptors[0]);
+    printf("ahb_double_buffer_image_fd_dup_%d_status=%d\n", buffer_index,
+           image_fd >= 0 ? 0 : -1);
+    if (image_fd < 0) {
+        return -1;
+    }
+
+    VkExternalMemoryBufferCreateInfo buffer_external_info = {
+        .sType = VK_STRUCTURE_TYPE_EXTERNAL_MEMORY_BUFFER_CREATE_INFO,
+        .handleTypes = VK_EXTERNAL_MEMORY_HANDLE_TYPE_DMA_BUF_BIT_EXT,
+    };
+    VkBufferCreateInfo buffer_info = {
+        .sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
+        .pNext = &buffer_external_info,
+        .size = 64 * 64 * 4,
+        .usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT |
+                 VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+        .sharingMode = VK_SHARING_MODE_EXCLUSIVE,
+    };
+    VkBuffer buffer = VK_NULL_HANDLE;
+    VkResult result = vkCreateBuffer(device, &buffer_info, NULL, &buffer);
+    printf("ahb_double_buffer_vkCreateBuffer_%d_status=%d\n", buffer_index,
+           result);
+    if (result != VK_SUCCESS) {
+        close(image_fd);
+        return -1;
+    }
+    VkMemoryRequirements buffer_requirements;
+    vkGetBufferMemoryRequirements(device, buffer, &buffer_requirements);
+    VkImportMemoryFdInfoKHR buffer_import = {
+        .sType = VK_STRUCTURE_TYPE_IMPORT_MEMORY_FD_INFO_KHR,
+        .handleType = VK_EXTERNAL_MEMORY_HANDLE_TYPE_DMA_BUF_BIT_EXT,
+        .fd = file_descriptors[0],
+    };
+    VkMemoryAllocateInfo buffer_allocation = {
+        .sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
+        .pNext = &buffer_import,
+        .allocationSize = buffer_requirements.size,
+        .memoryTypeIndex = find_memory_type(
+            physical_device, buffer_requirements.memoryTypeBits, 0),
+    };
+    VkDeviceMemory buffer_memory = VK_NULL_HANDLE;
+    result = vkAllocateMemory(device, &buffer_allocation, NULL,
+                               &buffer_memory);
+    printf("ahb_double_buffer_allocate_marker_%d_status=%d\n", buffer_index,
+           result);
+    if (result != VK_SUCCESS) {
+        close(image_fd);
+        vkDestroyBuffer(device, buffer, NULL);
+        return -1;
+    }
+    file_descriptors[0] = -1;
+    result = vkBindBufferMemory(device, buffer, buffer_memory, 0);
+    if (result == VK_SUCCESS) {
+        uint32_t *mapped = NULL;
+        result = vkMapMemory(device, buffer_memory, 0, sizeof(*mapped), 0,
+                             (void **)&mapped);
+        if (result == VK_SUCCESS && mapped != NULL) {
+            printf("ahb_double_buffer_marker_%d=0x%08x\n", buffer_index,
+                   *mapped);
+            result = *mapped == 0x4e4f5641u + (uint32_t)buffer_index
+                         ? VK_SUCCESS
+                         : VK_ERROR_INITIALIZATION_FAILED;
+            vkUnmapMemory(device, buffer_memory);
+        } else if (result == VK_SUCCESS) {
+            result = VK_ERROR_MEMORY_MAP_FAILED;
+        }
+    }
+    vkFreeMemory(device, buffer_memory, NULL);
+    vkDestroyBuffer(device, buffer, NULL);
+    printf("ahb_double_buffer_marker_check_%d=%s\n", buffer_index,
+           result == VK_SUCCESS ? "pass" : "fail");
+    if (result != VK_SUCCESS) {
+        close(image_fd);
+        return -1;
+    }
+
+    VkExternalMemoryImageCreateInfo image_external_info = {
+        .sType = VK_STRUCTURE_TYPE_EXTERNAL_MEMORY_IMAGE_CREATE_INFO,
+        .handleTypes = VK_EXTERNAL_MEMORY_HANDLE_TYPE_DMA_BUF_BIT_EXT,
+    };
+    VkImageCreateInfo image_info = {
+        .sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
+        .pNext = &image_external_info,
+        .imageType = VK_IMAGE_TYPE_2D,
+        .format = VK_FORMAT_R8G8B8A8_UNORM,
+        .extent = {64, 64, 1},
+        .mipLevels = 1,
+        .arrayLayers = 1,
+        .samples = VK_SAMPLE_COUNT_1_BIT,
+        .tiling = VK_IMAGE_TILING_LINEAR,
+        .usage = VK_IMAGE_USAGE_TRANSFER_DST_BIT |
+                 VK_IMAGE_USAGE_SAMPLED_BIT |
+                 VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
+        .sharingMode = VK_SHARING_MODE_EXCLUSIVE,
+        .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
+    };
+    result = vkCreateImage(device, &image_info, NULL, &loop->image);
+    printf("ahb_double_buffer_vkCreateImage_%d_status=%d\n", buffer_index,
+           result);
+    if (result != VK_SUCCESS) {
+        close(image_fd);
+        return -1;
+    }
+    VkMemoryRequirements image_requirements;
+    vkGetImageMemoryRequirements(device, loop->image, &image_requirements);
+    VkImportMemoryFdInfoKHR image_import = {
+        .sType = VK_STRUCTURE_TYPE_IMPORT_MEMORY_FD_INFO_KHR,
+        .handleType = VK_EXTERNAL_MEMORY_HANDLE_TYPE_DMA_BUF_BIT_EXT,
+        .fd = image_fd,
+    };
+    VkMemoryAllocateInfo image_allocation = {
+        .sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
+        .pNext = &image_import,
+        .allocationSize = image_requirements.size,
+        .memoryTypeIndex = find_memory_type(
+            physical_device, image_requirements.memoryTypeBits, 0),
+    };
+    result = vkAllocateMemory(device, &image_allocation, NULL, &loop->memory);
+    printf("ahb_double_buffer_image_allocate_%d_status=%d\n", buffer_index,
+           result);
+    if (result != VK_SUCCESS) {
+        close(image_fd);
+        destroy_loop_image(device, loop);
+        return -1;
+    }
+    image_fd = -1;
+    result = vkBindImageMemory(device, loop->image, loop->memory, 0);
+    printf("ahb_double_buffer_image_bind_%d_status=%d\n", buffer_index,
+           result);
+    if (result != VK_SUCCESS) {
+        destroy_loop_image(device, loop);
+        return -1;
+    }
+
+    loop->layout = VK_IMAGE_LAYOUT_UNDEFINED;
+    return 0;
+}
+
+static int
+create_loop_image_command_pool(VkDevice device, uint32_t queue_family,
+                               struct loop_image *loop)
+{
+    VkCommandPoolCreateInfo pool_info = {
+        .sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
+        .flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT,
+        .queueFamilyIndex = queue_family,
+    };
+    VkResult result = vkCreateCommandPool(device, &pool_info, NULL,
+                                          &loop->command_pool);
+    return result == VK_SUCCESS ? 0 : -1;
+}
+
+static int
+submit_loop_image(VkPhysicalDevice physical_device, VkDevice device,
+                  VkQueue queue, PFN_vkGetFenceFdKHR get_fence_fd,
+                  struct loop_image *loop, int frame, int *acquire_fence_fd)
+{
+    (void)physical_device;
+    *acquire_fence_fd = -1;
+    if (loop->pending || loop->command_pool == VK_NULL_HANDLE) {
+        return -1;
+    }
+    VkCommandBufferAllocateInfo command_info = {
+        .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
+        .commandPool = loop->command_pool,
+        .level = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
+        .commandBufferCount = 1,
+    };
+    VkCommandBuffer command_buffer = VK_NULL_HANDLE;
+    VkResult result = vkAllocateCommandBuffers(device, &command_info,
+                                                &command_buffer);
+    if (result == VK_SUCCESS) {
+        VkCommandBufferBeginInfo begin_info = {
+            .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
+            .flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT,
+        };
+        result = vkBeginCommandBuffer(command_buffer, &begin_info);
+        VkImageSubresourceRange range = {
+            .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+            .baseMipLevel = 0,
+            .levelCount = 1,
+            .baseArrayLayer = 0,
+            .layerCount = 1,
+        };
+        if (result == VK_SUCCESS) {
+            VkImageMemoryBarrier to_transfer = {
+                .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
+                .srcAccessMask = 0,
+                .dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT,
+                .oldLayout = loop->layout,
+                .newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+                .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+                .image = loop->image,
+                .subresourceRange = range,
+            };
+            vkCmdPipelineBarrier(command_buffer,
+                                 VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+                                 VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0, NULL,
+                                 0, NULL, 1, &to_transfer);
+            VkClearColorValue clear_color = {
+                .float32 = {
+                    frame & 1 ? 32.0f / 255.0f : 64.0f / 255.0f,
+                    frame & 1 ? 160.0f / 255.0f : 128.0f / 255.0f,
+                    frame & 1 ? 224.0f / 255.0f : 192.0f / 255.0f,
+                    1.0f,
+                },
+            };
+            vkCmdClearColorImage(command_buffer, loop->image,
+                                 VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                                 &clear_color, 1, &range);
+            VkImageMemoryBarrier to_general = {
+                .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
+                .srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT,
+                .dstAccessMask = 0,
+                .oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                .newLayout = VK_IMAGE_LAYOUT_GENERAL,
+                .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+                .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+                .image = loop->image,
+                .subresourceRange = range,
+            };
+            vkCmdPipelineBarrier(command_buffer,
+                                 VK_PIPELINE_STAGE_TRANSFER_BIT,
+                                 VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, 0,
+                                 0, NULL, 0, NULL, 1, &to_general);
+            result = vkEndCommandBuffer(command_buffer);
+        }
+    }
+    VkFence fence = VK_NULL_HANDLE;
+    if (result == VK_SUCCESS) {
+        VkExportFenceCreateInfo export_fence_info = {
+            .sType = VK_STRUCTURE_TYPE_EXPORT_FENCE_CREATE_INFO,
+            .handleTypes = VK_EXTERNAL_FENCE_HANDLE_TYPE_SYNC_FD_BIT,
+        };
+        VkFenceCreateInfo fence_info = {
+            .sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO,
+            .pNext = get_fence_fd != NULL ? &export_fence_info : NULL,
+        };
+        result = vkCreateFence(device, &fence_info, NULL, &fence);
+        if (result == VK_SUCCESS) {
+            VkSubmitInfo submit_info = {
+                .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
+                .commandBufferCount = 1,
+                .pCommandBuffers = &command_buffer,
+            };
+            result = vkQueueSubmit(queue, 1, &submit_info, fence);
+        }
+    }
+    if (result == VK_SUCCESS && get_fence_fd != NULL) {
+        VkFenceGetFdInfoKHR fence_fd_info = {
+            .sType = VK_STRUCTURE_TYPE_FENCE_GET_FD_INFO_KHR,
+            .fence = fence,
+            .handleType = VK_EXTERNAL_FENCE_HANDLE_TYPE_SYNC_FD_BIT,
+        };
+        result = get_fence_fd(device, &fence_fd_info, acquire_fence_fd);
+        printf("ahb_double_buffer_frame_fence=%d fd=%d\n", result,
+               *acquire_fence_fd);
+    }
+    if (result != VK_SUCCESS || *acquire_fence_fd < 0) {
+        if (*acquire_fence_fd >= 0) {
+            close(*acquire_fence_fd);
+            *acquire_fence_fd = -1;
+        }
+        if (fence != VK_NULL_HANDLE) {
+            vkWaitForFences(device, 1, &fence, VK_TRUE, 5000000000ull);
+            vkDestroyFence(device, fence, NULL);
+        }
+        if (command_buffer != VK_NULL_HANDLE) {
+            vkFreeCommandBuffers(device, loop->command_pool, 1,
+                                  &command_buffer);
+        }
+        return -1;
+    }
+    loop->command_buffer = command_buffer;
+    loop->fence = fence;
+    loop->pending = 1;
+    loop->layout = VK_IMAGE_LAYOUT_GENERAL;
+    printf("ahb_double_buffer_frame_submit=%d\n", frame);
+    return 0;
+}
+
+static int
+receive_release_fence(int connection_fd, int expected_buffer)
+{
+    char message_text[128] = {0};
+    char control[CMSG_SPACE(sizeof(int) * 2)] = {0};
+    struct iovec vector = {
+        .iov_base = message_text,
+        .iov_len = sizeof(message_text) - 1,
+    };
+    struct msghdr message = {
+        .msg_iov = &vector,
+        .msg_iovlen = 1,
+        .msg_control = control,
+        .msg_controllen = sizeof(control),
+    };
+    ssize_t bytes = recvmsg(connection_fd, &message, 0);
+    int release_fence_fd = -1;
+    if (bytes > 0) {
+        message_text[bytes < (ssize_t)sizeof(message_text)
+                         ? bytes
+                         : sizeof(message_text) - 1] = '\0';
+    }
+    for (struct cmsghdr *header = CMSG_FIRSTHDR(&message); header != NULL;
+         header = CMSG_NXTHDR(&message, header)) {
+        if (header->cmsg_level != SOL_SOCKET ||
+            header->cmsg_type != SCM_RIGHTS) {
+            continue;
+        }
+        size_t byte_count = header->cmsg_len - CMSG_LEN(0);
+        size_t descriptor_count = byte_count / sizeof(int);
+        int *descriptors = (int *)CMSG_DATA(header);
+        for (size_t index = 0; index < descriptor_count; ++index) {
+            if (release_fence_fd < 0) {
+                release_fence_fd = descriptors[index];
+            } else {
+                close(descriptors[index]);
+            }
+        }
+    }
+    char expected_message[32];
+    snprintf(expected_message, sizeof(expected_message), "release_buffer=%d",
+             expected_buffer);
+    int expected = bytes > 0 && release_fence_fd >= 0 &&
+                   strstr(message_text, expected_message) != NULL;
+    printf("ahb_double_buffer_release_message buffer=%d bytes=%zd fd=%s\n",
+           expected_buffer, bytes,
+           release_fence_fd >= 0 ? "received" : "missing");
+    if (!expected) {
+        if (release_fence_fd >= 0) {
+            close(release_fence_fd);
+        }
+        return -1;
+    }
+    struct pollfd fence_poll = {
+        .fd = release_fence_fd,
+        .events = POLLIN,
+    };
+    int poll_status;
+    do {
+        poll_status = poll(&fence_poll, 1, 5000);
+    } while (poll_status < 0 && errno == EINTR);
+    close(release_fence_fd);
+    printf("ahb_double_buffer_release_wait buffer=%d status=%d\n",
+           expected_buffer, poll_status);
+    return poll_status > 0 && (fence_poll.revents & POLLNVAL) == 0 ? 0 : -1;
+}
+
+static int
+send_loop_frame(VkPhysicalDevice physical_device, VkDevice device, VkQueue queue,
+                PFN_vkGetFenceFdKHR get_fence_fd, int connection_fd,
+                struct loop_image *loop, int frame)
+{
+    int acquire_fence_fd = -1;
+    if (submit_loop_image(physical_device, device, queue, get_fence_fd, loop,
+                          frame, &acquire_fence_fd) != 0) {
+        return -1;
+    }
+    const char *acknowledgement =
+        "linux_import=pass linux_gpu_write=pass linux_image_write=pass linux_acquire_fence=pass linux_loop=pass\n";
+    int status = send_acknowledgement(connection_fd, acknowledgement,
+                                       acquire_fence_fd);
+    printf("ahb_double_buffer_ack_status=%d frame=%d\n", status, frame);
+    return status;
+}
+
+static int
+probe_android_hardware_buffer_loop(VkPhysicalDevice physical_device,
+                                   VkDevice device, VkQueue queue,
+                                   uint32_t queue_family,
+                                   const char *socket_path)
+{
+    printf("ahb_double_buffer.begin\n");
+    struct loop_image images[2] = {0};
+    int connections[2] = {-1, -1};
+    int success = 0;
+    char socket_paths[2][sizeof(((struct sockaddr_un *)0)->sun_path)] = {{0}};
+    PFN_vkGetFenceFdKHR get_fence_fd =
+        (PFN_vkGetFenceFdKHR)vkGetDeviceProcAddr(device, "vkGetFenceFdKHR");
+    if (get_fence_fd == NULL) {
+        printf("ahb_double_buffer_fence_export=missing\n");
+        goto done;
+    }
+
+    for (int index = 0; index < 2; ++index) {
+        int path_length = snprintf(socket_paths[index],
+                                   sizeof(socket_paths[index]), "%s.%d",
+                                   socket_path, index);
+        if (path_length < 0 || (size_t)path_length >= sizeof(socket_paths[index])) {
+            printf("ahb_double_buffer_socket_path=too_long\n");
+            goto done;
+        }
+        int file_descriptors[16] = {-1};
+        int descriptor_count = receive_dma_buf_fds(
+            socket_paths[index], file_descriptors,
+            sizeof(file_descriptors) / sizeof(file_descriptors[0]),
+            &connections[index]);
+        printf("ahb_double_buffer_recv_%d fd_count=%d\n", index,
+               descriptor_count);
+        if (descriptor_count <= 0 ||
+            initialize_loop_image(physical_device, device, file_descriptors,
+                                  descriptor_count, index, &images[index]) != 0 ||
+            create_loop_image_command_pool(device, queue_family,
+                                           &images[index]) != 0) {
+            for (int fd_index = 0; fd_index < descriptor_count; ++fd_index) {
+                if (file_descriptors[fd_index] >= 0) {
+                    close(file_descriptors[fd_index]);
+                }
+            }
+            goto done;
+        }
+        for (int fd_index = 0; fd_index < descriptor_count; ++fd_index) {
+            if (file_descriptors[fd_index] >= 0) {
+                close(file_descriptors[fd_index]);
+            }
+        }
+    }
+
+    if (send_loop_frame(physical_device, device, queue, get_fence_fd,
+                        connections[0], &images[0], 0) != 0 ||
+        send_loop_frame(physical_device, device, queue, get_fence_fd,
+                        connections[1], &images[1], 1) != 0) {
+        goto done;
+    }
+    for (int frame = 2; frame < 5; ++frame) {
+        int index = frame & 1;
+        if (receive_release_fence(connections[index], index) != 0) {
+            goto done;
+        }
+        recycle_loop_image(device, &images[index]);
+        if (send_loop_frame(physical_device, device, queue, get_fence_fd,
+                            connections[index], &images[index], frame) != 0) {
+            goto done;
+        }
+    }
+    /* Frame four replaces buffer one, so its completion carries the final
+     * release fence needed to prove both buffers can be recycled. */
+    if (receive_release_fence(connections[1], 1) != 0) {
+        goto done;
+    }
+    recycle_loop_image(device, &images[1]);
+    if (vkQueueWaitIdle(queue) != VK_SUCCESS) {
+        goto done;
+    }
+    success = 1;
+
+done:
+    if (vkQueueWaitIdle(queue) != VK_SUCCESS) {
+        success = 0;
+    }
+    for (int index = 0; index < 2; ++index) {
+        if (connections[index] >= 0) {
+            close(connections[index]);
+        }
+        destroy_loop_image(device, &images[index]);
+        unlink(socket_paths[index]);
+    }
+    printf("ahb_double_buffer=%s\n", success ? "pass" : "fail");
+    return success ? 0 : 1;
 }
 
 static int
@@ -1012,6 +1535,19 @@ main(void)
         getenv("NOVA_AHB_HANDLE_SOCKET");
     if (android_hardware_buffer_socket != NULL &&
         android_hardware_buffer_socket[0] != '\0') {
+        const char *double_buffer_value = getenv("NOVA_AHB_DOUBLE_BUFFER");
+        int double_buffer = double_buffer_value != NULL &&
+                            strcmp(double_buffer_value, "1") == 0;
+        if (double_buffer) {
+            int loop_status = probe_android_hardware_buffer_loop(
+                physical_device, device, queue, queue_family,
+                android_hardware_buffer_socket);
+            printf("ahb_double_buffer_status=%d\n", loop_status);
+            if (loop_status != 0) {
+                return 1;
+            }
+            goto vulkan_probe_cleanup;
+        }
         const char *async_fence_value = getenv("NOVA_AHB_ASYNC_FENCE");
         int async_fence = async_fence_value != NULL &&
                           strcmp(async_fence_value, "1") == 0;
@@ -1024,6 +1560,7 @@ main(void)
         }
     }
 
+vulkan_probe_cleanup:
     vkDestroyFence(device, fence, NULL);
     vkFreeMemory(device, imported_memory, NULL);
     vkDestroyBuffer(device, imported_buffer, NULL);

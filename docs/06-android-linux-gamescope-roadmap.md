@@ -79,7 +79,10 @@ gamescope-backed Steam Deck session.
 
 ### Rootless stage 2: app-owned compositor surface
 
-Replace the desktop display with an Android app-owned `Surface`/`ANativeWindow` or a proven equivalent.
+Replace the desktop display with an Android app-owned `Surface`/`ANativeWindow` or a proven equivalent. The
+Nova lab now has a five-frame two-buffer AHardwareBuffer/SurfaceControl queue with acquire/release-fence
+backpressure, so the remaining work here is integrating a real compositor producer rather than proving the
+basic buffer ownership contract.
 If the existing AHardwareBuffer/SurfaceControl path relies on privileged APIs, use a buffer-copy or
 producer/consumer path that the ordinary app sandbox permits. Measure frame latency, buffer reuse, release
 fences, rotation, and lifecycle loss before optimizing.

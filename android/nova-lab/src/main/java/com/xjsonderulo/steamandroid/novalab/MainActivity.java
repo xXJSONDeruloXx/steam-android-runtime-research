@@ -47,6 +47,8 @@ public final class MainActivity extends Activity implements SurfaceHolder.Callba
     private static native String nativeRunHardwareBufferProbe();
     private static native String nativeRunAndroidVulkanHardwareBufferProbe();
     private static native String nativeRunDmaBufBridge(String socketPath, Surface surface);
+    private static native String nativeRunDmaBufDoubleBufferBridge(String socketPath,
+                                                                     Surface surface);
 
     @Override
     protected void onCreate(Bundle state) {
@@ -149,6 +151,16 @@ public final class MainActivity extends Activity implements SurfaceHolder.Callba
         });
         vulkanButtons.addView(bridgeButton,
                 new LinearLayout.LayoutParams(0, -2, 1.0f));
+        Button doubleBufferButton = new Button(this);
+        doubleBufferButton.setText("Run 2-buffer loop");
+        doubleBufferButton.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                runDmaBufDoubleBufferBridge();
+            }
+        });
+        vulkanButtons.addView(doubleBufferButton,
+                new LinearLayout.LayoutParams(0, -2, 1.0f));
         page.addView(vulkanButtons, new LinearLayout.LayoutParams(-1, -2));
 
         ScrollView reportScroll = new ScrollView(this);
@@ -192,6 +204,14 @@ public final class MainActivity extends Activity implements SurfaceHolder.Callba
                     runDmaBufBridge();
                 }
             }, 1100);
+        }
+        if (getIntent().getBooleanExtra("run_dmabuf_double_buffer", false)) {
+            doubleBufferButton.postDelayed(new Runnable() {
+                @Override
+                public void run() {
+                    runDmaBufDoubleBufferBridge();
+                }
+            }, 1300);
         }
     }
 
@@ -399,6 +419,32 @@ public final class MainActivity extends Activity implements SurfaceHolder.Callba
                     @Override
                     public void run() {
                         bridgeStatus.setText("Linux bridge:\n" + trimForUi(report));
+                    }
+                });
+            }
+        });
+    }
+
+    private void runDmaBufDoubleBufferBridge() {
+        final String socketPath = new File(
+                getFilesDir(), "nova-lab-ahb-double-buffer.sock").getAbsolutePath();
+        bridgeStatus.setText("Linux 2-buffer loop: waiting for Holo importer...");
+        worker.execute(new Runnable() {
+            @Override
+            public void run() {
+                String result;
+                try {
+                    result = nativeRunDmaBufDoubleBufferBridge(socketPath,
+                            presentationSurface);
+                } catch (Throwable error) {
+                    result = "native_exception=" + error;
+                }
+                final String report = result;
+                Log.i(TAG, "dma_buf_double_buffer_bridge\n" + report);
+                runOnUiThread(new Runnable() {
+                    @Override
+                    public void run() {
+                        bridgeStatus.setText("Linux 2-buffer loop:\n" + trimForUi(report));
                     }
                 });
             }

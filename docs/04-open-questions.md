@@ -68,8 +68,9 @@ This will show whether the failure is in Steam, Gamescope WSI, Xwayland, or the 
 
 Once Steam renders in the Linux/gamescope session:
 
-- Replace Termux:X11 output with the persistent AHardwareBuffer pool.
-- Gate buffer reuse on SurfaceControl release fences.
+- Replace Termux:X11 output with the persistent AHardwareBuffer pool; the Nova lab now
+  proves the two-buffer version of this contract.
+- Carry the proven acquire/release-fence queue into the real Wayland/gamescope session.
 - Forward Android controller and touch events into the gamescope/Wayland session.
 - Keep gamescope alive independently of short-lived test children.
 - Test Steam suspend/resume and clean shutdown.

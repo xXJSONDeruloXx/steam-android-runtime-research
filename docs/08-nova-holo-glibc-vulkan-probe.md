@@ -205,8 +205,9 @@ The Linux-rendered RGBA image-memory handoff and one-frame `ASurfaceControl`
 presentation now pass through the Android companion probe with a transferred Linux
 acquire fence. The companion also has an opt-in export-before-wait mode; the current
 64x64 run proves the ordering, a pending-fence handoff, and SurfaceControl completion.
-The next acceptance target is a reusable
-double-buffered loop that handles the Android release fence and paces frames without a
-per-frame queue-idle cleanup. That should become the smallest compositor-shaped loop
-before adding Wayland, gamescope, SteamRT3C, the native ARM64 Steam client, input, and
-lifecycle management.
+The separate two-buffer run now keeps two image imports alive, submits five alternating
+frames, returns four Android release fences to Holo, and reuses each buffer only after
+that fence signals; cleanup uses queue idle only after the loop. The next acceptance
+target is a persistent compositor-facing render target and a minimal Wayland/gamescope
+backend before adding SteamRT3C, the native ARM64 Steam client, input, and lifecycle
+management.

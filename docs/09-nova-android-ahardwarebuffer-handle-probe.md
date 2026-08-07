@@ -22,6 +22,7 @@ The checked-in build uses the locally installed Android NDK and packages
 android/nova-lab/build.sh
 android/nova-lab/deploy-and-test.sh
 android/nova-lab/deploy-ahb-bridge-test.sh
+android/nova-lab/deploy-ahb-double-buffer-test.sh
 # Optional: submit the final Linux image before waiting and pass its sync FD to Android.
 VULKAN_AHB_ASYNC_FENCE=1 android/nova-lab/deploy-ahb-bridge-test.sh
 ```
@@ -200,6 +201,55 @@ Holo submitted and exported the fence before waiting, Android deferred its CPU r
 and SurfaceControl accepted the fence and completed a blue frame. The screenshot is saved as
 `android/nova-lab/build/device-ahb-bridge-screenshot.png`.
 
+### Two-buffer acquire/release loop
+
+The next opt-in harness, `android/nova-lab/deploy-ahb-double-buffer-test.sh`, allocates
+two persistent Android AHardwareBuffers, exposes them through separate Unix socket
+connections, and reuses one `ASurfaceControl` child for five alternating frames. Holo
+keeps one linear Vulkan image import per buffer. It submits an image clear with an
+exported acquire fence, sends that fence to Android, waits for the corresponding
+SurfaceControl release fence before recycling the buffer, and only performs the final
+queue-idle cleanup after the loop.
+
+The Nova run accepted both native handles and all five frame submissions:
+
+```text
+ahb_double_buffer_marker_check_0=pass
+ahb_double_buffer_marker_check_1=pass
+ahb_double_buffer_frame_submit=0
+ahb_double_buffer_frame_submit=1
+ahb_double_buffer_release_message buffer=0 bytes=17 fd=received
+ahb_double_buffer_release_wait buffer=0 status=1
+ahb_double_buffer_frame_submit=2
+ahb_double_buffer_release_message buffer=1 bytes=17 fd=received
+ahb_double_buffer_release_wait buffer=1 status=1
+ahb_double_buffer_frame_submit=3
+ahb_double_buffer_release_message buffer=0 bytes=17 fd=received
+ahb_double_buffer_release_wait buffer=0 status=1
+ahb_double_buffer_frame_submit=4
+ahb_double_buffer_release_message buffer=1 bytes=17 fd=received
+ahb_double_buffer_release_wait buffer=1 status=1
+ahb_double_buffer=pass
+ahb_double_buffer_status=0
+```
+
+Android reported five acquire-fence presentations and four returned release fences:
+
+```text
+surface_frame_complete=pass latch_time=9223059570855 present_fence=1 previous_release_fence=0
+surface_frame_complete=pass latch_time=9223067698199 present_fence=1 previous_release_fence=1
+surface_frame_complete=pass latch_time=9223084570282 present_fence=1 previous_release_fence=1
+surface_frame_complete=pass latch_time=9223092684293 present_fence=1 previous_release_fence=1
+surface_frame_complete=pass latch_time=9223109447522 present_fence=1 previous_release_fence=1
+ahb_double_buffer_frames=5 releases=4
+ahb_double_buffer=pass
+```
+
+The clean captured screen remains blue in
+`android/nova-lab/build/device-ahb-double-buffer-screenshot.png`. This proves the
+smallest reusable Android/Linux buffer queue on the Nova, including release-fence
+backpressure; it is still a lab loop, not a Wayland or gamescope backend.
+
 The acceptance criterion is the Android readback and SurfaceControl completion, not a successful Vulkan submit by
 itself. During iteration, an optimal-only clear completed with `VK_SUCCESS` but Android
 read `11111111`; running a linear clear afterward produced the expected `4080c0ff`.
@@ -226,18 +276,21 @@ negotiation as an explicit follow-up.
   `ASurfaceControl` child of its `SurfaceView`; the transaction completes with a
   Linux-provided acquire fence and a present fence, and the captured screen shows the
   blue RGBA clear.
+- Two persistent AHardwareBuffers can alternate through one SurfaceControl child for
+  five frames; Android can return four previous-release fences over the Unix sockets,
+  and Holo can wait on those fences before recycling the corresponding Vulkan image.
 
 ## What remains unproven
 
-The one-frame image path now reaches SurfaceControl with a Linux-produced acquire
-fence in both wait-before-export and export-before-wait modes. The asynchronous mode
-proves the ordering and lifetime handoff, but this tiny workload completed before
-Android's zero-time poll, so asynchronous overlap remains unmeasured. There is still
-no reusable double-buffer queue, Android release-fence handoff back to Linux, frame
-pacing, or compositor ownership loop. It also does not prove Wayland, gamescope,
-Xwayland, SteamRT3C, the native Steam client, input, audio, or lifecycle recovery.
+The one-frame image path and the two-buffer loop now reach SurfaceControl with
+Linux-produced acquire fences. The loop also returns Android release fences to Holo and
+waits on them before reuse. It is still a fixed-size test with no Wayland protocol,
+gamescope integration, frame pacing policy beyond fence backpressure, or lifecycle
+recovery. It also does not prove Xwayland, SteamRT3C, the native Steam client, input,
+audio, or session management.
 
-The next implementation should keep two AHardwareBuffers alive, submit repeated frames,
-return Android's previous release fence to Holo, and pace reuse from that fence instead
-of calling `vkQueueWaitIdle` after every frame. That is the smallest compositor-shaped
-step before a headless compositor or gamescope integration.
+The next implementation should replace the fixed clear loop with a persistent Linux
+render target and compositor-facing frame metadata, then bring up a minimal Wayland or
+gamescope Android backend against this proven queue. The first Steam milestone still
+requires native ARM64 Steam/SteamRT3C, hardware `steamwebhelper`, controller input,
+audio, and clean start/stop behavior.
