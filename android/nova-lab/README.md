@@ -51,6 +51,10 @@ The next-stage scripts keep the rootfs and downloaded packages under the ignored
 ```sh
 android/nova-lab/fetch-holo-rootfs.sh
 android/nova-lab/install-holo-packages.sh
+android/nova-lab/build-kgsl-turnip.sh
+android/nova-lab/deploy-kgsl-turnip.sh
+android/nova-lab/build-vulkan-offscreen-probe.sh
+android/nova-lab/deploy-vulkan-offscreen-probe.sh
 android/nova-lab/deploy-holo-probe.sh
 ```
 

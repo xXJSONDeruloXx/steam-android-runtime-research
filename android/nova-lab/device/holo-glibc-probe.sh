@@ -8,6 +8,8 @@ WORK="${3:-/data/local/tmp/nova-holo-glibc-work}"
 OUT_DIR="${OUT%/*}"
 VULKAN_LOADER_DEBUG="${VULKAN_LOADER_DEBUG:-error}"
 VULKAN_NODEVICE_SELECT="${VULKAN_NODEVICE_SELECT:-}"
+VULKAN_ICD_FILE="${VULKAN_ICD_FILE:-}"
+VULKAN_OFFSCREEN_PROBE="${VULKAN_OFFSCREEN_PROBE:-}"
 mkdir -p "$OUT_DIR" "$WORK"
 
 {
@@ -32,6 +34,8 @@ mkdir -p "$OUT_DIR" "$WORK"
 ROOT='$ROOT'
 VULKAN_LOADER_DEBUG='$VULKAN_LOADER_DEBUG'
 VULKAN_NODEVICE_SELECT='$VULKAN_NODEVICE_SELECT'
+VULKAN_ICD_FILE='$VULKAN_ICD_FILE'
+VULKAN_OFFSCREEN_PROBE='$VULKAN_OFFSCREEN_PROBE'
 status=0
 
 cleanup() {
@@ -68,6 +72,14 @@ if [ -d /linkerconfig ]; then
 fi
 
 if [ "\$status" -eq 0 ]; then
+    run_holo_env() {
+        if [ -n "\$VULKAN_ICD_FILE" ]; then
+            /system/bin/chroot "\$ROOT" /usr/bin/env -i PATH=/usr/bin:/bin HOME=/tmp XDG_RUNTIME_DIR=/tmp VK_LOADER_DEBUG="\$VULKAN_LOADER_DEBUG" NODEVICE_SELECT="\$VULKAN_NODEVICE_SELECT" VK_ICD_FILENAMES="\$VULKAN_ICD_FILE" "\$@"
+        else
+            /system/bin/chroot "\$ROOT" /usr/bin/env -i PATH=/usr/bin:/bin HOME=/tmp XDG_RUNTIME_DIR=/tmp VK_LOADER_DEBUG="\$VULKAN_LOADER_DEBUG" NODEVICE_SELECT="\$VULKAN_NODEVICE_SELECT" "\$@"
+        fi
+    }
+
     echo "chroot.begin"
     echo "glibc.loader.begin"
     /system/bin/chroot "\$ROOT" /lib/ld-linux-aarch64.so.1 --version || status=1
@@ -80,7 +92,10 @@ if [ "\$status" -eq 0 ]; then
     echo "glibc.shell.end"
     if [ -x "\$ROOT/usr/bin/vulkaninfo" ]; then
         echo "vulkaninfo.begin"
-        /system/bin/chroot "\$ROOT" /usr/bin/env -i PATH=/usr/bin:/bin HOME=/tmp XDG_RUNTIME_DIR=/tmp VK_LOADER_DEBUG="\$VULKAN_LOADER_DEBUG" NODEVICE_SELECT="\$VULKAN_NODEVICE_SELECT" /usr/bin/vulkaninfo --summary
+        if [ -n "\$VULKAN_ICD_FILE" ]; then
+            echo "vulkan_icd_file=\$VULKAN_ICD_FILE"
+        fi
+        run_holo_env /usr/bin/vulkaninfo --summary
         vulkan_status=\$?
         echo "vulkaninfo_status=\$vulkan_status"
         if [ "\$vulkan_status" -ne 0 ]; then
@@ -89,6 +104,19 @@ if [ "\$status" -eq 0 ]; then
         echo "vulkaninfo.end"
     else
         echo "vulkaninfo=missing"
+        status=1
+    fi
+    if [ -n "\$VULKAN_OFFSCREEN_PROBE" ] && [ -x "\$ROOT\$VULKAN_OFFSCREEN_PROBE" ]; then
+        echo "offscreen_probe.begin"
+        run_holo_env "\$VULKAN_OFFSCREEN_PROBE"
+        offscreen_status=\$?
+        echo "offscreen_probe_status=\$offscreen_status"
+        if [ "\$offscreen_status" -ne 0 ]; then
+            status=1
+        fi
+        echo "offscreen_probe.end"
+    elif [ -n "\$VULKAN_OFFSCREEN_PROBE" ]; then
+        echo "offscreen_probe=missing"
         status=1
     fi
     echo "chroot.end"

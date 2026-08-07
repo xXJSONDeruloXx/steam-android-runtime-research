@@ -21,7 +21,7 @@ fi
 python3 "$SCRIPT_DIR/fetch-holo-packages.py" \
     --rootfs "$ROOTFS_HOST" \
     --output "$PACKAGE_DIR" \
-    vulkan-tools vulkan-freedreno
+    vulkan-tools vulkan-headers vulkan-freedreno
 
 "$ADB" shell "su -c 'mkdir -p $DEVICE_PACKAGES; chmod 777 $DEVICE_PACKAGES'"
 for package_file in "$PACKAGE_DIR"/*.pkg.tar.zst; do

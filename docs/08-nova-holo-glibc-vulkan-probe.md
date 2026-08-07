@@ -60,7 +60,7 @@ The driver shared object's dependencies also resolved under the Holo loader, inc
 the next failure is not simply “an ARM64 ELF cannot start” or “the ICD has a missing
 shared library.”
 
-## Vulkan result
+## Vulkan result: stock Holo control
 
 The standard Holo ICD was found and loaded far enough for `vulkaninfo` to enumerate
 physical devices, but enumeration failed:
@@ -96,15 +96,66 @@ node. This is strong evidence for the previously identified requirement for a KG
 enabled Android Turnip/Mesa build; it is not yet proof that a particular Mesa build or
 kernel ioctl will work on this Nova.
 
+## KGSL Turnip result
+
+Mesa 25.2.7 was built from the official `mesa-25.2.7` source tag with the minimal
+configuration used by `android/nova-lab/build-kgsl-turnip.sh`:
+
+```text
+-Dvulkan-drivers=freedreno
+-Dfreedreno-kmds=kgsl
+-Dplatforms=[]
+-Dgallium-drivers=[]
+```
+
+The resulting ARM64 glibc driver was staged at
+`/opt/nova-kgsl-driver/libvulkan_freedreno.so` without replacing Holo's stock driver.
+Its SHA-256 for this run was:
+
+```text
+37e18fc67fc5e08c01ba380d9c0a97398b0e8957d829d345e5f4ca40c98938b2
+```
+
+Selecting its ICD manifest changed the result from “no valid GPUs” to a real physical
+device:
+
+```text
+vulkan_icd_file=/opt/nova-kgsl-driver/freedreno-kgsl.icd.json
+GPU0:
+        deviceName         = Turnip Adreno (TM) 740
+        driverID           = DRIVER_ID_MESA_TURNIP
+        driverInfo         = Mesa 25.2.7
+vulkaninfo_status=0
+```
+
+The lab then ran a small native ARM64 C program compiled against the same Holo Vulkan
+headers and loader. It created a device and queue, allocated host-visible memory,
+submitted `vkCmdFillBuffer`, waited for a fence, and mapped the result:
+
+```text
+device=Turnip Adreno (TM) 740
+fill_value=0xc0dec0de
+offscreen_fill=pass
+offscreen_probe_status=0
+probe_status=0
+```
+
+This is the first proof in this repository that a native Linux Vulkan command reaches
+the Nova's Adreno GPU from the Android-rooted Holo namespace. It is still an offscreen
+transfer-style boundary test; no display surface, Wayland compositor,
+AHardwareBuffer import/export, or Steam process is involved.
+
 ## What this proves
 
 - A fixed ARM64 glibc rootfs can execute natively inside the rooted Android namespace.
 - Holo package metadata and pacman can be used reproducibly without installing into
   Android's read-only system partitions.
-- The standard Holo Vulkan userspace reaches driver enumeration, but does not bridge
-  Nova's KGSL GPU into a Linux Vulkan physical device.
-- The next work should target the KGSL-enabled Turnip/Mesa boundary before gamescope,
-  Wayland, Steam, or FEX integration.
+- The standard Holo Vulkan userspace is a useful failing control because it does not
+  bridge Nova's KGSL GPU into a Linux Vulkan physical device.
+- A KGSL-enabled Turnip build does bridge the GPU and can submit a verified command
+  buffer from native ARM64 glibc.
+- The next work can target a headless compositor path and Android buffer exchange;
+  gamescope, Wayland, Steam, and FEX remain unproven.
 
 It does **not** yet prove that Steam can run, that a KGSL-enabled driver can initialize,
 or that a Linux compositor can export frames to the Android app. The disposable Holo
@@ -113,8 +164,8 @@ iteration and can be removed after the driver experiment.
 
 ## Next experiment
 
-Build or obtain the smallest ARM64 KGSL-enabled Turnip probe compatible with the Nova's
-Adreno 740v2 and Android 13 kernel. First acceptance is `vulkaninfo` exposing one
-physical device from inside this exact chroot; second is an offscreen Vulkan clear or
-`vkcube`-equivalent. Only after that should the lab add gamescope/Wayland and the
-AHardwareBuffer/SurfaceControl exchange.
+The next acceptance target is a minimal headless Vulkan compositor or gamescope build
+that can render into an exportable buffer. Then test the AHardwareBuffer/SurfaceControl
+exchange on the Android app's existing Surface. Only after that boundary is stable
+should the lab add SteamRT3C, the native ARM64 Steam client, input, and lifecycle
+management.

@@ -1,0 +1,20 @@
+[binaries]
+c = '/usr/bin/gcc'
+cpp = '/usr/bin/g++'
+ar = '/usr/bin/ar'
+strip = '/usr/bin/strip'
+pkg-config = '/usr/bin/pkg-config'
+python = '/usr/bin/python3'
+
+[properties]
+sys_root = '/sysroot'
+c_args = ['--sysroot=/sysroot']
+cpp_args = ['--sysroot=/sysroot']
+c_link_args = ['--sysroot=/sysroot']
+cpp_link_args = ['--sysroot=/sysroot']
+
+[host_machine]
+system = 'linux'
+cpu_family = 'aarch64'
+cpu = 'armv8-a'
+endian = 'little'
