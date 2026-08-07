@@ -231,6 +231,17 @@ static unsigned long max_frames(void)
     return end != value && *end == '\0' ? result : 0;
 }
 
+static uint64_t release_grace_ms(void)
+{
+    const char *value = getenv("NOVA_WAYLAND_SHM_RELEASE_GRACE_MS");
+    if (!value || !*value)
+        return 1000;
+
+    char *end = NULL;
+    unsigned long result = strtoul(value, &end, 10);
+    return end != value && *end == '\0' && result <= 10000 ? result : 1000;
+}
+
 static int draw(struct client_state *state)
 {
     if (!state->configured || state->frame_pending)
@@ -344,15 +355,31 @@ int main(void)
     fflush(stdout);
 
     const unsigned long frame_limit = max_frames();
+    const uint64_t grace_ms = release_grace_ms();
     uint64_t deadline = monotonic_ms() + RUN_SECONDS * 1000u;
-    while (!state.closed && monotonic_ms() < deadline) {
+    uint64_t release_deadline = 0;
+    printf("wayland_shm_release_grace_ms=%llu\n",
+           (unsigned long long)grace_ms);
+    fflush(stdout);
+    while (!state.closed) {
         if (wl_display_dispatch_pending(state.display) < 0)
             break;
-        if (frame_limit > 0 && state.frame_count >= frame_limit &&
-            !state.frame_pending)
-            break;
-        if (draw(&state) != 0)
-            break;
+
+        uint64_t now = monotonic_ms();
+        int draining_final_release =
+            frame_limit > 0 && state.frame_count >= frame_limit &&
+            !state.frame_pending;
+        if (draining_final_release) {
+            if (release_deadline == 0)
+                release_deadline = now + grace_ms;
+            if (now >= release_deadline)
+                break;
+        } else {
+            if (now >= deadline)
+                break;
+            if (draw(&state) != 0)
+                break;
+        }
         if (wl_display_flush(state.display) < 0 && errno != EAGAIN)
             break;
 
@@ -360,7 +387,10 @@ int main(void)
             .fd = wl_display_get_fd(state.display),
             .events = POLLIN,
         };
-        int timeout = (int)(deadline - monotonic_ms());
+        uint64_t wait_deadline = draining_final_release
+                                     ? release_deadline
+                                     : deadline;
+        int timeout = (int)(wait_deadline - monotonic_ms());
         if (timeout < 0)
             timeout = 0;
         if (timeout > 50)

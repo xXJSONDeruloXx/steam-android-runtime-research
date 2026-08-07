@@ -49,7 +49,9 @@ public final class MainActivity extends Activity implements SurfaceHolder.Callba
     private static native String nativeRunDmaBufBridge(String socketPath, Surface surface);
     private static native String nativeRunDmaBufDoubleBufferBridge(String socketPath,
                                                                      Surface surface,
-                                                                     int frameCount);
+                                                                     int frameCount,
+                                                                     int frameWidth,
+                                                                     int frameHeight);
 
     @Override
     protected void onCreate(Bundle state) {
@@ -431,6 +433,10 @@ public final class MainActivity extends Activity implements SurfaceHolder.Callba
                 getFilesDir(), "nova-lab-ahb-double-buffer.sock").getAbsolutePath();
         final int frameCount = getIntent().getIntExtra(
                 "dmabuf_double_buffer_frames", 5);
+        final int frameWidth = getIntent().getIntExtra(
+                "dmabuf_double_buffer_width", 64);
+        final int frameHeight = getIntent().getIntExtra(
+                "dmabuf_double_buffer_height", 64);
         bridgeStatus.setText("Linux 2-buffer loop: waiting for Holo importer...");
         worker.execute(new Runnable() {
             @Override
@@ -438,7 +444,8 @@ public final class MainActivity extends Activity implements SurfaceHolder.Callba
                 String result;
                 try {
                     result = nativeRunDmaBufDoubleBufferBridge(socketPath,
-                            presentationSurface, frameCount);
+                            presentationSurface, frameCount, frameWidth,
+                            frameHeight);
                 } catch (Throwable error) {
                     result = "native_exception=" + error;
                 }

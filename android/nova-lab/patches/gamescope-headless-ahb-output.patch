@@ -1,12 +1,23 @@
 --- a/src/Backends/HeadlessBackend.cpp
 +++ b/src/Backends/HeadlessBackend.cpp
-@@ -5,0 +6,5 @@
+@@ -5,0 +6,6 @@
++#include <cstdlib>
 +#include <poll.h>
 +#include <sys/socket.h>
 +#include <sys/un.h>
 +#include <unistd.h>
 +
-@@ -12,0 +18,173 @@
+@@ -12,0 +19,183 @@
++    static int android_output_dimension( const char *name, int fallback )
++    {
++        const char *value = getenv( name );
++        if ( value == nullptr || value[0] == '\0' )
++            return fallback;
++
++        int dimension = std::atoi( value );
++        return dimension > 0 && dimension <= 4096 ? dimension : fallback;
++    }
++
 +    static int connect_android_socket( const char *path )
 +    {
 +        if ( path == nullptr || strlen( path ) >= sizeof( ( (sockaddr_un *)nullptr )->sun_path ) )
@@ -180,7 +191,7 @@
 +        return pollResult > 0 && ( fencePoll.revents & ( POLLIN | POLLERR | POLLHUP ) ) != 0;
 +    }
 +
-@@ -19,3 +197,8 @@
+@@ -19,3 +208,41 @@
 -        virtual ~CHeadlessConnector()
 -        {
 -        }
@@ -192,12 +203,14 @@
 +					close( connection );
 +			}
 +		}
-@@ -22,0 +206,45 @@
++
 +		bool InitAndroidOutput()
 +		{
 +			const char *socketBase = getenv( "NOVA_AHB_OUTPUT_SOCKET" );
 +			if ( socketBase == nullptr || socketBase[0] == '\0' )
 +				return true;
++			int outputWidth = android_output_dimension( "NOVA_AHB_WIDTH", 64 );
++			int outputHeight = android_output_dimension( "NOVA_AHB_HEIGHT", 64 );
 +
 +			for ( int index = 0; index < 2; index++ )
 +			{
@@ -215,15 +228,15 @@
 +					return false;
 +
 +				wlr_dmabuf_attributes attributes = {};
-+				attributes.width = 64;
-+				attributes.height = 64;
++				attributes.width = outputWidth;
++				attributes.height = outputHeight;
 +				attributes.format = DRM_FORMAT_ABGR8888;
 +				attributes.modifier = DRM_FORMAT_MOD_INVALID;
 +				attributes.n_planes = 1;
 +				attributes.fd[0] = handleFd;
 +				attributes.offset[0] = 0;
-+				attributes.stride[0] = 64 * 4;
-+
++				attributes.stride[0] = outputWidth * 4;
+@@ -22,0 +250,15 @@
 +				m_androidTextures[index] = vulkan_create_output_texture_from_dmabuf( &attributes );
 +				close( handleFd );
 +				if ( m_androidTextures[index] == nullptr )
@@ -234,11 +247,12 @@
 +			}
 +
 +			m_androidOutput = true;
-+			headless_log.infof( "Android AHardwareBuffer output imported: 2 x 64x64 RGBA" );
++			headless_log.infof( "Android AHardwareBuffer output imported: 2 x %dx%d RGBA",
++				outputWidth, outputHeight );
 +			return true;
 +		}
 +
-@@ -91,0 +320,40 @@
+@@ -91,0 +334,40 @@
 +			if ( m_androidOutput )
 +			{
 +				int index = m_androidFrameCount & 1;
@@ -279,20 +293,20 @@
 +				return 0;
 +			}
 +
-@@ -116,0 +385,5 @@
+@@ -116,0 +399,5 @@
 +		bool m_androidOutput = false;
 +		int m_androidConnections[2] = {-1, -1};
 +		gamescope::OwningRc<CVulkanTexture> m_androidTextures[2];
 +		bool m_androidSubmitted[2] = {false, false};
 +		uint64_t m_androidFrameCount = 0;
-@@ -154,0 +428,6 @@
+@@ -154,0 +442,6 @@
 +			if ( !m_Connector.InitAndroidOutput() )
 +			{
 +				fprintf( stderr, "Failed to initialize Android AHardwareBuffer output\n" );
 +				return false;
 +			}
 +
-@@ -301 +580 @@
+@@ -301 +594 @@
 -}
 \ No newline at end of file
 +}

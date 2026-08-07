@@ -156,7 +156,10 @@ three exportable Vulkan images. The
 `deploy-gamescope-headless-ahb-test.sh` iteration imports the existing Android
 AHardwareBuffer pool at this connector seam, composites 60 frames by default
 into the two-buffer queue, and checks the Linux acquire plus Android release
-fences. Set `NOVA_AHB_FRAME_COUNT` to repeat the same test at another bounded
-count.
+fences. Set `NOVA_AHB_FRAME_COUNT`, `NOVA_AHB_WIDTH`, and
+`NOVA_AHB_HEIGHT` to repeat the same test at another bounded count or display
+size; a 30-frame 960x540 run is accepted on the Nova. The control client keeps
+the Wayland connection open briefly after the final frame so Android can return
+the last release fence before Gamescope shuts down.
 The details and exact evidence are in
 `docs/12-nova-gamescope-ahb-output.md`.

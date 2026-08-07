@@ -251,7 +251,8 @@ present_surface_buffer(JNIEnv *env, jobject surface_object,
 
 static int
 present_surface_frame(ASurfaceControl *surface_control, AHardwareBuffer *buffer,
-                       int acquire_fence_fd, int *previous_release_fence_fd,
+                       int acquire_fence_fd, int buffer_width, int buffer_height,
+                       int *previous_release_fence_fd,
                        char *report, size_t capacity, size_t *used)
 {
     *previous_release_fence_fd = -1;
@@ -293,8 +294,8 @@ present_surface_frame(ASurfaceControl *surface_control, AHardwareBuffer *buffer,
                                   acquire_fence_fd);
     append_line(report, capacity, used,
                 "surface_frame_acquire_fence=passed\n");
-    ARect source = {0, 0, 64, 64};
-    ARect destination = {0, 0, 960, 540};
+    ARect source = {0, 0, buffer_width, buffer_height};
+    ARect destination = {0, 0, buffer_width, buffer_height};
     ASurfaceTransaction_setGeometry(transaction, surface_control, &source,
                                     &destination, 0);
     ASurfaceTransaction_setOnComplete(transaction, completion,
@@ -728,7 +729,8 @@ done:
 JNIEXPORT jstring JNICALL
 Java_com_xjsonderulo_steamandroid_novalab_MainActivity_nativeRunDmaBufDoubleBufferBridge(
     JNIEnv *env, jobject object, jstring socket_path_string,
-    jobject surface_object, jint frame_count_argument)
+    jobject surface_object, jint frame_count_argument,
+    jint frame_width_argument, jint frame_height_argument)
 {
     (void)object;
     char report[65536] = "";
@@ -755,14 +757,22 @@ Java_com_xjsonderulo_steamandroid_novalab_MainActivity_nativeRunDmaBufDoubleBuff
     int success = 0;
     int frame_count = 0;
     int release_fence_count = 0;
+    const int buffer_width =
+        frame_width_argument > 0 && frame_width_argument <= 4096
+            ? frame_width_argument
+            : 64;
+    const int buffer_height =
+        frame_height_argument > 0 && frame_height_argument <= 4096
+            ? frame_height_argument
+            : 64;
     const uint64_t usage = AHARDWAREBUFFER_USAGE_CPU_READ_OFTEN |
                            AHARDWAREBUFFER_USAGE_CPU_WRITE_OFTEN |
                            AHARDWAREBUFFER_USAGE_GPU_SAMPLED_IMAGE |
                            AHARDWAREBUFFER_USAGE_GPU_FRAMEBUFFER |
                            AHARDWAREBUFFER_USAGE_COMPOSER_OVERLAY;
     AHardwareBuffer_Desc description = {
-        .width = 64,
-        .height = 64,
+        .width = (uint32_t)buffer_width,
+        .height = (uint32_t)buffer_height,
         .layers = 1,
         .format = AHARDWAREBUFFER_FORMAT_R8G8B8A8_UNORM,
         .usage = usage,
@@ -863,6 +873,9 @@ Java_com_xjsonderulo_steamandroid_novalab_MainActivity_nativeRunDmaBufDoubleBuff
             : 5;
     append_line(report, sizeof(report), &used,
                 "ahb_double_buffer_target_frames=%d\n", total_frames);
+    append_line(report, sizeof(report), &used,
+                "ahb_double_buffer_size=%dx%d\n", buffer_width,
+                buffer_height);
     for (int frame = 0; frame < total_frames; ++frame) {
         int index = frame & 1;
         char acknowledgement[256] = {0};
@@ -894,7 +907,8 @@ Java_com_xjsonderulo_steamandroid_novalab_MainActivity_nativeRunDmaBufDoubleBuff
 
         int previous_release_fence_fd = -1;
         int frame_pass = present_surface_frame(
-            surface_control, buffers[index], acquire_fence_fd,
+            surface_control, buffers[index], acquire_fence_fd, buffer_width,
+            buffer_height,
             &previous_release_fence_fd, report, sizeof(report), &used);
         acquire_fence_fd = -1;
         if (!frame_pass) {

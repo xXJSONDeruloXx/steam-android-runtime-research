@@ -82,9 +82,9 @@ gamescope-backed Steam Deck session.
 Replace the desktop display with an Android app-owned `Surface`/`ANativeWindow` or a proven equivalent. The
 Nova lab now has a two-buffer AHardwareBuffer/SurfaceControl queue with acquire/release-fence
 backpressure, and [doc 12](12-nova-gamescope-ahb-output.md) connects that pool to the patched headless
-Gamescope compositor for a sustained 60-frame run. The first acquire fence is intentionally synchronous; the
-remaining work is sustained display-size output, direct asynchronous compositor fencing, and a real
-Steam-producing Wayland/Xwayland session. The stock Holo gamescope control reaches the same KGSL Turnip
+Gamescope compositor for sustained 60-frame and 960x540 runs. The first acquire fence is intentionally
+synchronous; the remaining work is direct asynchronous compositor fencing and a real Steam-producing
+Wayland/Xwayland session. The stock Holo gamescope control reaches the same KGSL Turnip
 device but is blocked by its unconditional `VK_EXT_physical_device_drm` device-identity requirement. The
 narrow patched headless path crosses that identity boundary.
 If the existing AHardwareBuffer/SurfaceControl path relies on privileged APIs, use a buffer-copy or

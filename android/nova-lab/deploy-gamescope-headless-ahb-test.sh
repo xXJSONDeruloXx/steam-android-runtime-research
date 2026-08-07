@@ -8,6 +8,8 @@ ADB=${ADB:-/Users/kurt/.local/bin/adb}
 PACKAGE=com.xjsonderulo.steamandroid.novalab
 SOCKET_NAME=nova-lab-ahb-double-buffer.sock
 FRAME_COUNT=${NOVA_AHB_FRAME_COUNT:-60}
+BUFFER_WIDTH=${NOVA_AHB_WIDTH:-64}
+BUFFER_HEIGHT=${NOVA_AHB_HEIGHT:-64}
 BINARY=${NOVA_GAMESCOPE_HEADLESS:-$BUILD_DIR/gamescope-headless-build/src/gamescope}
 CLIENT=${NOVA_WAYLAND_SHM_CONTROL:-$BUILD_DIR/wayland-shm-control}
 CONTROL="$SCRIPT_DIR/device/gamescope-headless-ahb-control.sh"
@@ -51,7 +53,9 @@ SOCKET_HOST_DIR="$APP_DATA_DIR/files"
 "$ADB" shell am force-stop "$PACKAGE"
 "$ADB" shell am start -W -n "$PACKAGE/.MainActivity" \
     --ez run_dmabuf_double_buffer true \
-    --ei dmabuf_double_buffer_frames "$FRAME_COUNT" >/dev/null
+    --ei dmabuf_double_buffer_frames "$FRAME_COUNT" \
+    --ei dmabuf_double_buffer_width "$BUFFER_WIDTH" \
+    --ei dmabuf_double_buffer_height "$BUFFER_HEIGHT" >/dev/null
 
 set +e
 VULKAN_ICD_FILE=/opt/nova-kgsl-driver/freedreno-kgsl.icd.json \
@@ -61,6 +65,8 @@ VULKAN_AHB_SOCKET_HOST_DIR="$SOCKET_HOST_DIR" \
 VULKAN_AHB_SOCKET_NAME="$SOCKET_NAME" \
 VULKAN_AHB_DOUBLE_BUFFER=1 \
 VULKAN_AHB_FRAME_COUNT="$FRAME_COUNT" \
+VULKAN_AHB_WIDTH="$BUFFER_WIDTH" \
+VULKAN_AHB_HEIGHT="$BUFFER_HEIGHT" \
 VULKAN_AHB_OUTPUT_SOCKET="/run/nova-lab-app/$SOCKET_NAME" \
     "$SCRIPT_DIR/deploy-holo-probe.sh"
 probe_status=$?
@@ -81,7 +87,7 @@ fi
 
 report_markers=(
     'vulkaninfo_status=0'
-    'Android AHardwareBuffer output imported: 2 x 64x64 RGBA'
+    "Android AHardwareBuffer output imported: 2 x ${BUFFER_WIDTH}x${BUFFER_HEIGHT} RGBA"
     "Running compositor on wayland display 'gamescope-0'"
     'wayland_connect=pass socket=gamescope-0'
     'android_ahb_composite_frame='
@@ -98,6 +104,7 @@ done
 
 logcat_markers=(
     'ahb_double_buffer=pass'
+    "ahb_double_buffer_size=${BUFFER_WIDTH}x${BUFFER_HEIGHT}"
     "ahb_double_buffer_frames=$FRAME_COUNT releases=$((FRAME_COUNT - 1))"
     'surface_frame_complete=pass'
     'linux_acquire_fence=pass'

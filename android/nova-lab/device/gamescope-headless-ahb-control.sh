@@ -3,12 +3,15 @@
 set -u
 
 export GAMESCOPE_SCRIPT_PATH=/usr/share/gamescope/scripts
+OUTPUT_WIDTH=${NOVA_AHB_WIDTH:-64}
+OUTPUT_HEIGHT=${NOVA_AHB_HEIGHT:-64}
 export NOVA_WAYLAND_SHM_MAX_FRAMES="${NOVA_AHB_FRAME_COUNT:-5}"
+export NOVA_WAYLAND_SHM_RELEASE_GRACE_MS="${NOVA_WAYLAND_SHM_RELEASE_GRACE_MS:-1000}"
 
 exec /opt/nova-kgsl-driver/gamescope-headless \
     --backend headless \
-    --output-width 64 \
-    --output-height 64 \
-    --nested-width 64 \
-    --nested-height 64 \
+    --output-width "$OUTPUT_WIDTH" \
+    --output-height "$OUTPUT_HEIGHT" \
+    --nested-width "$OUTPUT_WIDTH" \
+    --nested-height "$OUTPUT_HEIGHT" \
     -- /opt/nova-kgsl-driver/wayland-shm-control
