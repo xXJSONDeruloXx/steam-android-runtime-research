@@ -9,6 +9,9 @@ PLATFORM=${ANDROID_PLATFORM:-android-35}
 BUILD_DIR="$SCRIPT_DIR/build"
 TOOLS_DIR="$SDK_ROOT/build-tools/$BUILD_TOOLS"
 ANDROID_JAR="$SDK_ROOT/platforms/$PLATFORM/android.jar"
+NDK_ROOT=${ANDROID_NDK_ROOT:-$SDK_ROOT/ndk/27.3.13750724}
+NDK_TOOLCHAIN="$NDK_ROOT/toolchains/llvm/prebuilt/darwin-x86_64"
+NATIVE_COMPILER="$NDK_TOOLCHAIN/bin/aarch64-linux-android29-clang"
 
 for tool in aapt2 d8 apksigner zipalign; do
     if [ ! -x "$TOOLS_DIR/$tool" ]; then
@@ -20,9 +23,22 @@ if [ ! -f "$ANDROID_JAR" ]; then
     echo "missing Android platform: $ANDROID_JAR" >&2
     exit 1
 fi
+if [ ! -x "$NATIVE_COMPILER" ]; then
+    echo "missing Android NDK compiler: $NATIVE_COMPILER" >&2
+    exit 1
+fi
 
+rm -rf "$BUILD_DIR/classes" "$BUILD_DIR/dex" "$BUILD_DIR/compiled" \
+    "$BUILD_DIR/gen" "$BUILD_DIR/native"
 mkdir -p "$BUILD_DIR/classes" "$BUILD_DIR/dex" "$BUILD_DIR/compiled" "$BUILD_DIR/gen"
-find "$BUILD_DIR" -type f ! -name 'debug.keystore' -delete
+mkdir -p "$BUILD_DIR/native/lib/arm64-v8a"
+
+"$NATIVE_COMPILER" \
+    -shared -fPIC -O2 -std=c11 \
+    -I"$NDK_TOOLCHAIN/sysroot/usr/include" \
+    -o "$BUILD_DIR/native/lib/arm64-v8a/libnovabridge.so" \
+    "$SCRIPT_DIR/src/main/cpp/novabridge.c" \
+    -landroid -llog
 
 "$TOOLS_DIR/aapt2" compile --dir "$SCRIPT_DIR/src/main/res" -o "$BUILD_DIR/compiled"
 
@@ -56,6 +72,10 @@ cp "$BUILD_DIR/resources.apk" "$BUILD_DIR/unsigned.apk"
 (
     cd "$BUILD_DIR/dex"
     zip -q -u "$BUILD_DIR/unsigned.apk" classes.dex
+)
+(
+    cd "$BUILD_DIR/native"
+    zip -q -u "$BUILD_DIR/unsigned.apk" lib/arm64-v8a/libnovabridge.so
 )
 
 DEBUG_KEYSTORE="$BUILD_DIR/debug.keystore"

@@ -29,6 +29,11 @@ screenshot under `android/nova-lab/build/`.
 
 The APK also has a **Run rooted probe** button. On first use, Magisk may ask for an
 app-specific root grant. The launcher accepts `--ez run_root true` for automated runs.
+The **Run native buffer** button calls a small NDK library that allocates an Android
+`AHardwareBuffer`, writes a marker through the CPU lock API, sends its native handle
+over an `AF_UNIX` socket, and reads the marker back from the received handle.
+The automated deploy path passes `--ez run_native true` so the same probe runs without
+manual UI interaction.
 
 ## Evidence to collect
 
@@ -36,7 +41,8 @@ The important output is:
 
 - `root_probe_report.txt`: root identity, SELinux mode, namespace/chroot result, and
   access to `/dev/dri`, KGSL, `/dev/uinput`, and `/sys/class/kgsl`;
-- `device-logcat.txt`: the app's Surface and HardwareBuffer result;
+- `device-logcat.txt`: the app's Surface, Java HardwareBuffer, and native
+  `AHardwareBuffer` handle round-trip results;
 - `device-screenshot.png`: a visual check that the SurfaceView received posted frames.
 
 The next experiment after this one is to stage a fixed ARM64 glibc rootfs (starting

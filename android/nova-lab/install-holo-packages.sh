@@ -23,6 +23,17 @@ python3 "$SCRIPT_DIR/fetch-holo-packages.py" \
     --output "$PACKAGE_DIR" \
     vulkan-tools vulkan-headers vulkan-freedreno
 
+for package_file in \
+    "$PACKAGE_DIR"/vulkan-headers-*.pkg.tar.zst \
+    "$PACKAGE_DIR"/vulkan-icd-loader-*.pkg.tar.zst; do
+    if [ ! -f "$package_file" ]; then
+        echo "missing host build package: $package_file" >&2
+        exit 1
+    fi
+    bsdtar --no-same-owner --zstd -xpf "$package_file" -C "$ROOTFS_HOST"
+    echo "host_extract=$package_file"
+done
+
 "$ADB" shell "su -c 'mkdir -p $DEVICE_PACKAGES; chmod 777 $DEVICE_PACKAGES'"
 for package_file in "$PACKAGE_DIR"/*.pkg.tar.zst; do
     "$ADB" push "$package_file" "$DEVICE_PACKAGES/" >/dev/null

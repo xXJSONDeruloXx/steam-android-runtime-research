@@ -22,7 +22,7 @@ DEVICE_WORK=/data/local/tmp/nova-lab-root-probe-work
 
 "$ADB" logcat -c
 "$ADB" shell am force-stop "$PACKAGE"
-"$ADB" shell am start -W -n "$PACKAGE/.MainActivity" >/dev/null
+"$ADB" shell am start -W -n "$PACKAGE/.MainActivity" --ez run_native true >/dev/null
 "$ADB" shell sleep 3
 "$ADB" logcat -d -v threadtime NovaLab:I '*:S' > "$BUILD_DIR/device-logcat.txt"
 "$ADB" exec-out screencap -p > "$BUILD_DIR/device-screenshot.png"

@@ -23,6 +23,7 @@ The useful results are split across several projects:
 - [Android/Linux/gamescope roadmap](docs/06-android-linux-gamescope-roadmap.md) turns the evidence into a rooted MVP and a staged rootless target.
 - [Nova rooted bridge lab](docs/07-nova-rooted-bridge-smoke-test.md) records the first real Android-app Surface/HardwareBuffer and rooted chroot smoke test.
 - [Nova Holo glibc/Vulkan probe](docs/08-nova-holo-glibc-vulkan-probe.md) records native ARM64 glibc success, the stock-Holo control failure, a working KGSL Turnip/offscreen command path, and a verified Vulkan DMA-BUF export/import handoff.
+- [Nova Android AHardwareBuffer probe](docs/09-nova-android-ahardwarebuffer-handle-probe.md) records the NDK handle round-trip on the app side and its remaining Linux-to-Android gap.
 
 ## Recommended direction
 
@@ -50,6 +51,7 @@ the gamescope frames on its own surface.
 - [Android/Linux/gamescope roadmap](docs/06-android-linux-gamescope-roadmap.md)
 - [Nova rooted bridge smoke test](docs/07-nova-rooted-bridge-smoke-test.md)
 - [Nova Holo glibc and Vulkan probe](docs/08-nova-holo-glibc-vulkan-probe.md)
+- [Nova Android AHardwareBuffer handle probe](docs/09-nova-android-ahardwarebuffer-handle-probe.md)
 - [Retroid Pocket Nova flashing kit](tools/retroid-pocket-nova/README.md)
 
 ## Evidence standard

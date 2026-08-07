@@ -40,6 +40,9 @@ core/extra aarch64 databases. The closure includes `vulkan-tools`,
 `vulkan-freedreno`, `vulkan-headers`, `vulkan-icd-loader`, `vulkan-mesa-device-select`, `libdrm`, and
 their X11/Wayland/SPIR-V dependencies. Package files are downloaded with SHA-256
 verification by `fetch-holo-packages.py`, then installed by pacman inside the chroot.
+The installer also extracts the Vulkan headers and loader package into the ignored
+host rootfs so the checked-in ARM64 probe can be rebuilt against the same userspace;
+the device copy is still installed by pacman.
 
 The install initially exposed an environment bug: pacman's systemd hook could not find
 `touch` because the chroot inherited Android's PATH. The installer now enters with
@@ -115,6 +118,17 @@ Its SHA-256 for this run was:
 ```text
 37e18fc67fc5e08c01ba380d9c0a97398b0e8957d829d345e5f4ca40c98938b2
 ```
+
+After restoring the disposable host staging and rerunning the same checked-in build,
+the driver repeated the result with this current artifact hash:
+
+```text
+a5769c8573cc61e08fb6e49e2d32329c2330d00d4501baefe12c1fd23162b810
+```
+
+The build script does not yet pin the Docker image or compiler package digests, so the
+artifact hash is evidence for the tested binary, not a stable content-addressed
+release identifier.
 
 Selecting its ICD manifest changed the result from “no valid GPUs” to a real physical
 device:

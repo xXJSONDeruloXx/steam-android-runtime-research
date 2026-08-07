@@ -30,10 +30,17 @@ public final class MainActivity extends Activity implements SurfaceHolder.Callba
     private static final String TAG = "NovaLab";
     private static final int SURFACE_FRAMES = 120;
 
+    static {
+        System.loadLibrary("novabridge");
+    }
+
     private final ExecutorService worker = Executors.newSingleThreadExecutor();
     private volatile boolean surfaceProbeRunning;
     private TextView surfaceStatus;
     private TextView rootStatus;
+    private TextView nativeStatus;
+
+    private static native String nativeRunHardwareBufferProbe();
 
     @Override
     protected void onCreate(Bundle state) {
@@ -71,6 +78,8 @@ public final class MainActivity extends Activity implements SurfaceHolder.Callba
         page.addView(surfaceStatus, new LinearLayout.LayoutParams(-1, -2));
         rootStatus = statusText("Root: not run");
         page.addView(rootStatus, new LinearLayout.LayoutParams(-1, -2));
+        nativeStatus = statusText("Native: not run");
+        page.addView(nativeStatus, new LinearLayout.LayoutParams(-1, -2));
 
         LinearLayout buttons = new LinearLayout(this);
         buttons.setOrientation(LinearLayout.HORIZONTAL);
@@ -84,12 +93,23 @@ public final class MainActivity extends Activity implements SurfaceHolder.Callba
         });
         buttons.addView(rootButton, new LinearLayout.LayoutParams(0, -2, 1.0f));
 
+        Button nativeButton = new Button(this);
+        nativeButton.setText("Run native buffer");
+        nativeButton.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                runNativeHardwareBufferProbe();
+            }
+        });
+        buttons.addView(nativeButton, new LinearLayout.LayoutParams(0, -2, 1.0f));
+
         Button clearButton = new Button(this);
         clearButton.setText("Clear");
         clearButton.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
                 rootStatus.setText("Root: not run");
+                nativeStatus.setText("Native: not run");
             }
         });
         buttons.addView(clearButton, new LinearLayout.LayoutParams(0, -2, 1.0f));
@@ -110,6 +130,14 @@ public final class MainActivity extends Activity implements SurfaceHolder.Callba
                 @Override
                 public void run() {
                     runRootProbe();
+                }
+            }, 700);
+        }
+        if (getIntent().getBooleanExtra("run_native", false)) {
+            nativeButton.postDelayed(new Runnable() {
+                @Override
+                public void run() {
+                    runNativeHardwareBufferProbe();
                 }
             }, 700);
         }
@@ -246,6 +274,29 @@ public final class MainActivity extends Activity implements SurfaceHolder.Callba
                     @Override
                     public void run() {
                         rootStatus.setText("Root:\n" + trimForUi(result));
+                    }
+                });
+            }
+        });
+    }
+
+    private void runNativeHardwareBufferProbe() {
+        nativeStatus.setText("Native: running AHardwareBuffer handle probe...");
+        worker.execute(new Runnable() {
+            @Override
+            public void run() {
+                String result;
+                try {
+                    result = nativeRunHardwareBufferProbe();
+                } catch (Throwable error) {
+                    result = "native_exception=" + error;
+                }
+                final String report = result;
+                Log.i(TAG, "native_hardware_buffer_probe\n" + report);
+                runOnUiThread(new Runnable() {
+                    @Override
+                    public void run() {
+                        nativeStatus.setText("Native:\n" + trimForUi(report));
                     }
                 });
             }
