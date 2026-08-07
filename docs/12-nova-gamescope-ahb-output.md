@@ -34,9 +34,10 @@ INSTALL_HOLO_GAMESCOPE=0 \
   android/nova-lab/deploy-gamescope-headless-ahb-test.sh
 ```
 
-The script builds and installs the Nova lab APK, starts its five-frame
-two-buffer AHardwareBuffer test, stages the Gamescope binary and control
-client, runs the rooted Holo probe, and checks both sides of the protocol.
+The script builds and installs the Nova lab APK, starts its configurable
+two-buffer AHardwareBuffer test (60 frames by default), stages the Gamescope
+binary and control client, runs the rooted Holo probe, and checks both sides of
+the protocol.
 Artifacts are saved under `android/nova-lab/build/`:
 
 - `device-gamescope-headless-ahb-report.txt`
@@ -74,7 +75,7 @@ compositor signal directly and remove this wait/empty-submit boundary.
 
 ## Nova evidence
 
-The accepted run produced five Wayland frames and five Android output
+The initial bounded run produced five Wayland frames and five Android output
 compositions:
 
 ```text
@@ -103,6 +104,24 @@ ahb_double_buffer_frames=5 releases=4
 ahb_double_buffer=pass
 ```
 
+The follow-up sustained run used the same 64x64 buffers for 60 frames. It
+completed with no dropped acknowledgements or release-fence returns:
+
+```text
+wayland_shm_frames=60
+android_ahb_composite_frame=60 layers=1 async=0
+ahb_double_buffer_frames=60 releases=59
+ahb_double_buffer=pass
+dma_buf_double_buffer_summary ahb_double_buffer_frames=60 releases=59 ahb_double_buffer=pass
+```
+
+The 60-frame run also recorded 60
+`surface_frame_complete=pass` callbacks and 59
+`ahb_double_buffer_release_N=sent` messages. This is the first evidence that
+the imported output queue remains stable beyond the initial handshake. The
+SurfaceControl latch timestamps spanned 982,498,177 ns across the run
+(approximately 16.65 ms per frame).
+
 This proves the first complete measured path:
 
 ```text
@@ -116,19 +135,20 @@ Wayland SHM surface
 ```
 
 The saved screenshot is a post-run Android display capture, not a frame-locked
-capture of the five 64x64 compositor images. It is therefore retained as a
+capture of the short 64x64 compositor run. It is therefore retained as a
 device artifact but is not used as visual proof of the Gamescope pixels.
 
 ## Remaining boundary
 
-This is still not a Steam session. The control client is a 64x64 `wl_shm`
-producer and the run is intentionally limited to five frames. The Vulkan WSI
+This is still not a Steam session. The control client and imported output are
+still 64x64 `wl_shm`/AHardwareBuffer test surfaces; the acceptance run now
+defaults to 60 frames. The Vulkan WSI
 negative control from doc 11 remains valid: the Holo Turnip ICD lacks
 `VK_KHR_surface`, so a normal `vkcube --wsi wayland` swapchain cannot be
 the next client.
 
 The next experiments are to sustain the imported output at a real display
-size, preserve the queue beyond five frames, and then replace the control
-client with a persistent Wayland/Xwayland session suitable for the native ARM64
-Steam client. Input, lifecycle cleanup, and the direct asynchronous fence path
-remain separate acceptance gates.
+size, replace the control client with a persistent Wayland/Xwayland session
+suitable for the native ARM64 Steam client, and remove the synchronous
+wait/empty-submit fence boundary. Input, lifecycle cleanup, and the actual
+Steam UI remain separate acceptance gates.

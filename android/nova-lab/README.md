@@ -152,9 +152,11 @@ gamescope checkout.
 
 The accepted Nova run produced 298 Wayland SHM frames and 298 synchronous
 `headless_composite_frame` submissions. The output is still held in Gamescope's
-three exportable Vulkan images. The next
+three exportable Vulkan images. The
 `deploy-gamescope-headless-ahb-test.sh` iteration imports the existing Android
-AHardwareBuffer pool at this connector seam, composites five frames into the
-two-buffer queue, and checks the Linux acquire plus Android release fences.
+AHardwareBuffer pool at this connector seam, composites 60 frames by default
+into the two-buffer queue, and checks the Linux acquire plus Android release
+fences. Set `NOVA_AHB_FRAME_COUNT` to repeat the same test at another bounded
+count.
 The details and exact evidence are in
 `docs/12-nova-gamescope-ahb-output.md`.

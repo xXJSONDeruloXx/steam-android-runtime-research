@@ -48,7 +48,8 @@ public final class MainActivity extends Activity implements SurfaceHolder.Callba
     private static native String nativeRunAndroidVulkanHardwareBufferProbe();
     private static native String nativeRunDmaBufBridge(String socketPath, Surface surface);
     private static native String nativeRunDmaBufDoubleBufferBridge(String socketPath,
-                                                                     Surface surface);
+                                                                     Surface surface,
+                                                                     int frameCount);
 
     @Override
     protected void onCreate(Bundle state) {
@@ -428,6 +429,8 @@ public final class MainActivity extends Activity implements SurfaceHolder.Callba
     private void runDmaBufDoubleBufferBridge() {
         final String socketPath = new File(
                 getFilesDir(), "nova-lab-ahb-double-buffer.sock").getAbsolutePath();
+        final int frameCount = getIntent().getIntExtra(
+                "dmabuf_double_buffer_frames", 5);
         bridgeStatus.setText("Linux 2-buffer loop: waiting for Holo importer...");
         worker.execute(new Runnable() {
             @Override
@@ -435,12 +438,15 @@ public final class MainActivity extends Activity implements SurfaceHolder.Callba
                 String result;
                 try {
                     result = nativeRunDmaBufDoubleBufferBridge(socketPath,
-                            presentationSurface);
+                            presentationSurface, frameCount);
                 } catch (Throwable error) {
                     result = "native_exception=" + error;
                 }
                 final String report = result;
                 Log.i(TAG, "dma_buf_double_buffer_bridge\n" + report);
+                Log.i(TAG, "dma_buf_double_buffer_summary "
+                        + extractReportLine(report, "ahb_double_buffer_frames=")
+                        + " " + extractReportLine(report, "ahb_double_buffer="));
                 runOnUiThread(new Runnable() {
                     @Override
                     public void run() {
@@ -497,6 +503,15 @@ public final class MainActivity extends Activity implements SurfaceHolder.Callba
             return value;
         }
         return value.substring(value.length() - max);
+    }
+
+    private static String extractReportLine(String report, String prefix) {
+        int start = report.indexOf(prefix);
+        if (start < 0) {
+            return prefix + "missing";
+        }
+        int end = report.indexOf('\n', start);
+        return report.substring(start, end < 0 ? report.length() : end);
     }
 
     private TextView statusText(String text) {

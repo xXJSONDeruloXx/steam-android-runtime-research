@@ -728,10 +728,10 @@ done:
 JNIEXPORT jstring JNICALL
 Java_com_xjsonderulo_steamandroid_novalab_MainActivity_nativeRunDmaBufDoubleBufferBridge(
     JNIEnv *env, jobject object, jstring socket_path_string,
-    jobject surface_object)
+    jobject surface_object, jint frame_count_argument)
 {
     (void)object;
-    char report[8192] = "";
+    char report[65536] = "";
     size_t used = 0;
     append_line(report, sizeof(report), &used, "ahb_double_buffer_version=1\n");
     if (socket_path_string == NULL) {
@@ -857,7 +857,12 @@ Java_com_xjsonderulo_steamandroid_novalab_MainActivity_nativeRunDmaBufDoubleBuff
     /* Holo sends two frames before waiting for the first release fence. The
      * alternating order then allows each side to overlap one GPU write with
      * the other buffer's SurfaceControl presentation. */
-    const int total_frames = 5;
+    const int total_frames =
+        frame_count_argument > 0 && frame_count_argument <= 600
+            ? frame_count_argument
+            : 5;
+    append_line(report, sizeof(report), &used,
+                "ahb_double_buffer_target_frames=%d\n", total_frames);
     for (int frame = 0; frame < total_frames; ++frame) {
         int index = frame & 1;
         char acknowledgement[256] = {0};

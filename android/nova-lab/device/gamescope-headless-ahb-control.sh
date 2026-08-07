@@ -3,7 +3,7 @@
 set -u
 
 export GAMESCOPE_SCRIPT_PATH=/usr/share/gamescope/scripts
-export NOVA_WAYLAND_SHM_MAX_FRAMES=5
+export NOVA_WAYLAND_SHM_MAX_FRAMES="${NOVA_AHB_FRAME_COUNT:-5}"
 
 exec /opt/nova-kgsl-driver/gamescope-headless \
     --backend headless \
