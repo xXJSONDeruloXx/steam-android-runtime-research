@@ -42,3 +42,20 @@ The important output is:
 The next experiment after this one is to stage a fixed ARM64 glibc rootfs (starting
 with the Holo snapshot already documented in `docs/05-current-arm64-steam-research.md`)
 and run a non-Steam ELF plus Vulkan loader probe through the same supervisor.
+
+## Holo ARM64 glibc probe
+
+The next-stage scripts keep the rootfs and downloaded packages under the ignored
+`build/` directory, then push only disposable copies to `/data/local/tmp`:
+
+```sh
+android/nova-lab/fetch-holo-rootfs.sh
+android/nova-lab/install-holo-packages.sh
+android/nova-lab/deploy-holo-probe.sh
+```
+
+`deploy-holo-probe.sh` returns the Vulkan probe status but always pulls its report,
+including expected failures. Set `VULKAN_LOADER_DEBUG=all` for loader diagnostics or
+`VULKAN_NODEVICE_SELECT=1` to disable Mesa's implicit device-select layer. The result
+and the current KGSL/DRM boundary are documented in
+`docs/08-nova-holo-glibc-vulkan-probe.md`.
