@@ -1,0 +1,14 @@
+diff --git a/src/rendervulkan.cpp b/src/rendervulkan.cpp
+index 6d831b7..9d2d10e 100644
+--- a/src/rendervulkan.cpp
++++ b/src/rendervulkan.cpp
+@@ -525,2 +523,7 @@
+-		vk_log.errorf( "physical device doesn't support VK_EXT_physical_device_drm" );
+-		return false;
++		if ( GetBackend()->IsSessionBased() )
++		{
++			vk_log.errorf( "physical device doesn't support VK_EXT_physical_device_drm" );
++			return false;
++		}
++
++		vk_log.infof( "physical device doesn't support VK_EXT_physical_device_drm; backend does not require DRM identity" );

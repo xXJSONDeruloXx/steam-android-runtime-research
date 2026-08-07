@@ -82,10 +82,10 @@ gamescope-backed Steam Deck session.
 Replace the desktop display with an Android app-owned `Surface`/`ANativeWindow` or a proven equivalent. The
 Nova lab now has a five-frame two-buffer AHardwareBuffer/SurfaceControl queue with acquire/release-fence
 backpressure, so the remaining work here is integrating a real compositor producer rather than proving the
-basic buffer ownership contract. The stock Holo gamescope control now reaches the same
-KGSL Turnip device but is blocked by its unconditional `VK_EXT_physical_device_drm`
-device-identity requirement; the next experiment is a narrow Android-compatible backend
-seam before wiring gamescope to the persistent output pool.
+basic buffer ownership contract. The stock Holo gamescope control reaches the same KGSL Turnip device but
+is blocked by its unconditional `VK_EXT_physical_device_drm` device-identity requirement. A narrow patched
+headless experiment now starts gamescope's Wayland/Xwayland compositor without that identity; the remaining
+work is wiring its presentation to the persistent output pool.
 If the existing AHardwareBuffer/SurfaceControl path relies on privileged APIs, use a buffer-copy or
 producer/consumer path that the ordinary app sandbox permits. Measure frame latency, buffer reuse, release
 fences, rotation, and lifecycle loss before optimizing.

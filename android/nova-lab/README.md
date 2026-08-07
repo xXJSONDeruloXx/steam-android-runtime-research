@@ -88,6 +88,8 @@ android/nova-lab/deploy-holo-probe.sh
 android/nova-lab/deploy-ahb-bridge-test.sh
 android/nova-lab/deploy-ahb-double-buffer-test.sh
 android/nova-lab/deploy-gamescope-control.sh
+GAMESCOPE_SOURCE=/path/to/gamescope android/nova-lab/build-gamescope-headless.sh
+android/nova-lab/deploy-gamescope-headless-test.sh
 ```
 
 `deploy-holo-probe.sh` returns the Vulkan probe status but always pulls its report,
@@ -116,3 +118,26 @@ The control is expected to return success only after reproducing
 reports the Turnip Adreno 740. Set `INSTALL_HOLO_GAMESCOPE=0` for repeats after the
 package closure is already installed. The report is saved as
 `build/device-gamescope-control-report.txt`.
+
+## Headless gamescope seam
+
+The next experiment builds a disposable ARM64 gamescope checkout with
+`patches/gamescope-headless-no-drm-identity.patch`, then launches the explicit
+non-session headless backend inside the same Holo rootfs. It proves that gamescope
+can initialize Turnip and start its Wayland/Xwayland compositor without
+`VK_EXT_physical_device_drm`; it does not yet export a compositor frame to
+Android.
+
+Build and run it with:
+
+```sh
+GAMESCOPE_SOURCE=/path/to/gamescope \
+  android/nova-lab/build-gamescope-headless.sh
+INSTALL_HOLO_GAMESCOPE=0 \
+  android/nova-lab/deploy-gamescope-headless-test.sh
+```
+
+The deploy test stages only disposable copies below
+`/data/local/tmp/nova-holo-rootfs/opt/nova-kgsl-driver` and saves
+`build/device-gamescope-headless-report.txt`. The build script uses an ARM64
+Debian Docker container and does not modify the original gamescope checkout.
