@@ -14,20 +14,22 @@ WORKTREE="${GAMESCOPE_HEADLESS_SOURCE:-$BUILD_DIR/gamescope-headless-source}"
 OUT_DIR="${GAMESCOPE_HEADLESS_BUILD:-$BUILD_DIR/gamescope-headless-build}"
 DOCKER_IMAGE="${GAMESCOPE_BUILD_IMAGE:-debian:trixie-slim}"
 
-if [ ! -d "$WORKTREE/.git" ]; then
+if [ ! -e "$WORKTREE/.git" ]; then
     if [ -z "$SOURCE_DIR" ]; then
         echo "set GAMESCOPE_SOURCE to a local gamescope checkout" >&2
         exit 1
     fi
     mkdir -p "$BUILD_DIR"
-    git clone --recursive "$SOURCE_DIR" "$WORKTREE"
+    git clone "$SOURCE_DIR" "$WORKTREE"
 fi
 
-git -C "$WORKTREE" submodule update --init --recursive
+git -C "$WORKTREE" submodule update --init
 for PATCH_FILE in "${PATCH_FILES[@]}"; do
-    if git -C "$WORKTREE" apply --unidiff-zero --check "$PATCH_FILE" 2>/dev/null; then
+    if git -C "$WORKTREE" apply --unidiff-zero --reverse --check "$PATCH_FILE" 2>/dev/null; then
+        continue
+    elif git -C "$WORKTREE" apply --unidiff-zero --check "$PATCH_FILE" 2>/dev/null; then
         git -C "$WORKTREE" apply --unidiff-zero "$PATCH_FILE"
-    elif ! git -C "$WORKTREE" apply --unidiff-zero --reverse --check "$PATCH_FILE" 2>/dev/null; then
+    else
         echo "gamescope source is not compatible with $PATCH_FILE" >&2
         exit 1
     fi

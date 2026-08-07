@@ -12,7 +12,8 @@ BUFFER_WIDTH=${NOVA_AHB_WIDTH:-64}
 BUFFER_HEIGHT=${NOVA_AHB_HEIGHT:-64}
 BINARY=${NOVA_GAMESCOPE_HEADLESS:-$BUILD_DIR/gamescope-headless-build/src/gamescope}
 CLIENT=${NOVA_WAYLAND_SHM_CONTROL:-$BUILD_DIR/wayland-shm-control}
-CONTROL="$SCRIPT_DIR/device/gamescope-headless-ahb-control.sh"
+CONTROL=${NOVA_GAMESCOPE_AHB_CONTROL:-$SCRIPT_DIR/device/gamescope-headless-ahb-control.sh}
+X11_CLIENT=${NOVA_GAMESCOPE_X11_CLIENT:-}
 DEVICE_ROOT=${DEVICE_ROOT:-/data/local/tmp/nova-holo-rootfs}
 DEVICE_STAGE=/data/local/tmp/nova-gamescope-stage
 DEVICE_DRIVER_DIR="$DEVICE_ROOT/opt/nova-kgsl-driver"
@@ -30,6 +31,10 @@ for required in "$BINARY" "$CLIENT" "$CONTROL"; do
         exit 1
     fi
 done
+if [ -n "$X11_CLIENT" ] && [ ! -f "$X11_CLIENT" ]; then
+    echo "missing X11 client: $X11_CLIENT" >&2
+    exit 1
+fi
 
 "$SCRIPT_DIR/build.sh" >/dev/null
 "$ADB" wait-for-device
@@ -44,7 +49,13 @@ fi
 "$ADB" push "$BINARY" "$DEVICE_STAGE/gamescope-headless" >/dev/null
 "$ADB" push "$CLIENT" "$DEVICE_STAGE/wayland-shm-control" >/dev/null
 "$ADB" push "$CONTROL" "$DEVICE_STAGE/gamescope-headless-ahb-control.sh" >/dev/null
+if [ -n "$X11_CLIENT" ]; then
+    "$ADB" push "$X11_CLIENT" "$DEVICE_STAGE/nova-x11-animate" >/dev/null
+fi
 "$ADB" shell "su -c 'cp $DEVICE_STAGE/gamescope-headless $DEVICE_BINARY; cp $DEVICE_STAGE/wayland-shm-control $DEVICE_CLIENT; cp $DEVICE_STAGE/gamescope-headless-ahb-control.sh $DEVICE_CONTROL; chmod 755 $DEVICE_BINARY $DEVICE_CLIENT $DEVICE_CONTROL'"
+if [ -n "$X11_CLIENT" ]; then
+    "$ADB" shell "su -c 'cp $DEVICE_STAGE/nova-x11-animate $DEVICE_DRIVER_DIR/nova-x11-animate; chmod 755 $DEVICE_DRIVER_DIR/nova-x11-animate'"
+fi
 
 APP_DATA_DIR=$("$ADB" shell run-as "$PACKAGE" pwd | tr -d '\r')
 SOCKET_HOST_DIR="$APP_DATA_DIR/files"
@@ -89,18 +100,33 @@ report_markers=(
     'vulkaninfo_status=0'
     "Android AHardwareBuffer output imported: 2 x ${BUFFER_WIDTH}x${BUFFER_HEIGHT} RGBA"
     "Running compositor on wayland display 'gamescope-0'"
-    'wayland_connect=pass socket=gamescope-0'
     'android_ahb_composite_frame='
-    "wayland_shm_frames=$FRAME_COUNT"
     'offscreen_probe_status=0'
     'probe_status=0'
 )
+if [ "${NOVA_GAMESCOPE_AHB_SKIP_WAYLAND:-0}" = "1" ]; then
+    if [ "${NOVA_GAMESCOPE_AHB_XWAYLAND:-0}" = "1" ]; then
+        report_markers+=('Starting Xwayland on :0')
+        report_markers+=("android_ahb_target_reached=$FRAME_COUNT")
+    fi
+else
+    report_markers+=('wayland_connect=pass socket=gamescope-0')
+fi
+if [ "${NOVA_GAMESCOPE_AHB_SKIP_WAYLAND_SHM:-0}" != "1" ]; then
+    report_markers+=("wayland_shm_frames=$FRAME_COUNT")
+fi
 for marker in "${report_markers[@]}"; do
     if ! rg -q -- "$marker" "$REPORT"; then
         echo "missing report marker: $marker" >&2
         exit 1
     fi
 done
+
+if [ "${NOVA_GAMESCOPE_AHB_XWAYLAND:-0}" = "1" ] && \
+    rg -q -- 'Android output acquire fence handoff failed' "$REPORT"; then
+    echo "Xwayland output reported an Android acquire-fence handoff failure" >&2
+    exit 1
+fi
 
 logcat_markers=(
     'ahb_double_buffer=pass'

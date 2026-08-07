@@ -176,6 +176,15 @@ public final class MainActivity extends Activity implements SurfaceHolder.Callba
 
         setContentView(page);
 
+        Log.i(TAG, "launch_flags run_dmabuf_double_buffer="
+                + getIntent().getBooleanExtra("run_dmabuf_double_buffer", false)
+                + " frame_count=" + getIntent().getIntExtra(
+                        "dmabuf_double_buffer_frames", -1)
+                + " frame_size=" + getIntent().getIntExtra(
+                        "dmabuf_double_buffer_width", -1)
+                + "x" + getIntent().getIntExtra(
+                        "dmabuf_double_buffer_height", -1));
+
         if (getIntent().getBooleanExtra("run_root", false)) {
             rootButton.postDelayed(new Runnable() {
                 @Override
@@ -209,12 +218,14 @@ public final class MainActivity extends Activity implements SurfaceHolder.Callba
             }, 1100);
         }
         if (getIntent().getBooleanExtra("run_dmabuf_double_buffer", false)) {
-            doubleBufferButton.postDelayed(new Runnable() {
+            boolean scheduled = doubleBufferButton.postDelayed(new Runnable() {
                 @Override
                 public void run() {
+                    Log.i(TAG, "auto_double_buffer_invoked");
                     runDmaBufDoubleBufferBridge();
                 }
             }, 1300);
+            Log.i(TAG, "auto_double_buffer_scheduled=" + scheduled);
         }
     }
 
@@ -429,6 +440,7 @@ public final class MainActivity extends Activity implements SurfaceHolder.Callba
     }
 
     private void runDmaBufDoubleBufferBridge() {
+        Log.i(TAG, "double_buffer_method_entered");
         final String socketPath = new File(
                 getFilesDir(), "nova-lab-ahb-double-buffer.sock").getAbsolutePath();
         final int frameCount = getIntent().getIntExtra(

@@ -27,6 +27,7 @@ The useful results are split across several projects:
 - [Nova stock gamescope control](docs/10-nova-stock-gamescope-control.md) records the first gamescope run on the same KGSL Vulkan path: stock gamescope reaches the Adreno device, then stops because its DRM-device discovery contract is not available.
 - [Nova headless gamescope seam](docs/11-nova-headless-gamescope-seam.md) records a patched ARM64 headless gamescope compositor crossing that DRM-identity boundary, compositing 298 Wayland SHM frames on the Nova, and leaving persistent Android output as the next seam.
 - [Nova Gamescope Android output](docs/12-nova-gamescope-ahb-output.md) records the imported AHardwareBuffer output path from Gamescope through Android SurfaceControl, including sustained 60-frame and 960x540 acquire/release fence runs.
+- [Nova Xwayland Android AHardwareBuffer output](docs/13-nova-xwayland-ahb-output.md) records an animated ARM64 X11 client crossing Xwayland, Gamescope, and the same 960x540 Android fence loop.
 
 ## Recommended direction
 
@@ -58,6 +59,7 @@ the gamescope frames on its own surface.
 - [Nova stock gamescope control](docs/10-nova-stock-gamescope-control.md)
 - [Nova headless gamescope seam](docs/11-nova-headless-gamescope-seam.md)
 - [Nova Gamescope Android AHardwareBuffer output](docs/12-nova-gamescope-ahb-output.md)
+- [Nova Xwayland Android AHardwareBuffer output](docs/13-nova-xwayland-ahb-output.md)
 - [Retroid Pocket Nova flashing kit](tools/retroid-pocket-nova/README.md)
 
 ## Evidence standard

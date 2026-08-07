@@ -99,10 +99,11 @@ The target should not be considered proven until all of these work on one device
 - Does native ARM64 Steam still depend on SysV semaphore behavior missing from some Android kernels?
 - Can the kit’s CEF environment shim be used unchanged inside the Holo rootfs?
 - Partially answered: can the headless Gamescope seam sustain display-size Android
-  AHardwareBuffer output for Steam’s actual frames, not just the current 60-frame 64x64 Wayland
-  SHM control? The Nova connector now completes a 30-frame 960x540 `wl_shm` run with 30
-  acquire-fence handoffs, 30 SurfaceControl completions, and 29 release-fence returns. Steam’s
-  actual Wayland/Xwayland workload remains untested.
+  AHardwareBuffer output for Steam’s actual frames? The Nova connector now completes both a
+  30-frame 960x540 `wl_shm` run and a 30-frame 960x540 animated ARM64 X11 client run through
+  Xwayland, with 30 acquire-fence handoffs, 30 SurfaceControl completions, and 29 release-fence
+  returns. Steam’s actual Xwayland workload and `steamwebhelper` remain untested; the current
+  Xwayland path also falls back from glamor to software because GBM Wayland interfaces are absent.
 - What input protocol is least invasive: Android HID injection, Wayland input, SDL, or a custom socket?
 - Can a rooted Android app give a Linux userspace enough GPU/DMABUF/Surface access without booting a separate kernel?
 - For rootless mode, can an app-owned `Surface`/`ANativeWindow` replace the current privileged/low-level presentation path without a copy bottleneck?

@@ -7,7 +7,7 @@
 +#include <sys/un.h>
 +#include <unistd.h>
 +
-@@ -12,0 +19,183 @@
+@@ -12,0 +19,193 @@
 +    static int android_output_dimension( const char *name, int fallback )
 +    {
 +        const char *value = getenv( name );
@@ -16,6 +16,16 @@
 +
 +        int dimension = std::atoi( value );
 +        return dimension > 0 && dimension <= 4096 ? dimension : fallback;
++    }
++
++    static int android_output_frame_limit()
++    {
++        const char *value = getenv( "NOVA_AHB_FRAME_COUNT" );
++        if ( value == nullptr || value[0] == '\0' )
++            return 0;
++
++        int frameCount = std::atoi( value );
++        return frameCount > 0 && frameCount <= 2000 ? frameCount : 0;
 +    }
 +
 +    static int connect_android_socket( const char *path )
@@ -191,7 +201,7 @@
 +        return pollResult > 0 && ( fencePoll.revents & ( POLLIN | POLLERR | POLLHUP ) ) != 0;
 +    }
 +
-@@ -19,3 +208,41 @@
+@@ -19,3 +218,41 @@
 -        virtual ~CHeadlessConnector()
 -        {
 -        }
@@ -236,7 +246,7 @@
 +				attributes.fd[0] = handleFd;
 +				attributes.offset[0] = 0;
 +				attributes.stride[0] = outputWidth * 4;
-@@ -22,0 +250,15 @@
+@@ -22,0 +260,15 @@
 +				m_androidTextures[index] = vulkan_create_output_texture_from_dmabuf( &attributes );
 +				close( handleFd );
 +				if ( m_androidTextures[index] == nullptr )
@@ -252,9 +262,20 @@
 +			return true;
 +		}
 +
-@@ -91,0 +334,40 @@
+@@ -91,0 +344,51 @@
 +			if ( m_androidOutput )
 +			{
++				int targetFrameCount = android_output_frame_limit();
++				if ( targetFrameCount > 0 && m_androidFrameCount >= targetFrameCount )
++				{
++					if ( !m_androidTargetReached )
++					{
++						headless_log.infof( "android_ahb_target_reached=%d", targetFrameCount );
++						m_androidTargetReached = true;
++					}
++					return 0;
++				}
++
 +				int index = m_androidFrameCount & 1;
 +				if ( m_androidSubmitted[index] )
 +				{
@@ -293,20 +314,21 @@
 +				return 0;
 +			}
 +
-@@ -116,0 +399,5 @@
+@@ -116,0 +420,6 @@
 +		bool m_androidOutput = false;
 +		int m_androidConnections[2] = {-1, -1};
 +		gamescope::OwningRc<CVulkanTexture> m_androidTextures[2];
 +		bool m_androidSubmitted[2] = {false, false};
 +		uint64_t m_androidFrameCount = 0;
-@@ -154,0 +442,6 @@
++		bool m_androidTargetReached = false;
+@@ -154,0 +464,6 @@
 +			if ( !m_Connector.InitAndroidOutput() )
 +			{
 +				fprintf( stderr, "Failed to initialize Android AHardwareBuffer output\n" );
 +				return false;
 +			}
 +
-@@ -301 +594 @@
+@@ -301 +616 @@
 -}
 \ No newline at end of file
 +}

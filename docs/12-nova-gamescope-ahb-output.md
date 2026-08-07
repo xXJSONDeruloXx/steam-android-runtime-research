@@ -179,14 +179,14 @@ device artifact but is not used as visual proof of the Gamescope pixels.
 
 ## Remaining boundary
 
-This is still not a Steam session. The control client is still a bounded
-`wl_shm` test client, even though the imported output now passes both 64x64
-regression and 960x540 display-size runs. The Vulkan WSI
-negative control from doc 11 remains valid: the Holo Turnip ICD lacks
-`VK_KHR_surface`, so a normal `vkcube --wsi wayland` swapchain cannot be
-the next client.
+This is still not a Steam session. The bounded `wl_shm` client has now been
+supplemented by the Xwayland/animated-X11 proof in [doc 13](13-nova-xwayland-ahb-output.md),
+which passes the same 960x540 Android fence path. The Vulkan WSI negative
+control from doc 11 remains valid: the Holo Turnip ICD lacks `VK_KHR_surface`,
+so a normal `vkcube --wsi wayland` swapchain cannot be the next client. The
+actual native Steam Xwayland workload and `steamwebhelper` remain untested.
 
-The next experiments are to replace the control client with a persistent
+The next experiments are to replace the synthetic X11 client with a persistent
 Wayland/Xwayland session suitable for the native ARM64 Steam client, remove the
 synchronous wait/empty-submit fence boundary, and add input and lifecycle
 supervision. The actual Steam UI remains a separate acceptance gate.
