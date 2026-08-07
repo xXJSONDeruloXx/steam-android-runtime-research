@@ -46,6 +46,7 @@ the gamescope frames on its own surface.
 - [Open questions and next experiments](docs/04-open-questions.md)
 - [Current ARM64 Steam research](docs/05-current-arm64-steam-research.md)
 - [Android/Linux/gamescope roadmap](docs/06-android-linux-gamescope-roadmap.md)
+- [Retroid Pocket Nova flashing kit](tools/retroid-pocket-nova/README.md)
 
 ## Evidence standard
 
