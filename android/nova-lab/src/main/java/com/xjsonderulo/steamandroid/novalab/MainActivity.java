@@ -39,8 +39,12 @@ public final class MainActivity extends Activity implements SurfaceHolder.Callba
     private TextView surfaceStatus;
     private TextView rootStatus;
     private TextView nativeStatus;
+    private TextView androidVulkanStatus;
+    private TextView bridgeStatus;
 
     private static native String nativeRunHardwareBufferProbe();
+    private static native String nativeRunAndroidVulkanHardwareBufferProbe();
+    private static native String nativeRunDmaBufBridge(String socketPath);
 
     @Override
     protected void onCreate(Bundle state) {
@@ -80,6 +84,10 @@ public final class MainActivity extends Activity implements SurfaceHolder.Callba
         page.addView(rootStatus, new LinearLayout.LayoutParams(-1, -2));
         nativeStatus = statusText("Native: not run");
         page.addView(nativeStatus, new LinearLayout.LayoutParams(-1, -2));
+        androidVulkanStatus = statusText("Android Vulkan: not run");
+        page.addView(androidVulkanStatus, new LinearLayout.LayoutParams(-1, -2));
+        bridgeStatus = statusText("Linux bridge: not run");
+        page.addView(bridgeStatus, new LinearLayout.LayoutParams(-1, -2));
 
         LinearLayout buttons = new LinearLayout(this);
         buttons.setOrientation(LinearLayout.HORIZONTAL);
@@ -110,10 +118,36 @@ public final class MainActivity extends Activity implements SurfaceHolder.Callba
             public void onClick(View view) {
                 rootStatus.setText("Root: not run");
                 nativeStatus.setText("Native: not run");
+                androidVulkanStatus.setText("Android Vulkan: not run");
+                bridgeStatus.setText("Linux bridge: not run");
             }
         });
         buttons.addView(clearButton, new LinearLayout.LayoutParams(0, -2, 1.0f));
         page.addView(buttons, new LinearLayout.LayoutParams(-1, -2));
+
+        LinearLayout vulkanButtons = new LinearLayout(this);
+        vulkanButtons.setOrientation(LinearLayout.HORIZONTAL);
+        Button androidVulkanButton = new Button(this);
+        androidVulkanButton.setText("Run Android Vulkan");
+        androidVulkanButton.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                runAndroidVulkanHardwareBufferProbe();
+            }
+        });
+        vulkanButtons.addView(androidVulkanButton,
+                new LinearLayout.LayoutParams(0, -2, 1.0f));
+        Button bridgeButton = new Button(this);
+        bridgeButton.setText("Run Linux bridge");
+        bridgeButton.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                runDmaBufBridge();
+            }
+        });
+        vulkanButtons.addView(bridgeButton,
+                new LinearLayout.LayoutParams(0, -2, 1.0f));
+        page.addView(vulkanButtons, new LinearLayout.LayoutParams(-1, -2));
 
         ScrollView reportScroll = new ScrollView(this);
         TextView hint = new TextView(this);
@@ -140,6 +174,22 @@ public final class MainActivity extends Activity implements SurfaceHolder.Callba
                     runNativeHardwareBufferProbe();
                 }
             }, 700);
+        }
+        if (getIntent().getBooleanExtra("run_android_vulkan", false)) {
+            androidVulkanButton.postDelayed(new Runnable() {
+                @Override
+                public void run() {
+                    runAndroidVulkanHardwareBufferProbe();
+                }
+            }, 900);
+        }
+        if (getIntent().getBooleanExtra("run_dmabuf_bridge", false)) {
+            bridgeButton.postDelayed(new Runnable() {
+                @Override
+                public void run() {
+                    runDmaBufBridge();
+                }
+            }, 1100);
         }
     }
 
@@ -297,6 +347,54 @@ public final class MainActivity extends Activity implements SurfaceHolder.Callba
                     @Override
                     public void run() {
                         nativeStatus.setText("Native:\n" + trimForUi(report));
+                    }
+                });
+            }
+        });
+    }
+
+    private void runAndroidVulkanHardwareBufferProbe() {
+        androidVulkanStatus.setText("Android Vulkan: running AHardwareBuffer import probe...");
+        worker.execute(new Runnable() {
+            @Override
+            public void run() {
+                String result;
+                try {
+                    result = nativeRunAndroidVulkanHardwareBufferProbe();
+                } catch (Throwable error) {
+                    result = "native_exception=" + error;
+                }
+                final String report = result;
+                Log.i(TAG, "android_vulkan_hardware_buffer_probe\n" + report);
+                runOnUiThread(new Runnable() {
+                    @Override
+                    public void run() {
+                        androidVulkanStatus.setText("Android Vulkan:\n" + trimForUi(report));
+                    }
+                });
+            }
+        });
+    }
+
+    private void runDmaBufBridge() {
+        final String socketPath = new File(
+                getFilesDir(), "nova-lab-ahb-bridge.sock").getAbsolutePath();
+        bridgeStatus.setText("Linux bridge: waiting for Holo DMA-BUF importer...");
+        worker.execute(new Runnable() {
+            @Override
+            public void run() {
+                String result;
+                try {
+                    result = nativeRunDmaBufBridge(socketPath);
+                } catch (Throwable error) {
+                    result = "native_exception=" + error;
+                }
+                final String report = result;
+                Log.i(TAG, "dma_buf_bridge\n" + report);
+                runOnUiThread(new Runnable() {
+                    @Override
+                    public void run() {
+                        bridgeStatus.setText("Linux bridge:\n" + trimForUi(report));
                     }
                 });
             }

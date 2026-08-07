@@ -9,6 +9,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <sys/socket.h>
+#include <sys/uio.h>
 #include <unistd.h>
 
 static void
@@ -158,6 +159,70 @@ Java_com_xjsonderulo_steamandroid_novalab_MainActivity_nativeRunHardwareBufferPr
     } else {
         append_line(report, sizeof(report), &used,
                     "ahardwarebuffer_handle_roundtrip=fail\n");
+    }
+
+    int raw_sockets[2] = {-1, -1};
+    status = socketpair(AF_UNIX, SOCK_STREAM, 0, raw_sockets);
+    append_line(report, sizeof(report), &used,
+                "raw_handle_socketpair_status=%d\n", status);
+    if (status == 0) {
+        status = AHardwareBuffer_sendHandleToUnixSocket(buffer, raw_sockets[0]);
+        append_line(report, sizeof(report), &used,
+                    "raw_handle_send_status=%d\n", status);
+    }
+    if (status == 0) {
+        char payload[256];
+        char control[CMSG_SPACE(sizeof(int) * 16)];
+        struct iovec vector = {
+            .iov_base = payload,
+            .iov_len = sizeof(payload),
+        };
+        struct msghdr message = {
+            .msg_iov = &vector,
+            .msg_iovlen = 1,
+            .msg_control = control,
+            .msg_controllen = sizeof(control),
+        };
+        ssize_t received_bytes = recvmsg(raw_sockets[1], &message, 0);
+        int raw_fd_count = 0;
+        if (received_bytes >= 0) {
+            for (struct cmsghdr *header = CMSG_FIRSTHDR(&message); header != NULL;
+                 header = CMSG_NXTHDR(&message, header)) {
+                if (header->cmsg_level == SOL_SOCKET &&
+                    header->cmsg_type == SCM_RIGHTS) {
+                    size_t bytes = header->cmsg_len - CMSG_LEN(0);
+                    raw_fd_count = (int)(bytes / sizeof(int));
+                    int *file_descriptors = (int *)CMSG_DATA(header);
+                    for (int index = 0; index < raw_fd_count; ++index) {
+                        char fd_path[64];
+                        char fd_target[256];
+                        snprintf(fd_path, sizeof(fd_path), "/proc/self/fd/%d",
+                                 file_descriptors[index]);
+                        ssize_t target_length = readlink(
+                            fd_path, fd_target, sizeof(fd_target) - 1);
+                        if (target_length >= 0) {
+                            fd_target[target_length] = '\0';
+                            append_line(report, sizeof(report), &used,
+                                        "raw_handle_fd_%d_target=%s\n", index,
+                                        fd_target);
+                        }
+                        close(file_descriptors[index]);
+                    }
+                }
+            }
+        }
+        append_line(report, sizeof(report), &used,
+                    "raw_handle_recv_bytes=%zd raw_handle_fd_count=%d\n",
+                    received_bytes, raw_fd_count);
+        append_line(report, sizeof(report), &used,
+                    "ahardwarebuffer_raw_handle=%s\n",
+                    raw_fd_count > 0 ? "pass" : "fail");
+    }
+    if (raw_sockets[0] >= 0) {
+        close(raw_sockets[0]);
+    }
+    if (raw_sockets[1] >= 0) {
+        close(raw_sockets[1]);
     }
 
     AHardwareBuffer_release(received);

@@ -188,8 +188,9 @@ AHardwareBuffer import/export, or Steam process is involved.
   buffer from native ARM64 glibc.
 - Vulkan external-memory extensions can export/import a real DMA-BUF while retaining
   GPU-written contents, so the Linux-side buffer handoff contract is now proven.
-- The next work can target an Android-side DMA-BUF/AHardwareBuffer bridge and a headless
-  compositor path;
+- The companion Android probe now proves the next lower-level boundary as well: an
+  Android `AHardwareBuffer` handle can cross into Holo as DMA-BUF FDs and be written by
+  Linux Turnip, with Android reading the result back. The visible compositor path,
   gamescope, Wayland, Steam, and FEX remain unproven.
 
 It does **not** yet prove that Steam can run, that a KGSL-enabled driver can initialize,
@@ -199,9 +200,7 @@ iteration and can be removed after the driver experiment.
 
 ## Next experiment
 
-The next acceptance target is a tiny Android-side native bridge that receives the
-Linux-produced DMA-BUF and imports or aliases it into the app's existing
-`AHardwareBuffer`/Surface path. In parallel, build a minimal headless Vulkan compositor
-that renders a recognizable frame into the exportable allocation. Only after that
-boundary is stable should the lab add SteamRT3C, the native ARM64 Steam client, input,
-and lifecycle management.
+The next acceptance target is a Linux-rendered RGBA image presented through the
+existing Android `Surface`, with explicit acquire/release fences and frame pacing.
+That should become the smallest compositor-shaped loop before adding Wayland,
+gamescope, SteamRT3C, the native ARM64 Steam client, input, and lifecycle management.

@@ -10,6 +10,8 @@ VULKAN_LOADER_DEBUG="${VULKAN_LOADER_DEBUG:-error}"
 VULKAN_NODEVICE_SELECT="${VULKAN_NODEVICE_SELECT:-}"
 VULKAN_ICD_FILE="${VULKAN_ICD_FILE:-}"
 VULKAN_OFFSCREEN_PROBE="${VULKAN_OFFSCREEN_PROBE:-}"
+VULKAN_AHB_SOCKET_HOST_DIR="${VULKAN_AHB_SOCKET_HOST_DIR:-}"
+VULKAN_AHB_SOCKET_NAME="${VULKAN_AHB_SOCKET_NAME:-nova-lab-ahb-bridge.sock}"
 mkdir -p "$OUT_DIR" "$WORK"
 
 {
@@ -36,9 +38,13 @@ VULKAN_LOADER_DEBUG='$VULKAN_LOADER_DEBUG'
 VULKAN_NODEVICE_SELECT='$VULKAN_NODEVICE_SELECT'
 VULKAN_ICD_FILE='$VULKAN_ICD_FILE'
 VULKAN_OFFSCREEN_PROBE='$VULKAN_OFFSCREEN_PROBE'
+VULKAN_AHB_SOCKET_HOST_DIR='$VULKAN_AHB_SOCKET_HOST_DIR'
+VULKAN_AHB_SOCKET_NAME='$VULKAN_AHB_SOCKET_NAME'
+VULKAN_AHB_HANDLE_SOCKET=''
 status=0
 
 cleanup() {
+    /system/bin/umount -l "\$ROOT/run/nova-lab-app" >/dev/null 2>&1 || true
     /system/bin/umount -l "\$ROOT/linkerconfig" >/dev/null 2>&1 || true
     /system/bin/umount -l "\$ROOT/apex" >/dev/null 2>&1 || true
     /system/bin/umount -l "\$ROOT/system" >/dev/null 2>&1 || true
@@ -70,11 +76,23 @@ mount_one /apex "\$ROOT/apex"
 if [ -d /linkerconfig ]; then
     mount_one /linkerconfig "\$ROOT/linkerconfig"
 fi
+if [ -n "\$VULKAN_AHB_SOCKET_HOST_DIR" ]; then
+    mount_one "\$VULKAN_AHB_SOCKET_HOST_DIR" "\$ROOT/run/nova-lab-app"
+    if [ "\$status" -eq 0 ]; then
+        VULKAN_AHB_HANDLE_SOCKET="/run/nova-lab-app/\$VULKAN_AHB_SOCKET_NAME"
+    fi
+fi
 
 if [ "\$status" -eq 0 ]; then
     run_holo_env() {
         if [ -n "\$VULKAN_ICD_FILE" ]; then
-            /system/bin/chroot "\$ROOT" /usr/bin/env -i PATH=/usr/bin:/bin HOME=/tmp XDG_RUNTIME_DIR=/tmp VK_LOADER_DEBUG="\$VULKAN_LOADER_DEBUG" NODEVICE_SELECT="\$VULKAN_NODEVICE_SELECT" VK_ICD_FILENAMES="\$VULKAN_ICD_FILE" "\$@"
+            if [ -n "\$VULKAN_AHB_HANDLE_SOCKET" ]; then
+                /system/bin/chroot "\$ROOT" /usr/bin/env -i PATH=/usr/bin:/bin HOME=/tmp XDG_RUNTIME_DIR=/tmp VK_LOADER_DEBUG="\$VULKAN_LOADER_DEBUG" NODEVICE_SELECT="\$VULKAN_NODEVICE_SELECT" VK_ICD_FILENAMES="\$VULKAN_ICD_FILE" NOVA_AHB_HANDLE_SOCKET="\$VULKAN_AHB_HANDLE_SOCKET" "\$@"
+            else
+                /system/bin/chroot "\$ROOT" /usr/bin/env -i PATH=/usr/bin:/bin HOME=/tmp XDG_RUNTIME_DIR=/tmp VK_LOADER_DEBUG="\$VULKAN_LOADER_DEBUG" NODEVICE_SELECT="\$VULKAN_NODEVICE_SELECT" VK_ICD_FILENAMES="\$VULKAN_ICD_FILE" "\$@"
+            fi
+        elif [ -n "\$VULKAN_AHB_HANDLE_SOCKET" ]; then
+            /system/bin/chroot "\$ROOT" /usr/bin/env -i PATH=/usr/bin:/bin HOME=/tmp XDG_RUNTIME_DIR=/tmp VK_LOADER_DEBUG="\$VULKAN_LOADER_DEBUG" NODEVICE_SELECT="\$VULKAN_NODEVICE_SELECT" NOVA_AHB_HANDLE_SOCKET="\$VULKAN_AHB_HANDLE_SOCKET" "\$@"
         else
             /system/bin/chroot "\$ROOT" /usr/bin/env -i PATH=/usr/bin:/bin HOME=/tmp XDG_RUNTIME_DIR=/tmp VK_LOADER_DEBUG="\$VULKAN_LOADER_DEBUG" NODEVICE_SELECT="\$VULKAN_NODEVICE_SELECT" "\$@"
         fi

@@ -1,9 +1,14 @@
 #define _POSIX_C_SOURCE 200809L
 
 #include <stdint.h>
+#include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/socket.h>
+#include <sys/un.h>
+#include <sys/uio.h>
+#include <time.h>
 #include <unistd.h>
 
 #include <vulkan/vulkan.h>
@@ -65,6 +70,297 @@ has_device_extension(VkPhysicalDevice physical_device, const char *name)
     }
     free(extensions);
     return found;
+}
+
+static int
+receive_dma_buf_fds(const char *socket_path, int *file_descriptors,
+                    size_t max_file_descriptors, int *connection_fd)
+{
+    if (strlen(socket_path) >= sizeof(((struct sockaddr_un *)0)->sun_path)) {
+        fprintf(stderr, "AHB bridge socket path is too long\n");
+        return -1;
+    }
+    struct sockaddr_un address = {
+        .sun_family = AF_UNIX,
+    };
+    strcpy(address.sun_path, socket_path);
+    int socket_fd = -1;
+    int connect_errno = 0;
+    for (int attempt = 0; attempt < 100; ++attempt) {
+        socket_fd = socket(AF_UNIX, SOCK_STREAM, 0);
+        if (socket_fd >= 0 &&
+            connect(socket_fd, (struct sockaddr *)&address, sizeof(address)) == 0) {
+            break;
+        }
+        connect_errno = errno;
+        if (socket_fd >= 0) {
+            close(socket_fd);
+            socket_fd = -1;
+        }
+        if (connect_errno != ENOENT && connect_errno != ECONNREFUSED) {
+            break;
+        }
+        struct timespec delay = {
+            .tv_sec = 0,
+            .tv_nsec = 100000000,
+        };
+        nanosleep(&delay, NULL);
+    }
+    if (socket_fd < 0) {
+        errno = connect_errno;
+        perror("connect(AHB bridge)");
+        return -1;
+    }
+
+    char payload[256];
+    char control[CMSG_SPACE(sizeof(int) * 16)] = {0};
+    struct iovec vector = {
+        .iov_base = payload,
+        .iov_len = sizeof(payload),
+    };
+    struct msghdr message = {
+        .msg_iov = &vector,
+        .msg_iovlen = 1,
+        .msg_control = control,
+        .msg_controllen = sizeof(control),
+    };
+    ssize_t received_bytes = recvmsg(socket_fd, &message, 0);
+    if (received_bytes < 0) {
+        perror("recvmsg(AHB bridge)");
+        close(socket_fd);
+        return -1;
+    }
+    size_t received_count = 0;
+    for (struct cmsghdr *header = CMSG_FIRSTHDR(&message); header != NULL;
+         header = CMSG_NXTHDR(&message, header)) {
+        if (header->cmsg_level != SOL_SOCKET ||
+            header->cmsg_type != SCM_RIGHTS) {
+            continue;
+        }
+        size_t byte_count = header->cmsg_len - CMSG_LEN(0);
+        size_t descriptor_count = byte_count / sizeof(int);
+        int *descriptors = (int *)CMSG_DATA(header);
+        for (size_t index = 0; index < descriptor_count; ++index) {
+            if (received_count < max_file_descriptors) {
+                file_descriptors[received_count++] = descriptors[index];
+            } else {
+                close(descriptors[index]);
+            }
+        }
+    }
+    printf("ahb_bridge_recv_bytes=%zd ahb_bridge_fd_count=%zu\n",
+           received_bytes, received_count);
+    *connection_fd = socket_fd;
+    return (int)received_count;
+}
+
+static int
+probe_android_hardware_buffer(VkPhysicalDevice physical_device, VkDevice device,
+                              VkQueue queue, uint32_t queue_family,
+                              const char *socket_path)
+{
+    printf("ahb_bridge.begin\n");
+    int file_descriptors[16] = {-1};
+    int connection_fd = -1;
+    int descriptor_count = receive_dma_buf_fds(
+        socket_path, file_descriptors,
+        sizeof(file_descriptors) / sizeof(file_descriptors[0]), &connection_fd);
+    if (descriptor_count <= 0) {
+        fprintf(stderr, "AHB bridge did not receive any DMA-BUF FDs\n");
+        if (connection_fd >= 0) {
+            close(connection_fd);
+        }
+        return 1;
+    }
+
+    const VkDeviceSize buffer_size = 64 * 64 * 4;
+    VkExternalMemoryBufferCreateInfo external_buffer_info = {
+        .sType = VK_STRUCTURE_TYPE_EXTERNAL_MEMORY_BUFFER_CREATE_INFO,
+        .handleTypes = VK_EXTERNAL_MEMORY_HANDLE_TYPE_DMA_BUF_BIT_EXT,
+    };
+    VkBufferCreateInfo buffer_info = {
+        .sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
+        .pNext = &external_buffer_info,
+        .size = buffer_size,
+        .usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+        .sharingMode = VK_SHARING_MODE_EXCLUSIVE,
+    };
+    VkBuffer buffer = VK_NULL_HANDLE;
+    VkResult result = vkCreateBuffer(device, &buffer_info, NULL, &buffer);
+    printf("ahb_bridge_vkCreateBuffer_status=%d\n", result);
+    if (result != VK_SUCCESS) {
+        goto fail;
+    }
+
+    VkMemoryRequirements memory_requirements;
+    vkGetBufferMemoryRequirements(device, buffer, &memory_requirements);
+    uint32_t memory_type_index = find_memory_type(
+        physical_device, memory_requirements.memoryTypeBits,
+        VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+    int pass = 0;
+    int linux_gpu_pass = 0;
+    for (int index = 0; index < descriptor_count; ++index) {
+        VkImportMemoryFdInfoKHR import_info = {
+            .sType = VK_STRUCTURE_TYPE_IMPORT_MEMORY_FD_INFO_KHR,
+            .handleType = VK_EXTERNAL_MEMORY_HANDLE_TYPE_DMA_BUF_BIT_EXT,
+            .fd = file_descriptors[index],
+        };
+        VkMemoryAllocateInfo allocation_info = {
+            .sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
+            .pNext = &import_info,
+            .allocationSize = memory_requirements.size,
+            .memoryTypeIndex = memory_type_index,
+        };
+        VkDeviceMemory memory = VK_NULL_HANDLE;
+        result = vkAllocateMemory(device, &allocation_info, NULL, &memory);
+        printf("ahb_bridge_fd_%d_allocate_status=%d\n", index, result);
+        if (result == VK_SUCCESS) {
+            file_descriptors[index] = -1;
+            result = vkBindBufferMemory(device, buffer, memory, 0);
+            printf("ahb_bridge_fd_%d_bind_status=%d\n", index, result);
+            if (result == VK_SUCCESS) {
+                uint32_t *mapped = NULL;
+                result = vkMapMemory(device, memory, 0, sizeof(*mapped), 0,
+                                     (void **)&mapped);
+                printf("ahb_bridge_fd_%d_map_status=%d\n", index, result);
+                if (result == VK_SUCCESS && mapped != NULL) {
+                    printf("ahb_bridge_fd_%d_value=0x%08x\n", index, *mapped);
+                    if (*mapped == 0x4e4f5641u) {
+                        pass = 1;
+                        vkUnmapMemory(device, memory);
+
+                        VkCommandPoolCreateInfo bridge_pool_info = {
+                            .sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
+                            .flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT,
+                            .queueFamilyIndex = queue_family,
+                        };
+                        VkCommandPool bridge_pool = VK_NULL_HANDLE;
+                        VkResult bridge_result = vkCreateCommandPool(
+                            device, &bridge_pool_info, NULL, &bridge_pool);
+                        printf("ahb_bridge_vkCreateCommandPool_status=%d\n",
+                               bridge_result);
+                        if (bridge_result == VK_SUCCESS) {
+                            VkCommandBufferAllocateInfo bridge_command_info = {
+                                .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
+                                .commandPool = bridge_pool,
+                                .level = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
+                                .commandBufferCount = 1,
+                            };
+                            VkCommandBuffer bridge_command_buffer =
+                                VK_NULL_HANDLE;
+                            bridge_result = vkAllocateCommandBuffers(
+                                device, &bridge_command_info,
+                                &bridge_command_buffer);
+                            printf("ahb_bridge_vkAllocateCommandBuffer_status=%d\n",
+                                   bridge_result);
+                            if (bridge_result == VK_SUCCESS) {
+                                VkCommandBufferBeginInfo bridge_begin_info = {
+                                    .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
+                                    .flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT,
+                                };
+                                bridge_result = vkBeginCommandBuffer(
+                                    bridge_command_buffer, &bridge_begin_info);
+                                if (bridge_result == VK_SUCCESS) {
+                                    vkCmdFillBuffer(bridge_command_buffer, buffer,
+                                                    0, buffer_size, 0xb16b00b5u);
+                                    bridge_result = vkEndCommandBuffer(
+                                        bridge_command_buffer);
+                                }
+                                VkFence bridge_fence = VK_NULL_HANDLE;
+                                if (bridge_result == VK_SUCCESS) {
+                                    VkFenceCreateInfo bridge_fence_info = {
+                                        .sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO,
+                                    };
+                                    bridge_result = vkCreateFence(
+                                        device, &bridge_fence_info, NULL,
+                                        &bridge_fence);
+                                    if (bridge_result == VK_SUCCESS) {
+                                        VkSubmitInfo bridge_submit_info = {
+                                            .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
+                                            .commandBufferCount = 1,
+                                            .pCommandBuffers =
+                                                &bridge_command_buffer,
+                                        };
+                                        bridge_result = vkQueueSubmit(
+                                            queue, 1, &bridge_submit_info,
+                                            bridge_fence);
+                                        if (bridge_result == VK_SUCCESS) {
+                                            bridge_result = vkWaitForFences(
+                                                device, 1, &bridge_fence, VK_TRUE,
+                                                5000000000ull);
+                                        }
+                                    }
+                                }
+                                printf("ahb_bridge_linux_gpu_status=%d\n",
+                                       bridge_result);
+                                if (bridge_result == VK_SUCCESS) {
+                                    uint32_t *gpu_mapped = NULL;
+                                    bridge_result = vkMapMemory(
+                                        device, memory, 0, sizeof(*gpu_mapped), 0,
+                                        (void **)&gpu_mapped);
+                                    if (bridge_result == VK_SUCCESS &&
+                                        gpu_mapped != NULL) {
+                                        printf("ahb_bridge_linux_gpu_value=0x%08x\n",
+                                               *gpu_mapped);
+                                        linux_gpu_pass =
+                                            *gpu_mapped == 0xb16b00b5u;
+                                        vkUnmapMemory(device, memory);
+                                    }
+                                }
+                                if (bridge_fence != VK_NULL_HANDLE) {
+                                    vkDestroyFence(device, bridge_fence, NULL);
+                                }
+                                vkFreeCommandBuffers(device, bridge_pool, 1,
+                                                      &bridge_command_buffer);
+                            }
+                            vkDestroyCommandPool(device, bridge_pool, NULL);
+                        }
+                    } else {
+                        vkUnmapMemory(device, memory);
+                    }
+                }
+            }
+            vkFreeMemory(device, memory, NULL);
+        }
+        if (file_descriptors[index] >= 0) {
+            close(file_descriptors[index]);
+            file_descriptors[index] = -1;
+        }
+        if (pass && linux_gpu_pass) {
+            for (int remaining = index + 1; remaining < descriptor_count;
+                 ++remaining) {
+                close(file_descriptors[remaining]);
+                file_descriptors[remaining] = -1;
+            }
+            break;
+        }
+    }
+    vkDestroyBuffer(device, buffer, NULL);
+    {
+        const char *acknowledgement =
+            pass && linux_gpu_pass
+                ? "linux_import=pass linux_gpu_write=pass\n"
+                : "linux_import=fail linux_gpu_write=fail\n";
+        send(connection_fd, acknowledgement, strlen(acknowledgement), 0);
+    }
+    close(connection_fd);
+    printf("ahb_bridge=%s\n", pass && linux_gpu_pass ? "pass" : "fail");
+    return pass && linux_gpu_pass ? 0 : 1;
+
+fail:
+    if (buffer != VK_NULL_HANDLE) {
+        vkDestroyBuffer(device, buffer, NULL);
+    }
+    for (int index = 0; index < descriptor_count; ++index) {
+        if (file_descriptors[index] >= 0) {
+            close(file_descriptors[index]);
+        }
+    }
+    if (connection_fd >= 0) {
+        send(connection_fd, "linux_import=fail\n", 18, 0);
+        close(connection_fd);
+    }
+    return 1;
 }
 
 int
@@ -321,6 +617,19 @@ main(void)
         return 1;
     }
     printf("dma_buf_import=pass\n");
+
+    const char *android_hardware_buffer_socket =
+        getenv("NOVA_AHB_HANDLE_SOCKET");
+    if (android_hardware_buffer_socket != NULL &&
+        android_hardware_buffer_socket[0] != '\0') {
+        int bridge_status = probe_android_hardware_buffer(
+            physical_device, device, queue, queue_family,
+            android_hardware_buffer_socket);
+        printf("ahb_bridge_status=%d\n", bridge_status);
+        if (bridge_status != 0) {
+            return 1;
+        }
+    }
 
     vkDestroyFence(device, fence, NULL);
     vkFreeMemory(device, imported_memory, NULL);

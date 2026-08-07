@@ -33,7 +33,17 @@ The **Run native buffer** button calls a small NDK library that allocates an And
 `AHardwareBuffer`, writes a marker through the CPU lock API, sends its native handle
 over an `AF_UNIX` socket, and reads the marker back from the received handle.
 The automated deploy path passes `--ez run_native true` so the same probe runs without
-manual UI interaction.
+manual UI interaction. The **Run Android Vulkan** button asks the system Vulkan driver
+to import an `AHardwareBuffer` as a Vulkan image, clear it on the GPU, and verify the
+pixel through the Android buffer lock API; the automated path passes
+`--ez run_android_vulkan true` as well. The **Run Linux bridge** button starts a
+private Unix-socket server, sends an `AHardwareBuffer` native handle to the Holo glibc
+probe, and waits for Linux Turnip to write the allocation before reading it back. Run
+the full cross-process check with:
+
+```sh
+android/nova-lab/deploy-ahb-bridge-test.sh
+```
 
 ## Evidence to collect
 
@@ -43,11 +53,13 @@ The important output is:
   access to `/dev/dri`, KGSL, `/dev/uinput`, and `/sys/class/kgsl`;
 - `device-logcat.txt`: the app's Surface, Java HardwareBuffer, and native
   `AHardwareBuffer` handle round-trip results;
+- `device-ahb-bridge-logcat.txt`: the cross-process handle transfer and Linux GPU
+  write-back result;
 - `device-screenshot.png`: a visual check that the SurfaceView received posted frames.
 
-The next experiment after this one is to stage a fixed ARM64 glibc rootfs (starting
-with the Holo snapshot already documented in `docs/05-current-arm64-steam-research.md`)
-and run a non-Steam ELF plus Vulkan loader probe through the same supervisor.
+The fixed ARM64 glibc rootfs and KGSL Turnip probe are now automated by the scripts
+below. The next acceptance target is a Linux-rendered image presented through the
+existing Android `Surface`, including explicit acquire/release synchronization.
 
 ## Holo ARM64 glibc probe
 
@@ -62,6 +74,7 @@ android/nova-lab/deploy-kgsl-turnip.sh
 android/nova-lab/build-vulkan-offscreen-probe.sh
 android/nova-lab/deploy-vulkan-offscreen-probe.sh
 android/nova-lab/deploy-holo-probe.sh
+android/nova-lab/deploy-ahb-bridge-test.sh
 ```
 
 `deploy-holo-probe.sh` returns the Vulkan probe status but always pulls its report,
@@ -70,4 +83,6 @@ including expected failures. Set `VULKAN_LOADER_DEBUG=all` for loader diagnostic
 and the current KGSL/DRM and DMA-BUF boundaries are documented in
 `docs/08-nova-holo-glibc-vulkan-probe.md`. The offscreen probe now exports a Vulkan
 allocation as `VK_EXT_external_memory_dma_buf`, imports that FD into a second Vulkan
-allocation, and verifies the GPU-written value survives the handoff.
+allocation, and verifies the GPU-written value survives the handoff. The bridge
+script extends that result across the Android/Holo process boundary; it does not yet
+exercise a compositor, Wayland, or a visible Linux image.

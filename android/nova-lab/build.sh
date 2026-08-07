@@ -38,7 +38,9 @@ mkdir -p "$BUILD_DIR/native/lib/arm64-v8a"
     -I"$NDK_TOOLCHAIN/sysroot/usr/include" \
     -o "$BUILD_DIR/native/lib/arm64-v8a/libnovabridge.so" \
     "$SCRIPT_DIR/src/main/cpp/novabridge.c" \
-    -landroid -llog
+    "$SCRIPT_DIR/src/main/cpp/androidvulkan.c" \
+    "$SCRIPT_DIR/src/main/cpp/ahbbridge.c" \
+    -landroid -llog -lvulkan
 
 "$TOOLS_DIR/aapt2" compile --dir "$SCRIPT_DIR/src/main/res" -o "$BUILD_DIR/compiled"
 
