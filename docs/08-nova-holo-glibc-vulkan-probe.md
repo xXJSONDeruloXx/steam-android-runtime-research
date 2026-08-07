@@ -191,7 +191,8 @@ AHardwareBuffer import/export, or Steam process is involved.
 - The companion Android probe now proves the next lower-level boundary as well: an
   Android `AHardwareBuffer` handle can cross into Holo as DMA-BUF FDs and be written by
   Linux Turnip, with Android reading the result back. The visible compositor path,
-  gamescope, Wayland, Steam, and FEX remain unproven.
+  gamescope, Wayland, Steam, and FEX remain unproven; the companion's one-frame
+  SurfaceControl presentation is documented in the next probe.
 
 It does **not** yet prove that Steam can run, that a KGSL-enabled driver can initialize,
 or that a Linux compositor can export frames to the Android app. The disposable Holo
@@ -200,8 +201,9 @@ iteration and can be removed after the driver experiment.
 
 ## Next experiment
 
-The Linux-rendered RGBA image-memory handoff now passes through the Android companion
-probe. The next acceptance target is to present that image through the existing
-Android `Surface`, with explicit acquire/release fences and frame pacing. That should
-become the smallest compositor-shaped loop before adding Wayland, gamescope, SteamRT3C,
-the native ARM64 Steam client, input, and lifecycle management.
+The Linux-rendered RGBA image-memory handoff and one-frame `ASurfaceControl`
+presentation now pass through the Android companion probe. The next acceptance target
+is a reusable double-buffered loop with an explicit Linux-to-Android acquire fence,
+Android release-fence handling, and frame pacing. That should become the smallest
+compositor-shaped loop before adding Wayland, gamescope, SteamRT3C, the native ARM64
+Steam client, input, and lifecycle management.

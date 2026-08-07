@@ -8,6 +8,7 @@ import android.graphics.PixelFormat;
 import android.hardware.HardwareBuffer;
 import android.os.Bundle;
 import android.util.Log;
+import android.view.Surface;
 import android.view.SurfaceHolder;
 import android.view.SurfaceView;
 import android.view.View;
@@ -36,6 +37,7 @@ public final class MainActivity extends Activity implements SurfaceHolder.Callba
 
     private final ExecutorService worker = Executors.newSingleThreadExecutor();
     private volatile boolean surfaceProbeRunning;
+    private volatile Surface presentationSurface;
     private TextView surfaceStatus;
     private TextView rootStatus;
     private TextView nativeStatus;
@@ -44,7 +46,7 @@ public final class MainActivity extends Activity implements SurfaceHolder.Callba
 
     private static native String nativeRunHardwareBufferProbe();
     private static native String nativeRunAndroidVulkanHardwareBufferProbe();
-    private static native String nativeRunDmaBufBridge(String socketPath);
+    private static native String nativeRunDmaBufBridge(String socketPath, Surface surface);
 
     @Override
     protected void onCreate(Bundle state) {
@@ -202,6 +204,7 @@ public final class MainActivity extends Activity implements SurfaceHolder.Callba
 
     @Override
     public void surfaceCreated(final SurfaceHolder holder) {
+        presentationSurface = holder.getSurface();
         if (surfaceProbeRunning) {
             return;
         }
@@ -229,6 +232,7 @@ public final class MainActivity extends Activity implements SurfaceHolder.Callba
     @Override
     public void surfaceDestroyed(SurfaceHolder holder) {
         surfaceProbeRunning = false;
+        presentationSurface = null;
         Log.i(TAG, "surface_destroyed");
     }
 
@@ -385,7 +389,7 @@ public final class MainActivity extends Activity implements SurfaceHolder.Callba
             public void run() {
                 String result;
                 try {
-                    result = nativeRunDmaBufBridge(socketPath);
+                    result = nativeRunDmaBufBridge(socketPath, presentationSurface);
                 } catch (Throwable error) {
                     result = "native_exception=" + error;
                 }

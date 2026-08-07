@@ -1,17 +1,56 @@
 #define _POSIX_C_SOURCE 200809L
 
 #include <android/hardware_buffer.h>
+#include <android/native_window_jni.h>
+#include <android/rect.h>
 
 #include <jni.h>
 
+#include <pthread.h>
 #include <stdarg.h>
 #include <stdint.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <sys/socket.h>
 #include <sys/time.h>
 #include <sys/un.h>
+#include <time.h>
 #include <unistd.h>
+
+/* surface_control.h exposes its ARect parameters as C++ references even when
+ * included from C. Declare the API's C ABI here so the NDK C build can use the
+ * API-29 surface transaction path without compiling this file as C++. */
+typedef struct ASurfaceControl ASurfaceControl;
+typedef struct ASurfaceTransaction ASurfaceTransaction;
+typedef struct ASurfaceTransactionStats ASurfaceTransactionStats;
+typedef void (*ASurfaceTransaction_OnComplete)(
+    void *context, ASurfaceTransactionStats *stats);
+
+extern ASurfaceControl *ASurfaceControl_createFromWindow(
+    ANativeWindow *window, const char *debug_name);
+extern void ASurfaceControl_release(ASurfaceControl *surface_control);
+extern ASurfaceTransaction *ASurfaceTransaction_create(void);
+extern void ASurfaceTransaction_delete(ASurfaceTransaction *transaction);
+extern void ASurfaceTransaction_setBuffer(ASurfaceTransaction *transaction,
+                                          ASurfaceControl *surface_control,
+                                          AHardwareBuffer *buffer,
+                                          int acquire_fence_fd);
+extern void ASurfaceTransaction_setGeometry(ASurfaceTransaction *transaction,
+                                            ASurfaceControl *surface_control,
+                                            const ARect *source,
+                                            const ARect *destination,
+                                            int32_t transform);
+extern void ASurfaceTransaction_setOnComplete(
+    ASurfaceTransaction *transaction, void *context,
+    ASurfaceTransaction_OnComplete callback);
+extern void ASurfaceTransaction_apply(ASurfaceTransaction *transaction);
+extern int ASurfaceTransactionStats_getPresentFenceFd(
+    ASurfaceTransactionStats *stats);
+extern int ASurfaceTransactionStats_getPreviousReleaseFenceFd(
+    ASurfaceTransactionStats *stats, ASurfaceControl *surface_control);
+extern int64_t ASurfaceTransactionStats_getLatchTime(
+    ASurfaceTransactionStats *stats);
 
 static void
 append_line(char *report, size_t capacity, size_t *used, const char *format,
@@ -40,9 +79,148 @@ report_string(JNIEnv *env, const char *report)
     return (*env)->NewStringUTF(env, report);
 }
 
+struct surface_completion {
+    pthread_mutex_t mutex;
+    pthread_cond_t condition;
+    ASurfaceControl *surface_control;
+    int complete;
+    int abandoned;
+    int present_fence;
+    int previous_release_fence;
+    int64_t latch_time;
+};
+
+static void
+surface_transaction_complete(void *context, ASurfaceTransactionStats *stats)
+{
+    struct surface_completion *completion = context;
+    int present_fence = -1;
+    int previous_release_fence = -1;
+    int64_t latch_time = -1;
+    if (stats != NULL) {
+        present_fence = ASurfaceTransactionStats_getPresentFenceFd(stats);
+        previous_release_fence =
+            ASurfaceTransactionStats_getPreviousReleaseFenceFd(
+                stats, completion->surface_control);
+        latch_time = ASurfaceTransactionStats_getLatchTime(stats);
+    }
+    if (present_fence >= 0) {
+        close(present_fence);
+    }
+    if (previous_release_fence >= 0) {
+        close(previous_release_fence);
+    }
+
+    pthread_mutex_lock(&completion->mutex);
+    if (completion->abandoned) {
+        ASurfaceControl *surface_control = completion->surface_control;
+        pthread_mutex_unlock(&completion->mutex);
+        ASurfaceControl_release(surface_control);
+        pthread_cond_destroy(&completion->condition);
+        pthread_mutex_destroy(&completion->mutex);
+        free(completion);
+        return;
+    }
+    completion->present_fence = present_fence >= 0;
+    completion->previous_release_fence = previous_release_fence >= 0;
+    completion->latch_time = latch_time;
+    completion->complete = 1;
+    pthread_cond_signal(&completion->condition);
+    pthread_mutex_unlock(&completion->mutex);
+}
+
+static int
+present_surface_buffer(JNIEnv *env, jobject surface_object,
+                        AHardwareBuffer *buffer, char *report, size_t capacity,
+                        size_t *used)
+{
+    if (surface_object == NULL) {
+        append_line(report, capacity, used, "surface_control=missing_surface\n");
+        return 0;
+    }
+    ANativeWindow *window = ANativeWindow_fromSurface(env, surface_object);
+    append_line(report, capacity, used, "native_window=%s\n",
+                window != NULL ? "created" : "missing");
+    if (window == NULL) {
+        return 0;
+    }
+    ASurfaceControl *surface_control = ASurfaceControl_createFromWindow(
+        window, "Nova Linux image bridge");
+    ANativeWindow_release(window);
+    append_line(report, capacity, used, "surface_control=%s\n",
+                surface_control != NULL ? "created" : "missing");
+    if (surface_control == NULL) {
+        return 0;
+    }
+
+    struct surface_completion *completion = calloc(1, sizeof(*completion));
+    if (completion == NULL) {
+        ASurfaceControl_release(surface_control);
+        append_line(report, capacity, used,
+                    "surface_transaction=allocation_failed\n");
+        return 0;
+    }
+    pthread_mutex_init(&completion->mutex, NULL);
+    pthread_cond_init(&completion->condition, NULL);
+    completion->surface_control = surface_control;
+
+    ASurfaceTransaction *transaction = ASurfaceTransaction_create();
+    if (transaction == NULL) {
+        append_line(report, capacity, used,
+                    "surface_transaction=creation_failed\n");
+        pthread_cond_destroy(&completion->condition);
+        pthread_mutex_destroy(&completion->mutex);
+        free(completion);
+        ASurfaceControl_release(surface_control);
+        return 0;
+    }
+    ASurfaceTransaction_setBuffer(transaction, surface_control, buffer, -1);
+    ARect source = {0, 0, 64, 64};
+    ARect destination = {0, 0, 960, 540};
+    ASurfaceTransaction_setGeometry(transaction, surface_control, &source,
+                                    &destination, 0);
+    ASurfaceTransaction_setOnComplete(transaction, completion,
+                                      surface_transaction_complete);
+    ASurfaceTransaction_apply(transaction);
+    ASurfaceTransaction_delete(transaction);
+    append_line(report, capacity, used, "surface_transaction_apply=pass\n");
+
+    struct timespec deadline;
+    clock_gettime(CLOCK_REALTIME, &deadline);
+    deadline.tv_sec += 2;
+    pthread_mutex_lock(&completion->mutex);
+    while (!completion->complete) {
+        int wait_status = pthread_cond_timedwait(
+            &completion->condition, &completion->mutex, &deadline);
+        if (wait_status != 0) {
+            break;
+        }
+    }
+    if (!completion->complete) {
+        completion->abandoned = 1;
+        pthread_mutex_unlock(&completion->mutex);
+        append_line(report, capacity, used,
+                    "surface_transaction_complete=timeout\n");
+        return 0;
+    }
+    int present_fence = completion->present_fence;
+    int previous_release_fence = completion->previous_release_fence;
+    int64_t latch_time = completion->latch_time;
+    pthread_mutex_unlock(&completion->mutex);
+    append_line(report, capacity, used,
+                "surface_transaction_complete=pass latch_time=%lld present_fence=%d previous_release_fence=%d\n",
+                (long long)latch_time, present_fence, previous_release_fence);
+    pthread_cond_destroy(&completion->condition);
+    pthread_mutex_destroy(&completion->mutex);
+    free(completion);
+    ASurfaceControl_release(surface_control);
+    return 1;
+}
+
 JNIEXPORT jstring JNICALL
 Java_com_xjsonderulo_steamandroid_novalab_MainActivity_nativeRunDmaBufBridge(
-    JNIEnv *env, jobject object, jstring socket_path_string)
+    JNIEnv *env, jobject object, jstring socket_path_string,
+    jobject surface_object)
 {
     (void)object;
     char report[4096] = "";
@@ -68,7 +246,8 @@ Java_com_xjsonderulo_steamandroid_novalab_MainActivity_nativeRunDmaBufBridge(
     const uint64_t usage = AHARDWAREBUFFER_USAGE_CPU_READ_OFTEN |
                            AHARDWAREBUFFER_USAGE_CPU_WRITE_OFTEN |
                            AHARDWAREBUFFER_USAGE_GPU_SAMPLED_IMAGE |
-                           AHARDWAREBUFFER_USAGE_GPU_FRAMEBUFFER;
+                           AHARDWAREBUFFER_USAGE_GPU_FRAMEBUFFER |
+                           AHARDWAREBUFFER_USAGE_COMPOSER_OVERLAY;
     AHardwareBuffer_Desc description = {
         .width = 64,
         .height = 64,
@@ -190,8 +369,15 @@ Java_com_xjsonderulo_steamandroid_novalab_MainActivity_nativeRunDmaBufBridge(
                         "ahb_linux_image_write=pass\n");
             append_line(report, sizeof(report), &used,
                         "ahb_linux_bridge=pass\n");
-            append_line(report, sizeof(report), &used, "ahb_bridge=pass\n");
-            success = 1;
+            if (present_surface_buffer(env, surface_object, buffer, report,
+                                        sizeof(report), &used)) {
+                append_line(report, sizeof(report), &used,
+                            "ahb_surface=pass\n");
+                success = 1;
+            } else {
+                append_line(report, sizeof(report), &used,
+                            "ahb_surface=fail\n");
+            }
         } else {
             append_line(report, sizeof(report), &used,
                         "ahb_linux_image_write=fail\n");
@@ -218,8 +404,7 @@ done:
         AHardwareBuffer_release(buffer);
     }
     (*env)->ReleaseStringUTFChars(env, socket_path_string, socket_path);
-    if (!success) {
-        append_line(report, sizeof(report), &used, "ahb_bridge=fail\n");
-    }
+    append_line(report, sizeof(report), &used, "ahb_bridge=%s\n",
+                success ? "pass" : "fail");
     return report_string(env, report);
 }

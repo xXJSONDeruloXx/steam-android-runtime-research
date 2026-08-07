@@ -41,4 +41,12 @@ set -e
 echo "holo report: $BUILD_DIR/holo-glibc-report.txt"
 echo "app logcat:  $BUILD_DIR/device-ahb-bridge-logcat.txt"
 echo "screenshot:  $BUILD_DIR/device-ahb-bridge-screenshot.png"
-exit "$probe_status"
+if [ "$probe_status" -ne 0 ]; then
+    exit "$probe_status"
+fi
+if ! rg -q 'ahb_bridge=pass' "$BUILD_DIR/device-ahb-bridge-logcat.txt" ||
+   ! rg -q 'ahb_surface=pass' "$BUILD_DIR/device-ahb-bridge-logcat.txt"; then
+    echo "Android bridge/surface acceptance failed; inspect $BUILD_DIR/device-ahb-bridge-logcat.txt" >&2
+    exit 1
+fi
+exit 0

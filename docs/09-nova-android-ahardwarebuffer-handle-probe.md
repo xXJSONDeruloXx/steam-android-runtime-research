@@ -29,7 +29,10 @@ The automated launcher passes `--ez run_native true` and
 smoke test. The same operations are available from the APK's **Run native buffer** and
 **Run Android Vulkan** buttons. The bridge script starts the APK's **Run Linux bridge**
 server, binds the app's private files directory into the Holo namespace, and launches
-the checked-in Linux Vulkan probe with the socket path.
+the checked-in Linux Vulkan probe with the socket path. After the Linux image readback
+passes, the native bridge submits that same AHardwareBuffer through an
+`ASurfaceControl` child of the SurfaceView and waits for the transaction completion
+callback.
 
 ## Device result
 
@@ -84,9 +87,10 @@ KGSL allocation.
 
 ## Cross-process Linux bridge result
 
-The Android bridge wrote `0x4e4f5641` into a 64x64 RGBA8888 AHardwareBuffer and sent
-its native handle to the Holo-side receiver. The receiver saw two raw DMA-BUF FDs and
-the first one imported successfully into Mesa KGSL Turnip:
+The Android bridge wrote `0x4e4f5641` into a 64x64 RGBA8888 AHardwareBuffer allocated
+with composer-overlay usage (`0xb33`) and sent its native handle to the Holo-side
+receiver. The receiver saw two raw DMA-BUF FDs and the first one imported successfully
+into Mesa KGSL Turnip:
 
 ```text
 mount./data/local/tmp/nova-holo-rootfs/run/nova-lab-app=pass
@@ -127,6 +131,11 @@ ahardwarebuffer.lock_after_linux_status=0
 ahardwarebuffer.pixel_after_linux=4080c0ff
 ahb_linux_image_write=pass
 ahb_linux_bridge=pass
+native_window=created
+surface_control=created
+surface_transaction_apply=pass
+surface_transaction_complete=pass latch_time=6863880341130 present_fence=1 previous_release_fence=0
+ahb_surface=pass
 ahb_bridge=pass
 ```
 
@@ -152,15 +161,20 @@ negotiation as an explicit follow-up.
   result, then import the same allocation as a Vulkan RGBA image and clear it; Android
   observes the expected pixel, proving the image-memory handoff needed before
   compositor work.
+- The Android app can submit that Linux-rendered AHardwareBuffer through an
+  `ASurfaceControl` child of its `SurfaceView`; the transaction completes with a
+  present fence, and the captured screen shows the blue RGBA clear.
 
 ## What remains unproven
 
-The image memory path now passes, but this still does not present a Linux-rendered
-image through the app's `Surface` or SurfaceControl. No acquire/release fence crosses
-the socket boundary, and the test has no frame pacing, buffer queue, or compositor
-ownership protocol. It also does not prove Wayland, gamescope, Xwayland, SteamRT3C, the
+The one-frame image path now reaches SurfaceControl, but no Linux-produced acquire
+fence crosses the socket boundary: the bridge uses `-1` only because it waits for the
+Holo Vulkan fence before applying the transaction. The test has no reusable
+double-buffer queue, Android release-fence handoff, frame pacing, or compositor
+ownership loop. It also does not prove Wayland, gamescope, Xwayland, SteamRT3C, the
 native Steam client, input, audio, or lifecycle recovery.
 
-The next implementation should carry the verified RGBA image through the existing app
-Surface with explicit acquire/release fences and frame pacing, then grow that loop into
-a headless compositor or gamescope integration.
+The next implementation should export a Linux acquire fence, retain buffers until the
+SurfaceControl completion/release fence, and run a double-buffered frame loop. That is
+the smallest compositor-shaped step before a headless compositor or gamescope
+integration.

@@ -38,8 +38,9 @@ to import an `AHardwareBuffer` as a Vulkan image, clear it on the GPU, and verif
 pixel through the Android buffer lock API; the automated path passes
 `--ez run_android_vulkan true` as well. The **Run Linux bridge** button starts a
 private Unix-socket server, sends an `AHardwareBuffer` native handle to the Holo glibc
-probe, and waits for Linux Turnip to write the allocation before reading it back. Run
-the full cross-process check with:
+probe, waits for Linux Turnip to write the allocation and clear it as an image, then
+presents that same buffer through an `ASurfaceControl` child of the app's `SurfaceView`.
+Run the full cross-process check with:
 
 ```sh
 android/nova-lab/deploy-ahb-bridge-test.sh
@@ -54,13 +55,15 @@ The important output is:
 - `device-logcat.txt`: the app's Surface, Java HardwareBuffer, and native
   `AHardwareBuffer` handle round-trip results;
 - `device-ahb-bridge-logcat.txt`: the cross-process handle transfer and Linux GPU
-  write-back result;
+  write-back, SurfaceControl transaction, and fence result;
+- `device-ahb-bridge-screenshot.png`: a visual check that the Linux-rendered blue
+  image reached the Android surface;
 - `device-screenshot.png`: a visual check that the SurfaceView received posted frames.
 
-The fixed ARM64 glibc rootfs, KGSL Turnip probe, and Android image-memory handoff are
-now automated by the scripts below. The next acceptance target is to present that
-Linux-rendered image through the existing Android `Surface`, including explicit
-acquire/release synchronization.
+The fixed ARM64 glibc rootfs, KGSL Turnip probe, Android image-memory handoff, and
+one-frame SurfaceControl presentation are now automated by the scripts below. The next
+acceptance target is a reusable double-buffered loop with explicit acquire/release
+synchronization.
 
 ## Holo ARM64 glibc probe
 
@@ -85,5 +88,6 @@ and the current KGSL/DRM and DMA-BUF boundaries are documented in
 `docs/08-nova-holo-glibc-vulkan-probe.md`. The offscreen probe now exports a Vulkan
 allocation as `VK_EXT_external_memory_dma_buf`, imports that FD into a second Vulkan
 allocation, and verifies the GPU-written value survives the handoff. The bridge
-script extends that result across the Android/Holo process boundary; it does not yet
-exercise a compositor, Wayland, or a visible Linux image.
+script extends that result across the Android/Holo process boundary and submits the
+verified buffer through SurfaceControl; it does not yet implement a reusable compositor
+queue, Wayland, or gamescope.
