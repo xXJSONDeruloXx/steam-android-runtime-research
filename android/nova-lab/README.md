@@ -79,6 +79,7 @@ The next-stage scripts keep the rootfs and downloaded packages under the ignored
 ```sh
 android/nova-lab/fetch-holo-rootfs.sh
 android/nova-lab/install-holo-packages.sh
+android/nova-lab/install-holo-gamescope.sh
 android/nova-lab/build-kgsl-turnip.sh
 android/nova-lab/deploy-kgsl-turnip.sh
 android/nova-lab/build-vulkan-offscreen-probe.sh
@@ -86,6 +87,7 @@ android/nova-lab/deploy-vulkan-offscreen-probe.sh
 android/nova-lab/deploy-holo-probe.sh
 android/nova-lab/deploy-ahb-bridge-test.sh
 android/nova-lab/deploy-ahb-double-buffer-test.sh
+android/nova-lab/deploy-gamescope-control.sh
 ```
 
 `deploy-holo-probe.sh` returns the Vulkan probe status but always pulls its report,
@@ -102,3 +104,15 @@ the current run observed the fence as unsignaled at Android handoff. It does not
 implement a real compositor protocol, Wayland, or gamescope; the separate
 `deploy-ahb-double-buffer-test.sh` now proves the reusable two-buffer and release-fence
 queue contract.
+
+To install the Holo `gamescope` package and run the stock DRM/auto-backend control:
+
+```sh
+android/nova-lab/deploy-gamescope-control.sh
+```
+
+The control is expected to return success only after reproducing
+`physical device doesn't support VK_EXT_physical_device_drm` while `vulkaninfo` still
+reports the Turnip Adreno 740. Set `INSTALL_HOLO_GAMESCOPE=0` for repeats after the
+package closure is already installed. The report is saved as
+`build/device-gamescope-control-report.txt`.

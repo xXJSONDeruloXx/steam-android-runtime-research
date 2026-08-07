@@ -207,7 +207,9 @@ acquire fence. The companion also has an opt-in export-before-wait mode; the cur
 64x64 run proves the ordering, a pending-fence handoff, and SurfaceControl completion.
 The separate two-buffer run now keeps two image imports alive, submits five alternating
 frames, returns four Android release fences to Holo, and reuses each buffer only after
-that fence signals; cleanup uses queue idle only after the loop. The next acceptance
-target is a persistent compositor-facing render target and a minimal Wayland/gamescope
-backend before adding SteamRT3C, the native ARM64 Steam client, input, and lifecycle
-management.
+that fence signals; cleanup uses queue idle only after the loop. A stock Holo
+gamescope control now confirms that Vulkan device creation reaches Turnip but stops at
+`VK_EXT_physical_device_drm`, so the next acceptance target is a narrow
+Android-compatible gamescope backend/device seam and then a persistent
+compositor-facing render target before adding SteamRT3C, the native ARM64 Steam client,
+input, and lifecycle management.

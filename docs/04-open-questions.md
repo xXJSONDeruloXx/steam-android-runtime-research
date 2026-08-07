@@ -71,6 +71,9 @@ Once Steam renders in the Linux/gamescope session:
 - Replace Termux:X11 output with the persistent AHardwareBuffer pool; the Nova lab now
   proves the two-buffer version of this contract.
 - Carry the proven acquire/release-fence queue into the real Wayland/gamescope session.
+- The stock Holo gamescope control reaches the KGSL Turnip Adreno device, then fails at
+  `VK_EXT_physical_device_drm`; test a backend/device seam that does not assume Linux DRM
+  identity before attempting the persistent output integration.
 - Forward Android controller and touch events into the gamescope/Wayland session.
 - Keep gamescope alive independently of short-lived test children.
 - Test Steam suspend/resume and clean shutdown.

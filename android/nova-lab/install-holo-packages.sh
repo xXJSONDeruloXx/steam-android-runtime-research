@@ -12,6 +12,13 @@ DEVICE_PACKAGES=/data/local/tmp/nova-holo-pkgs
 DEVICE_SCRIPT=/data/local/tmp/nova-holo-package-install.sh
 DEVICE_REPORT=/data/local/tmp/nova-holo-package-install-report.txt
 DEVICE_WORK=/data/local/tmp/nova-holo-package-install-work
+HOLO_PACKAGES=${HOLO_PACKAGES:-"vulkan-tools vulkan-headers vulkan-freedreno"}
+
+read -r -a PACKAGE_NAMES <<< "$HOLO_PACKAGES"
+if [ "${#PACKAGE_NAMES[@]}" -eq 0 ]; then
+    echo "HOLO_PACKAGES must contain at least one package name" >&2
+    exit 1
+fi
 
 if [ ! -d "$ROOTFS_HOST" ]; then
     echo "missing extracted rootfs: $ROOTFS_HOST" >&2
@@ -21,7 +28,7 @@ fi
 python3 "$SCRIPT_DIR/fetch-holo-packages.py" \
     --rootfs "$ROOTFS_HOST" \
     --output "$PACKAGE_DIR" \
-    vulkan-tools vulkan-headers vulkan-freedreno
+    "${PACKAGE_NAMES[@]}"
 
 for package_file in \
     "$PACKAGE_DIR"/vulkan-headers-*.pkg.tar.zst \
