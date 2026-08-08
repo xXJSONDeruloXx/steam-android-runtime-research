@@ -147,6 +147,13 @@ for file in $(find "$STEAMUI_ROOT" -type f -name '*.js' -exec grep -l 'SteamClie
             'SteamClient.System.Network?.RegisterForAppSummaryUpdate?.(t)' \
             register_app_summary || status=1
     fi
+    if grep -Fq 'nl.op.SetOOBEComplete(),t(e,r)' "$file"; then
+        matched=1
+        patch_file "$file" \
+            'nl.op.SetOOBEComplete(),t(e,r)' \
+            'await nl.op.SetOOBEComplete(),t(e,r)' \
+            oobe_completion_order || status=1
+    fi
     if grep -Fq 'const n={};o.oy.IsDeckFactoryImage()||i==Em.ej?n.bRequireReboot=!0:n.bRequireSteamRestart=!0,console.assert(n.bRequireReboot||n.bRequireSteamRestart),t(n)' "$file"; then
         matched=1
         patch_file "$file" \
@@ -168,6 +175,7 @@ if [ "$matched" -eq 0 ]; then
         if grep -Fq 'SteamClient.System.Network?.RegisterForDeviceChanges?.(this.OnNetworkDevicesChanged)' "$file" && \
             grep -Fq 'StartScanningForNetworks(){const e=SteamClient.System.Network?.StartScanningForNetworks?.();e?.then?.(u.rA)}' "$file" && \
             grep -Fq 'SteamClient.System.Network?.GetProxyInfo?.()?.then?.(e=>this.m_proxyInfo=e)' "$file" && \
+            grep -Fq 'await nl.op.SetOOBEComplete(),t(e,r)' "$file" && \
             grep -Fq 't(void 0)' "$file" && \
             grep -Fq 'children:"Continue with Android host network"' "$file"; then
             echo "steam_network_compat=already-patched file=$file"

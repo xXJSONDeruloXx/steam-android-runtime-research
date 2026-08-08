@@ -93,3 +93,21 @@ still taking the restart branch. The run was stopped with
 The source patch is now corrected from `t(n)`/`t({})` to `t(void 0)`. This correction
 must be committed and pushed before the next long device session. Login remains
 unproven until a fresh run reaches the login route after this correction.
+
+## OOBE completion ordering boundary
+
+The first run with the false/undefined no-restart result logged:
+
+```text
+SteamUI: WARNING: No restart requested
+SteamUI: WARNING: /login blocked by parental controls feature 0
+```
+
+The bundle's navigation blocker uses `!GetOOBEComplete()` as an OOBE-mode lock.
+The parent OOBE callback called `SetOOBEComplete()` and immediately navigated,
+so the login route could race the asynchronous settings write and be rejected
+before the completion state was observable. The compatibility helper now also
+changes that callback to `await nl.op.SetOOBEComplete(),t(e,r)`. This remains an
+OOBE-only ordering repair; it does not disable parental controls or bypass a
+real lock. A fresh run must verify both the awaited completion and the login
+surface.

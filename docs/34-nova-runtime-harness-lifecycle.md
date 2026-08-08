@@ -87,6 +87,11 @@ and manual/controller teardown reports app-file cleanup separately. A
 transient process-exit race therefore remains visible while no longer causing
 the next experiment to inherit a half-dead runtime.
 
+The manual controller path also now applies the Android settings-overlay
+focus check at readiness, not only around bounded screenshots. This closes the
+observed case where `com.rp.settings` owned the USB chooser and consumed the
+operator's real D-pad/touch input before Steam received it.
+
 ## Evidence and regression check
 
 The original bad state was reproduced by a fresh app session with a gray

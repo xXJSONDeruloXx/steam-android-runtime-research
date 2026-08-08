@@ -425,6 +425,12 @@ else
 fi
 
 if [ "$MANUAL_SESSION" = "1" ]; then
+    if [ "$ui_ready" -eq 0 ]; then
+        # Manual sessions must start with the same input focus invariant as
+        # bounded runs; otherwise Android's USB chooser can consume real
+        # controls and make a healthy Steam session appear unresponsive.
+        dismiss_android_overlay
+    fi
     echo "controller_ui_manual_session=$([ "$ui_ready" -eq 0 ] && echo ready || echo not_ready)"
     set +e
     wait "$run_pid"
