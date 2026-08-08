@@ -7,7 +7,12 @@ ADB serial: `675a2365`
 This checkpoint stages Valve's native ARM64 Steam client and SteamRT3C runtime
 inside the disposable Holo glibc rootfs, then launches the real Steam process
 through the already-proven Xwayland → Gamescope → Android AHardwareBuffer path.
-It is a startup and ABI investigation, not a Steam UI acceptance result.
+The sections below preserve the seed, ABI, bootstrap, and early webhelper
+investigation in chronological order. The follow-up UI result is now recorded
+in [docs/15](15-nova-steam-ui-ahb-smoke.md), which supersedes the earlier
+“webhelper not observed” boundary with a pre-login Gamepad UI screenshot and
+SteamUI WebSocket-ready evidence. Login, input, games, and hardware CEF
+rendering are still open.
 
 ## Resolved inputs
 

@@ -84,10 +84,9 @@ Nova lab now has a two-buffer AHardwareBuffer/SurfaceControl queue with acquire/
 backpressure, [doc 12](12-nova-gamescope-ahb-output.md) connects that pool to the patched headless
 Gamescope compositor for sustained 60-frame and 960x540 Wayland-SHM runs, and [doc 13](13-nova-xwayland-ahb-output.md)
 crosses the same path with an animated ARM64 X11 client through Xwayland. The first acquire fence is
-intentionally synchronous; the remaining work is direct asynchronous compositor fencing and a real
-Steam-producing Wayland/Xwayland session. The stock Holo gamescope control reaches the same KGSL Turnip
-device but is blocked by its unconditional `VK_EXT_physical_device_drm` device-identity requirement. The
-narrow patched headless path crosses that identity boundary.
+intentionally synchronous. The stock Holo gamescope control reaches the same KGSL Turnip device but is
+blocked by its unconditional `VK_EXT_physical_device_drm` device-identity requirement; the narrow
+patched headless path crosses that identity boundary.
 If the existing AHardwareBuffer/SurfaceControl path relies on privileged APIs, use a buffer-copy or
 producer/consumer path that the ordinary app sandbox permits. Measure frame latency, buffer reuse, release
 fences, rotation, and lifecycle loss before optimizing.
@@ -103,10 +102,13 @@ gamescope/Wayland frame
 
 The Nova lab has now launched the native ARM64 Steam process through the same
 Xwayland/Gamescope control and resolved the first semaphore, FFmpeg, SDL, X11
-authorization, GTK2, NSS/NSPR, and rootfs-DNS boundaries. The process renders
-its update UI into the Android AHardwareBuffer queue, then stops during
-Bootstrapper HTTP Client teardown before `steamwebhelper`; this stage is not
-complete until Steam's actual Gamepad UI and a game render continuously.
+authorization, GTK2, NSS/NSPR, rootfs-DNS, runtime-directory, machine-id, and
+SteamRT diagnostic-tool boundaries. The process starts `steamwebhelper`, reaches
+both SteamUI WebSocket `connection ready` markers, and visibly renders the
+pre-login Gamepad UI welcome screen into the Android AHardwareBuffer queue; see
+[doc 15](15-nova-steam-ui-ahb-smoke.md). The stage is not complete until login,
+controller input, a game, and clean lifecycle behavior work, and the current
+CEF report still identifies software `softpipe` rendering.
 
 ### Rootless stage 3: user-space Steam session supervision
 

@@ -161,6 +161,19 @@ if [ -n "\$NOVA_HOLO_NAMESERVER" ]; then
 else
     echo "rootfs.resolv_conf=unavailable"
 fi
+if [ ! -s "\$ROOT/etc/machine-id" ]; then
+    mkdir -p "\$ROOT/etc" "\$ROOT/var/lib/dbus"
+    machine_id=\$(cat /proc/sys/kernel/random/uuid 2>/dev/null | tr -d '-')
+    if [ "\${#machine_id}" -ne 32 ]; then
+        machine_id=0123456789abcdef0123456789abcdef
+    fi
+    printf '%s\\n' "\$machine_id" >"\$ROOT/etc/machine-id"
+    rm -f "\$ROOT/var/lib/dbus/machine-id"
+    ln -s /etc/machine-id "\$ROOT/var/lib/dbus/machine-id"
+    echo "rootfs.machine_id=generated"
+else
+    echo "rootfs.machine_id=existing"
+fi
 mkdir -p "\$ROOT/opt/nova-steam"
 echo "\$NOVA_STEAM_CLIENT_TIMEOUT" >"\$ROOT/opt/nova-steam/client-timeout"
 echo "\$NOVA_STEAM_GAMESCOPE_TIMEOUT" >"\$ROOT/opt/nova-steam/gamescope-timeout"

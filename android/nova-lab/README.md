@@ -94,6 +94,7 @@ android/nova-lab/deploy-gamescope-headless-test.sh
 android/nova-lab/deploy-gamescope-headless-composite-test.sh
 android/nova-lab/deploy-gamescope-headless-ahb-test.sh
 android/nova-lab/deploy-native-steam-smoke-test.sh
+android/nova-lab/deploy-native-steam-ui-smoke-test.sh
 android/nova-lab/fetch-steam-arm64-seed.sh --all
 NOVA_STEAM_UID=1000 NOVA_STEAM_GID=1000 android/nova-lab/deploy-steam-arm64-seed.sh
 android/nova-lab/build-posix-sync-probe.sh
@@ -107,8 +108,10 @@ The Steam seed and SteamRT archives are downloaded only into the ignored
 `build/steam-arm64/` directory. `deploy-steam-arm64-seed.sh` can write a
 reproducible `UID:GID` marker so the bounded client runs with `setpriv` under a
 non-root user. The seed/bootstrap and current ABI boundary are documented in
-`docs/14-nova-steam-arm64-seed-and-startup.md`; the current checkpoint reaches
-the native update UI but not login or Gamepad UI. For loader-only diagnostics,
+`docs/14-nova-steam-arm64-seed-and-startup.md`. The native UI smoke wrapper in
+`docs/15-nova-steam-ui-ahb-smoke.md` now captures the pre-login Gamepad UI
+welcome screen through the Android AHardwareBuffer path; login, input, games,
+and hardware CEF rendering remain open. For loader-only diagnostics,
 `NOVA_STEAM_EXECUTABLE` can point at another ARM64 entry point, such as
 `steamwebhelper`, and `NOVA_STEAM_CLIENT_FLAGS` supplies its bounded arguments.
 

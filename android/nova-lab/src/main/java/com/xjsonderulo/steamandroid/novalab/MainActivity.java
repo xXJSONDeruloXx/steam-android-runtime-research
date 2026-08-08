@@ -43,6 +43,7 @@ public final class MainActivity extends Activity implements SurfaceHolder.Callba
     private TextView nativeStatus;
     private TextView androidVulkanStatus;
     private TextView bridgeStatus;
+    private boolean doubleBufferPresentationMode;
 
     private static native String nativeRunHardwareBufferProbe();
     private static native String nativeRunAndroidVulkanHardwareBufferProbe();
@@ -76,6 +77,8 @@ public final class MainActivity extends Activity implements SurfaceHolder.Callba
         page.addView(subtitle, new LinearLayout.LayoutParams(-1, -2));
 
         SurfaceView surface = new SurfaceView(this);
+        doubleBufferPresentationMode = getIntent().getBooleanExtra(
+                "run_dmabuf_double_buffer", false);
         surface.setZOrderOnTop(true);
         surface.getHolder().addCallback(this);
         surface.getHolder().setFormat(PixelFormat.RGBA_8888);
@@ -176,6 +179,10 @@ public final class MainActivity extends Activity implements SurfaceHolder.Callba
 
         setContentView(page);
 
+        if (doubleBufferPresentationMode) {
+            surfaceStatus.setText("Surface: Linux presentation mode");
+        }
+
         Log.i(TAG, "launch_flags run_dmabuf_double_buffer="
                 + getIntent().getBooleanExtra("run_dmabuf_double_buffer", false)
                 + " frame_count=" + getIntent().getIntExtra(
@@ -239,6 +246,9 @@ public final class MainActivity extends Activity implements SurfaceHolder.Callba
     @Override
     public void surfaceCreated(final SurfaceHolder holder) {
         presentationSurface = holder.getSurface();
+        if (doubleBufferPresentationMode) {
+            return;
+        }
         if (surfaceProbeRunning) {
             return;
         }

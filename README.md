@@ -2,12 +2,13 @@
 
 Private evidence archive for building an Android app with a Linux runtime and a Steam/gamepad-first experience, rather than a Windows/Wine container as the primary product model.
 
-Status: evidence gathered through 2026-08-07.
+Status: evidence gathered through 2026-08-08.
 
 ## Bottom line
 
-No previous Android-app attempt has reached the actual Steam login/library or Big Picture/Gamepad UI
-on Android. The current ARM handheld Linux ecosystem has moved further than the earlier experiments:
+No previous Android-app attempt has reached the actual Steam login/library on Android. The Nova lab now
+reaches the pre-login Steam Gamepad UI welcome screen through Android presentation, while the current
+ARM handheld Linux ecosystem has moved further than the earlier experiments:
 Valve's ARM64 client and Steam runtime are directly reachable from live distribution endpoints, and
 Armada/PockNix document complete native-ARM64 Steam + gamescope sessions on supported Snapdragon
 handhelds.
@@ -29,6 +30,7 @@ The useful results are split across several projects:
 - [Nova Gamescope Android output](docs/12-nova-gamescope-ahb-output.md) records the imported AHardwareBuffer output path from Gamescope through Android SurfaceControl, including sustained 60-frame and 960x540 acquire/release fence runs.
 - [Nova Xwayland Android AHardwareBuffer output](docs/13-nova-xwayland-ahb-output.md) records an animated ARM64 X11 client crossing Xwayland, Gamescope, and the same 960x540 Android fence loop.
 - [Nova native ARM64 Steam seed and startup](docs/14-nova-steam-arm64-seed-and-startup.md) records the live Valve seed/runtime, reproducible deployment, System V semaphore and loader ABI probes, and the first bounded native Steam launch.
+- [Nova native Steam Gamepad UI through Android AHardwareBuffer](docs/15-nova-steam-ui-ahb-smoke.md) records the first live SteamUI WebSocket-ready Gamepad UI screen crossing the complete Nova presentation path, with software CEF rendering explicitly called out.
 
 ## Recommended direction
 
@@ -62,6 +64,7 @@ the gamescope frames on its own surface.
 - [Nova Gamescope Android AHardwareBuffer output](docs/12-nova-gamescope-ahb-output.md)
 - [Nova Xwayland Android AHardwareBuffer output](docs/13-nova-xwayland-ahb-output.md)
 - [Nova native ARM64 Steam seed and startup](docs/14-nova-steam-arm64-seed-and-startup.md)
+- [Nova native Steam Gamepad UI through Android AHardwareBuffer](docs/15-nova-steam-ui-ahb-smoke.md)
 - [Retroid Pocket Nova flashing kit](tools/retroid-pocket-nova/README.md)
 
 ## Evidence standard

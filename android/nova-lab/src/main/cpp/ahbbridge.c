@@ -1,6 +1,7 @@
 #define _POSIX_C_SOURCE 200809L
 
 #include <android/hardware_buffer.h>
+#include <android/log.h>
 #include <android/native_window_jni.h>
 #include <android/rect.h>
 
@@ -903,6 +904,11 @@ Java_com_xjsonderulo_steamandroid_novalab_MainActivity_nativeRunDmaBufDoubleBuff
                 close(acquire_fence_fd);
             }
             goto double_buffer_done;
+        }
+
+        if (frame == 0 || (frame % 30) == 0) {
+            __android_log_print(ANDROID_LOG_INFO, "NovaLab",
+                                "ahb_double_buffer_frame_in_flight=%d", frame);
         }
 
         int previous_release_fence_fd = -1;

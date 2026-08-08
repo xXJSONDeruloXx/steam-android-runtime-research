@@ -76,7 +76,16 @@ if [ "${1:-}" = "--client" ]; then
         client_flags="$client_flags -no-cef-sandbox"
     fi
 
-    mkdir -p "$STEAM_HOME" /tmp/nova-steam-runtime
+    runtime_dir=/tmp/nova-steam-runtime
+    mkdir -p "$STEAM_HOME" "$runtime_dir"
+    runtime_owner_status=pass
+    if [ "$STEAM_UID" -eq 0 ]; then
+        chmod 700 "$runtime_dir"
+    elif chown "$STEAM_UID:$STEAM_GID" "$runtime_dir" && chmod 700 "$runtime_dir"; then
+        :
+    else
+        runtime_owner_status=fail
+    fi
     echo "client_begin $(date +%s)" > "$client_log"
     echo "client_kind=steam_arm64" >> "$client_log"
     echo "client_display=${DISPLAY:-unset}" >> "$client_log"
@@ -89,6 +98,8 @@ if [ "${1:-}" = "--client" ]; then
     echo "client_uid=$STEAM_UID" >> "$client_log"
     echo "client_gid=$STEAM_GID" >> "$client_log"
     echo "client_xauthority=${XAUTHORITY:-unset}" >> "$client_log"
+    echo "client_runtime_dir=$runtime_dir" >> "$client_log"
+    echo "client_runtime_owner_status=$runtime_owner_status" >> "$client_log"
 
     export HOME="$STEAM_HOME"
     if [ "$STEAM_UID" -eq 0 ]; then
@@ -98,10 +109,18 @@ if [ "${1:-}" = "--client" ]; then
     fi
     export LOGNAME=$USER
     export DISPLAY=:0
-    export XDG_RUNTIME_DIR=/tmp/nova-steam-runtime
+    export XDG_RUNTIME_DIR=$runtime_dir
     export LANG=${LANG:-C}
     export LC_ALL=${LC_ALL:-C}
-    export PATH="$STEAM_ROOT/steam-runtime-steamrt-arm64/bin:/usr/bin:/bin"
+    steam_runtime_files_bin=
+    for candidate in "$STEAM_ROOT"/steam-runtime-steamrt-arm64/*/files/bin; do
+        if [ -d "$candidate" ]; then
+            steam_runtime_files_bin=$candidate
+            break
+        fi
+    done
+    export PATH="$STEAM_ROOT/steam-runtime-steamrt-arm64/bin${steam_runtime_files_bin:+:$steam_runtime_files_bin}:/usr/bin:/bin"
+    echo "client_runtime_files_bin=${steam_runtime_files_bin:-unset}" >> "$client_log"
     export MESA_LOADER_DRIVER_OVERRIDE=${NOVA_STEAM_MESA_DRIVER:-msm}
     echo "client_mesa_driver=$MESA_LOADER_DRIVER_OVERRIDE" >> "$client_log"
     if [ -n "${NOVA_STEAM_GALLIUM_DRIVER:-}" ]; then

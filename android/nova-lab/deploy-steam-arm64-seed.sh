@@ -94,12 +94,19 @@ fi
     mkdir -p \"\$steam/lib/aarch64-linux-gnu\"
     relative=\${ibus#\"\$steam/\"}
     ln -sfn \"../../\$relative\" \"\$steam/lib/aarch64-linux-gnu/libibus-1.0.so.5\"
+    # Valve's ARM64 client still probes the sibling ARM32 name for its
+    # diagnostic helpers. The native ARM64 tools are the only available
+    # implementation in this seed, so expose them through the expected path.
+    ln -sfn steamrtarm64 \"\$steam/steamrtarm32\"
     chmod +x \"\$steam/steamrtarm64/steam\" \"\$steam/steamrtarm64/steamwebhelper\" || true
     test -x \"\$steam/steamrtarm64/steam\"
     test -f \"\$steam/steamrtarm64/steamui.so\"
     test -f \"\$steam/package/beta\"
     test -L \"\$steam/lib/aarch64-linux-gnu/libibus-1.0.so.5\"
-    printf \"steam_root=%s\\nseed=%s\\nruntime=%s\\nsteam=%s\\nsteamui=%s\\nlibibus=%s\\n\" \"\$steam\" \"$SEED_PACKAGE\" \"$(metadata_value runtime_snapshot)\" \"\$steam/steamrtarm64/steam\" \"\$steam/steamrtarm64/steamui.so\" \"\$steam/lib/aarch64-linux-gnu/libibus-1.0.so.5\" > $DEVICE_ROOT$DEVICE_PREFIX/deploy-report.txt
+    test -L \"\$steam/steamrtarm32\"
+    test -x \"\$steam/steamrtarm32/gldriverquery\"
+    test -x \"\$steam/steamrtarm32/vulkandriverquery\"
+    printf \"steam_root=%s\\nseed=%s\\nruntime=%s\\nsteam=%s\\nsteamui=%s\\nlibibus=%s\\nsteamrtarm32=%s\\n\" \"\$steam\" \"$SEED_PACKAGE\" \"$(metadata_value runtime_snapshot)\" \"\$steam/steamrtarm64/steam\" \"\$steam/steamrtarm64/steamui.so\" \"\$steam/lib/aarch64-linux-gnu/libibus-1.0.so.5\" \"\$steam/steamrtarm32\" > $DEVICE_ROOT$DEVICE_PREFIX/deploy-report.txt
 '"
 
 if [ "$STEAM_UID" -eq 0 ]; then

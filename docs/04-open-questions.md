@@ -94,17 +94,16 @@ The target should not be considered proven until all of these work on one device
 
 ## Open technical questions
 
-- Does the ARM64 Steam client reach login under the attached kit’s normal X11 path, and does `-gamepadui` work there? The Nova rootfs now has a host-bootstrapped installed tree and reaches the native update UI, but the client exits during Bootstrapper HTTP Client teardown before `steamwebhelper` or Gamepad UI.
+- Does the ARM64 Steam client reach login under the attached kit’s normal X11 path, and does `-gamepadui` work there? The Nova rootfs now launches the native client and `steamwebhelper`, reaches both SteamUI WebSocket `connection ready` markers, and visibly presents the pre-login Gamepad UI welcome screen; account login remains open.
 - Does the client require additional Steam Deck environment/configuration outside Armada/PockNix?
 - Does native ARM64 Steam still depend on SysV semaphore behavior missing from some Android kernels? Confirmed for this Nova kernel: the direct probe returns `ENOSYS`; a disposable POSIX-backed adapter lets Steam pass that startup path.
 - Can the kit’s CEF environment shim be used unchanged inside the Holo rootfs?
 - Partially answered: can the headless Gamescope seam sustain display-size Android
-  AHardwareBuffer output for Steam’s actual frames? The Nova connector now completes both a
-  30-frame 960x540 `wl_shm` run and a 30-frame 960x540 animated ARM64 X11 client run through
-  Xwayland, with 30 acquire-fence handoffs, 30 SurfaceControl completions, and 29 release-fence
-  returns. Steam’s actual Xwayland workload now reaches its update UI through this path, but
-  `steamwebhelper` and a persistent Steam frame remain untested; the current Xwayland path also
-  falls back from glamor to software because GBM Wayland interfaces are absent. See [doc 14](14-nova-steam-arm64-seed-and-startup.md).
+  AHardwareBuffer output for Steam’s actual frames? The Nova connector now completes a bounded
+  120-frame 960x540 run with 120 acquire-fence handoffs, 120 SurfaceControl completions, and 119
+  release-fence returns while the native Steam Gamepad UI is visibly present. The current Xwayland
+  path falls back from glamor to software because GBM Wayland interfaces are absent, and CEF reports
+  ANGLE/softpipe rather than hardware rendering. See [doc 15](15-nova-steam-ui-ahb-smoke.md).
 - What input protocol is least invasive: Android HID injection, Wayland input, SDL, or a custom socket?
 - Can a rooted Android app give a Linux userspace enough GPU/DMABUF/Surface access without booting a separate kernel?
 - For rootless mode, can an app-owned `Surface`/`ANativeWindow` replace the current privileged/low-level presentation path without a copy bottleneck?
@@ -114,10 +113,9 @@ The target should not be considered proven until all of these work on one device
 
 ## Current recommendation
 
-Do not build a large custom Android UI yet. First capture the native client's
-Bootstrapper HTTP/child-process lifecycle and obtain a screenshot and logs of
-actual Gamepad UI either from a supported Armada/PockNix device or, if that
-hardware is unavailable, from the attached Nova/Termux:X11 paths. Then make the
-rooted Android app a supervisor + Linux session + display bridge. Rootless work
-should begin only after those three contracts pass independently: Steam UI,
-gamescope session, and Android presentation.
+Do not build a large custom Android UI yet. The Nova lab has now captured the
+native client's child-process lifecycle and a pre-login Gamepad UI screenshot
+through the rooted Android display bridge. Next make the rooted Android app a
+supervisor + Linux session + input/display bridge, then advance to login and a
+game. Rootless work should begin only after Steam UI, gamescope session, Android
+presentation, and controller input pass independently.
