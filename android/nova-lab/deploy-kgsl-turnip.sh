@@ -26,6 +26,7 @@ fi
 "$ADB" push "$DRIVER" "$DEVICE_STAGE/libvulkan_freedreno.so" >/dev/null
 "$ADB" push "$MANIFEST" "$DEVICE_STAGE/freedreno-kgsl.icd.json" >/dev/null
 "$ADB" shell "su -c 'mkdir -p $DEVICE_DRIVER_DIR; cp $DEVICE_STAGE/libvulkan_freedreno.so $DEVICE_DRIVER_DIR/libvulkan_freedreno.so; cp $DEVICE_STAGE/freedreno-kgsl.icd.json $DEVICE_DRIVER_DIR/freedreno-kgsl.icd.json; chmod 755 $DEVICE_DRIVER_DIR/libvulkan_freedreno.so; chmod 644 $DEVICE_DRIVER_DIR/freedreno-kgsl.icd.json'"
+"$ADB" shell "su -c 'if [ -f $DEVICE_ROOT/usr/lib/dri/libdril_dri.so ]; then mkdir -p $DEVICE_ROOT/usr/lib/dri; ln -sfn libdril_dri.so $DEVICE_ROOT/usr/lib/dri/msm_drm_dri.so; fi'"
 
 if command -v sha256sum >/dev/null 2>&1; then
     host_sha256=$(sha256sum "$DRIVER" | awk '{print $1}')
@@ -36,3 +37,4 @@ fi
 echo "driver=$DEVICE_DRIVER_DIR/libvulkan_freedreno.so"
 echo "manifest=$DEVICE_DRIVER_DIR/freedreno-kgsl.icd.json"
 echo "driver_sha256=$host_sha256"
+echo "dri_alias=$DEVICE_ROOT/usr/lib/dri/msm_drm_dri.so"

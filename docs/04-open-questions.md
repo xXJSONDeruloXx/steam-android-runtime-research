@@ -94,7 +94,7 @@ The target should not be considered proven until all of these work on one device
 
 ## Open technical questions
 
-- Does the ARM64 Steam client reach login under the attached kit’s normal X11 path, and does `-gamepadui` work there? The Nova rootfs now launches the native process and reaches its update UI, but has not yet produced the installed manifest or Gamepad UI.
+- Does the ARM64 Steam client reach login under the attached kit’s normal X11 path, and does `-gamepadui` work there? The Nova rootfs now has a host-bootstrapped installed tree and reaches the native update UI, but the client exits during Bootstrapper HTTP Client teardown before `steamwebhelper` or Gamepad UI.
 - Does the client require additional Steam Deck environment/configuration outside Armada/PockNix?
 - Does native ARM64 Steam still depend on SysV semaphore behavior missing from some Android kernels? Confirmed for this Nova kernel: the direct probe returns `ENOSYS`; a disposable POSIX-backed adapter lets Steam pass that startup path.
 - Can the kit’s CEF environment shim be used unchanged inside the Holo rootfs?
@@ -114,10 +114,10 @@ The target should not be considered proven until all of these work on one device
 
 ## Current recommendation
 
-Do not build a large custom Android UI yet. First complete the offline client
-bootstrap and obtain a screenshot and logs of native ARM64 Steam's actual
-Gamepad UI either from a supported Armada/PockNix device or, if that hardware
-is unavailable, from the attached Termux:X11 kit. Then make the rooted Android
-app a supervisor + Linux session + display bridge. Rootless work should begin
-only after those three contracts pass independently: Steam UI, gamescope
-session, and Android presentation.
+Do not build a large custom Android UI yet. First capture the native client's
+Bootstrapper HTTP/child-process lifecycle and obtain a screenshot and logs of
+actual Gamepad UI either from a supported Armada/PockNix device or, if that
+hardware is unavailable, from the attached Nova/Termux:X11 paths. Then make the
+rooted Android app a supervisor + Linux session + display bridge. Rootless work
+should begin only after those three contracts pass independently: Steam UI,
+gamescope session, and Android presentation.

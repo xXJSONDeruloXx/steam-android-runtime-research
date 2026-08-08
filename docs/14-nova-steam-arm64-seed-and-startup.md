@@ -103,70 +103,134 @@ The adapters are intentionally separate and logged in
 `/tmp/nova-steam-client.log`; a later implementation should replace each with
 a matched library set or a real upstream ABI contract.
 
-## Steam launch result
+## Completed client tree and runtime closure
 
-Install the small additional Holo closure before repeating the launch:
+The seed alone is not the same thing as a completed Steam install. For the
+current test tree, the host-side Armada bootstrap generator was run under an
+ARM64 Linux container against the same Valve metadata. It produced 39 package
+files, 28 compressed payloads, an ARM64 `steamui.so`, and a valid
+`package/steam_client_steamdeck_publicbeta_linuxarm64.installed` file. The
+expanded Steam home was transferred to the disposable rootfs and measured at
+about 3.2 GiB.
 
-```sh
-HOLO_PACKAGES='gtk2-compat xorg-xauth xorg-xhost' \
-  android/nova-lab/install-holo-packages.sh
-HOLO_PACKAGES='ffmpeg' android/nova-lab/install-holo-packages.sh
+The Holo package named `gtk2-compat` only provides compatibility metadata; it
+does not contain the GTK2 runtime that `steamui.so` needs. The actual GTK2
+runtime used for this run was Arch Linux ARM `gtk2 2.24.33-2`:
+
+```text
+gtk2-2.24.33-2-aarch64.pkg.tar.xz
+sha256=a2927d0e2b2b3e0b8e13cfb88adfa947a449d93856abd782f08dae5aee5aad40
 ```
 
-Then run the bounded native client through Xwayland and Android output:
+Its versioned `libgtk-x11-2.0.so.0`, `libgdk-x11-2.0.so.0`, and `libgailutil.so`
+files were extracted on the host and installed into the disposable rootfs.
+Holo's `nss` and `nspr` packages were also installed so the direct
+`steamwebhelper` dependency check resolves `libnss3`, `libnssutil3`,
+`libsmime3`, and `libnspr4`. This makes the current failure a startup/lifecycle
+boundary rather than an already-observed direct ELF dependency omission.
+
+The repository's `fetch-steam-arm64-seed.sh` and
+`deploy-steam-arm64-seed.sh` remain the reproducible Valve-input path. The
+large generated bootstrap tree and GTK2 package stay in ignored build output;
+neither is redistributed by this repository.
+
+## Steam launch result
+
+Install the Holo X11/crypto/media closure first. `gtk2-compat` is useful for
+package resolution, but the real GTK2 runtime must be staged separately as
+described above:
 
 ```sh
-INSTALL_HOLO_GAMESCOPE=0 \
-NOVA_XWAYLAND_ALLOW_LOCAL=1 \
-NOVA_AHB_FRAME_COUNT=30 NOVA_AHB_WIDTH=960 NOVA_AHB_HEIGHT=540 \
-NOVA_GAMESCOPE_AHB_CONTROL=android/nova-lab/device/gamescope-headless-steam-xwayland-control.sh \
-NOVA_GAMESCOPE_AHB_SKIP_WAYLAND=1 \
-NOVA_GAMESCOPE_AHB_SKIP_WAYLAND_SHM=1 \
-NOVA_GAMESCOPE_AHB_XWAYLAND=1 \
-  android/nova-lab/deploy-gamescope-headless-ahb-test.sh
+HOLO_PACKAGES='gtk2-compat nss nspr xorg-xauth xorg-xhost ffmpeg' \
+  android/nova-lab/install-holo-packages.sh
+```
+
+Then run the bounded native client through Xwayland and Android output using
+the checked-in convenience wrapper:
+
+```sh
+NOVA_AHB_FRAME_COUNT=30 \
+  android/nova-lab/deploy-native-steam-smoke-test.sh
 ```
 
 The control launches the Xwayland server as root and, only when
-`NOVA_XWAYLAND_ALLOW_LOCAL=1`, grants the selected Steam UID a local X11
-connection with `xhost +SI:localuser:<uid>`. This is needed because Gamescope's
-embedded Xwayland does not currently export an `XAUTHORITY` value to the
-SteamRT child (`client_xauthority=unset`). The allowance is confined to the
-disposable Xwayland instance.
+`NOVA_XWAYLAND_ALLOW_LOCAL=1`, grants the selected Steam UID a local UNIX X11
+connection with `xhost +local:`. This is needed because Gamescope's embedded
+Xwayland does not currently export an `XAUTHORITY` value to the SteamRT child
+(`client_xauthority=unset`). The allowance is confined to the disposable
+Xwayland instance.
 
-The latest root-client run reached this boundary:
+The latest accepted run recorded:
 
 ```text
-client_sysv_sem_shim=pass
-client_ffmpeg_avutil_compat=pass
-client_sdl3_compat=pass
-client_xhost_local_status=0
-client_xhost_target=+SI:localuser:0
-client_installed=absent
+rootfs.resolv_conf=generated:192.168.0.1
+Android AHardwareBuffer output imported: 2 x 960x540 RGBA
+Starting Xwayland on :0
+android_ahb_target_reached=5
+offscreen_probe_status=0
+probe_status=0
+client_started=pass
+client_installed=pass
+client_preload_profile=sysv
+client_status=1
+Using update UI: glx
+native_steam_smoke=pass
 ```
 
-There was no `steamui.so` undefined-symbol failure after the adapters, and the
-SteamRT update UI opened far enough to report its missing install manifest.
-The report still has no `android_ahb_composite_frame=` marker because Steam has
-not reached a persistent Gamepad UI window. The child update UI also reports
-the expected Holo graphics gaps (`msm_drm_dri.so` absent and XRandR query
-helpers unavailable) while Gamescope itself continues to use the known
-software-glamor fallback.
+The Android app log independently recorded five frames, five successful Linux
+acquire-fence handoffs, five completed SurfaceControl frames, and four returned
+release fences. This proves the native Steam process can load the installed
+ARM64 client, create its GLX update UI, and cross the existing Xwayland ->
+Gamescope -> AHardwareBuffer path. It does not yet prove that the Steam UI
+stays alive.
+
+The remaining native-client boundary is:
+
+```text
+src/common/framefunction.cpp (238) : Assertion Failed:
+CFrameFunctionMgr::~CFrameFunctionMgr: non static FrameFunction[Bootstrapper HTTP Client] still registered
+client_status=1
+steamwebhelper: not exec'd by the client in this run
+```
+
+`steamui.so` and the direct `steamwebhelper` dependency closure no longer show
+missing GTK2/NSS/NSPR symbols, so the next investigation should follow the
+bootstrapper HTTP-client teardown and child-process launch rather than add
+another unverified library blindly. Login, persistent Gamepad UI, controller
+input, and a presented Steam frame remain open gates.
+
+## Runtime experiments that did not become defaults
+
+The Holo Mesa stack must stay ahead of SteamRT's Mesa libraries. Reversing that
+order immediately returned the earlier `libgbm`/GLX segmentation fault. A
+second experiment split SteamRT X11/XCB libraries from Holo Mesa/DRM libraries;
+it also segfaulted during Steam GLX startup and was removed from the runtime
+path. These are useful negative results, not supported launch profiles.
+
+With the default Holo `msm`/`kgsl` path, the device reached a SIGILL in
+Holo Mesa's anonymous JIT code. The captured instruction was an ARM SVE
+`index` instruction while the Nova's `/proc/cpuinfo` exposed no SVE feature;
+`LP_NATIVE_VECTOR_WIDTH=128` did not prevent it. `swrast` plus `softpipe`
+avoids that fault and is the current software-rendering control. Hardware
+Mesa/Turnip Steam UI rendering is therefore a separate open issue.
 
 ## Network and bootstrap boundary
 
-The Holo rootfs currently has only the connected WLAN subnet route and no
-default route or DNS properties; `/etc/resolv.conf` is absent. Steam therefore
-cannot download the channel manifest from inside the disposable namespace:
+The chroot shares the rooted Android network namespace. The probe now derives
+the active Android default gateway and generates `/etc/resolv.conf` for the
+disposable rootfs; an in-chroot `curl -I` to Valve's client manifest returned
+HTTP 200. This removes the earlier DNS hypothesis, but it did not make Steam
+complete its bootstrap lifecycle. The current launch still stops with the
+`Bootstrapper HTTP Client` assertion above, so network reachability and Steam
+bootstrap completion must be measured separately:
 
 ```text
-Download failed: http error 0
-Error: Steam needs to be online to update.
-Unable to read and verify install manifest ...steamdeck_publicbetan_linuxarm64.installed
+chroot curl -I https://client-update.steamstatic.com/steam_client_steamdeck_publicbeta_linuxarm64
+HTTP/2 200
+CFrameFunctionMgr::~CFrameFunctionMgr: non static FrameFunction[Bootstrapper HTTP Client] still registered
 ```
 
-The next experiment is an offline bootstrap: use the host-verified Valve
-manifest and seed to create the `.installed` package metadata and complete the
-client tree without granting the rootfs a fabricated network configuration.
-That result must be validated by Steam itself before it is treated as a real
-client install. Login, Gamepad UI, `steamwebhelper`, controller input, and a
+The next bootstrap experiment is to capture the client's actual child/fork and
+HTTP lifecycle with the now-complete tree, then compare it against the Armada
+bootstrap session. Login, Gamepad UI, `steamwebhelper`, controller input, and a
 presented Steam frame remain open gates.

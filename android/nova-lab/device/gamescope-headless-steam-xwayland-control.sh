@@ -28,7 +28,40 @@ if [ "${1:-}" = "--client" ]; then
     client_log=/tmp/nova-steam-client.log
     client_stdout=/tmp/nova-steam-client.stdout
     client_stderr=/tmp/nova-steam-client.stderr
-    client_flags="-gamepadui -steamos3 -steampal -steamdeck"
+    client_flags="${NOVA_STEAM_CLIENT_FLAGS:--gamepadui -steamos3 -steampal -steamdeck}"
+    bootstrap_mode=${NOVA_STEAM_BOOTSTRAP_MODE:-auto}
+    if [ "$bootstrap_mode" = "auto" ] && [ "${NOVA_STEAM_SKIP_INITIAL_BOOTSTRAP:-0}" = "1" ]; then
+        bootstrap_mode=skip
+    fi
+    case "$bootstrap_mode" in
+        auto|normal)
+            ;;
+        skip)
+            client_flags="$client_flags -nobootstrapperupdate -skipinitialbootstrap -no-child-update-ui"
+            ;;
+        skip-child)
+            client_flags="$client_flags -nobootstrapperupdate -skipinitialbootstrap"
+            ;;
+        console)
+            client_flags="$client_flags -nobootstrapperupdate -skipinitialbootstrap -console"
+            ;;
+        inhibit)
+            client_flags="$client_flags -inhibitbootstrap -no-child-update-ui"
+            ;;
+        *)
+            echo "client_error=unknown_bootstrap_mode:$bootstrap_mode" >&2
+            exit 2
+            ;;
+    esac
+    if [ "$bootstrap_mode" != "normal" ] && [ "$bootstrap_mode" != "auto" ]; then
+        rm -f \
+            "$STEAM_HOME/.steam/steam.pid" \
+            "$STEAM_HOME/.steam/steam.token" \
+            "$STEAM_HOME/.steam/steam.pipe" \
+            "$STEAM_HOME/.steam/registry.vdf" \
+            "$STEAM_ROOT/registry.vdf" \
+            "$STEAM_ROOT/.crash"
+    fi
     if [ "${NOVA_STEAM_NO_CEF_SANDBOX:-0}" = "1" ]; then
         client_flags="$client_flags -no-cef-sandbox"
     fi
@@ -40,6 +73,7 @@ if [ "${1:-}" = "--client" ]; then
     echo "client_output=${OUTPUT_WIDTH}x${OUTPUT_HEIGHT}" >> "$client_log"
     echo "client_home=$STEAM_HOME" >> "$client_log"
     echo "client_root=$STEAM_ROOT" >> "$client_log"
+    echo "client_bootstrap_mode=$bootstrap_mode" >> "$client_log"
     echo "client_flags=$client_flags" >> "$client_log"
     echo "client_uid=$STEAM_UID" >> "$client_log"
     echo "client_gid=$STEAM_GID" >> "$client_log"
@@ -57,6 +91,24 @@ if [ "${1:-}" = "--client" ]; then
     export LANG=${LANG:-C}
     export LC_ALL=${LC_ALL:-C}
     export PATH="$STEAM_ROOT/steam-runtime-steamrt-arm64/bin:/usr/bin:/bin"
+    export MESA_LOADER_DRIVER_OVERRIDE=${NOVA_STEAM_MESA_DRIVER:-msm}
+    echo "client_mesa_driver=$MESA_LOADER_DRIVER_OVERRIDE" >> "$client_log"
+    if [ -n "${NOVA_STEAM_GALLIUM_DRIVER:-}" ]; then
+        export GALLIUM_DRIVER=$NOVA_STEAM_GALLIUM_DRIVER
+        echo "client_gallium_driver=$GALLIUM_DRIVER" >> "$client_log"
+    fi
+    if [ "${NOVA_STEAM_LIBGL_ALWAYS_SOFTWARE:-0}" = "1" ]; then
+        export LIBGL_ALWAYS_SOFTWARE=1
+        echo "client_libgl_always_software=1" >> "$client_log"
+    fi
+    if [ "${NOVA_STEAM_LIBGL_ALWAYS_INDIRECT:-0}" = "1" ]; then
+        export LIBGL_ALWAYS_INDIRECT=1
+        echo "client_libgl_always_indirect=1" >> "$client_log"
+    fi
+    if [ -n "${NOVA_STEAM_LP_NATIVE_VECTOR_WIDTH:-}" ]; then
+        export LP_NATIVE_VECTOR_WIDTH=$NOVA_STEAM_LP_NATIVE_VECTOR_WIDTH
+        echo "client_lp_native_vector_width=$LP_NATIVE_VECTOR_WIDTH" >> "$client_log"
+    fi
     steam_runtime_lib=
     for candidate in "$STEAM_ROOT"/steam-runtime-steamrt-arm64/*/files/lib/aarch64-linux-gnu; do
         if [ -d "$candidate" ]; then
@@ -68,7 +120,12 @@ if [ "${1:-}" = "--client" ]; then
     if [ -n "$steam_runtime_lib" ] && [ -d "$steam_runtime_lib/pulseaudio" ]; then
         steam_runtime_pulse_lib="$steam_runtime_lib/pulseaudio"
     fi
-    export LD_LIBRARY_PATH="$STEAM_ROOT/steamrtarm64:$STEAM_ROOT/lib/aarch64-linux-gnu${steam_runtime_lib:+:$steam_runtime_lib}${steam_runtime_pulse_lib:+:$steam_runtime_pulse_lib}${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+    # Keep the Holo Mesa stack ahead of SteamRT's Mesa libraries. SteamRT's
+    # libgbm/libEGL_mesa pair expects its own DRI driver ABI; mixing it with
+    # Holo's unified KGSL DRI library reaches a null backend callback during
+    # GLX initialization. Holo's non-Mesa runtime libraries remain below the
+    # SteamRT paths and are still available through the normal loader search.
+    export LD_LIBRARY_PATH="$STEAM_ROOT/steamrtarm64:$STEAM_ROOT/lib/aarch64-linux-gnu:/usr/lib${steam_runtime_lib:+:$steam_runtime_lib}${steam_runtime_pulse_lib:+:$steam_runtime_pulse_lib}${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
     preload=
     if [ -f /opt/nova-kgsl-driver/libsysv-sem-shim.so ]; then
         preload=/opt/nova-kgsl-driver/libsysv-sem-shim.so
@@ -127,15 +184,54 @@ if [ "${1:-}" = "--client" ]; then
         fi
         echo "client_sync_trace=pass" >> "$client_log"
     fi
-    if [ -n "$preload" ]; then
+    if [ "${NOVA_STEAM_DISABLE_PRELOAD:-0}" = "1" ]; then
+        unset LD_PRELOAD
+        echo "client_preload=disabled" >> "$client_log"
+    else
+        case "${NOVA_STEAM_PRELOAD_PROFILE:-full}" in
+            full)
+                ;;
+            none)
+                preload=
+                ;;
+            sysv)
+                preload=/opt/nova-kgsl-driver/libsysv-sem-shim.so
+                ;;
+            sync-trace)
+                preload=/opt/nova-kgsl-driver/libposix-sync-trace.so:/opt/nova-kgsl-driver/libsysv-sem-shim.so
+                ;;
+            *)
+                echo "client_error=unknown_preload_profile:${NOVA_STEAM_PRELOAD_PROFILE}" >&2
+                exit 2
+                ;;
+        esac
+        echo "client_preload_profile=${NOVA_STEAM_PRELOAD_PROFILE:-full}" >> "$client_log"
+    fi
+    if [ "${NOVA_STEAM_DISABLE_PRELOAD:-0}" != "1" ] && [ -n "$preload" ]; then
         export LD_PRELOAD="$preload"
     fi
 
     if { [ "${NOVA_XWAYLAND_ALLOW_LOCAL:-0}" = "1" ] || [ -f /opt/nova-steam/allow-xwayland-local ]; } && [ -x /usr/bin/xhost ]; then
         xhost_log=/tmp/nova-steam-xhost.log
-        xhost_target="+SI:localuser:$STEAM_UID"
-        env -u LD_PRELOAD DISPLAY=:0 /usr/bin/xhost "$xhost_target" >"$xhost_log" 2>&1
-        xhost_status=$?
+        xhost_target=${NOVA_XWAYLAND_XHOST_TARGET:-}
+        if [ -z "$xhost_target" ]; then
+            # The disposable Xwayland instance has no stable account database
+            # for synthetic setpriv uids. Keep the opt-in allowance local to
+            # UNIX clients instead of relying on a numeric SI username.
+            xhost_target=+local:
+        fi
+        xhost_status=1
+        xhost_attempt=0
+        while [ "$xhost_attempt" -lt 20 ]; do
+            : > "$xhost_log"
+            env -u LD_PRELOAD DISPLAY=:0 /usr/bin/xhost "$xhost_target" >"$xhost_log" 2>&1
+            if [ "$?" -eq 0 ] && ! grep -Eiq 'BadValue|unable|cannot|authorization' "$xhost_log"; then
+                xhost_status=0
+                break
+            fi
+            xhost_attempt=$((xhost_attempt + 1))
+            sleep 0.1
+        done
         echo "client_xhost_local_status=$xhost_status" >> "$client_log"
         echo "client_xhost_target=$xhost_target" >> "$client_log"
         echo "client_xhost_local_log=$xhost_log" >> "$client_log"

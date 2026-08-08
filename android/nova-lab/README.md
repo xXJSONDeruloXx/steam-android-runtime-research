@@ -93,6 +93,7 @@ android/nova-lab/build-wayland-shm-control.sh
 android/nova-lab/deploy-gamescope-headless-test.sh
 android/nova-lab/deploy-gamescope-headless-composite-test.sh
 android/nova-lab/deploy-gamescope-headless-ahb-test.sh
+android/nova-lab/deploy-native-steam-smoke-test.sh
 android/nova-lab/fetch-steam-arm64-seed.sh --all
 NOVA_STEAM_UID=1000 NOVA_STEAM_GID=1000 android/nova-lab/deploy-steam-arm64-seed.sh
 android/nova-lab/build-posix-sync-probe.sh

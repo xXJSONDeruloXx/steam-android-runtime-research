@@ -98,7 +98,8 @@ compatibility constraint, not a failure of the buffer handoff.
 The actual native ARM64 Steam process has now been launched through this path;
 the loader, System V semaphore, and X11 authorization boundaries are recorded
 in [doc 14](14-nova-steam-arm64-seed-and-startup.md). It reaches Steam's update
-UI, but the rootfs has no default route/DNS and therefore no verified
-`.installed` manifest. No login/Gamepad UI frame has been produced yet. The
-next gate is an offline bootstrap validated by Steam itself, followed by
-`steamwebhelper` and persistent Android output evidence.
+UI and now has a host-bootstrapped `.installed` tree plus generated rootfs DNS.
+The bounded run renders five native-client frames through the same
+AHardwareBuffer queue, but Steam exits during Bootstrapper HTTP Client teardown
+before `steamwebhelper` is exec'd. No login/Gamepad UI frame has been produced
+yet.

@@ -184,9 +184,11 @@ supplemented by the Xwayland/animated-X11 proof in [doc 13](13-nova-xwayland-ahb
 which passes the same 960x540 Android fence path. The Vulkan WSI negative
 control from doc 11 remains valid: the Holo Turnip ICD lacks `VK_KHR_surface`,
 so a normal `vkcube --wsi wayland` swapchain cannot be the next client. The
-actual native Steam Xwayland workload and `steamwebhelper` remain untested.
+actual native Steam Xwayland workload now reaches the update UI and produces
+bounded AHardwareBuffer frames; `steamwebhelper` and a persistent Steam frame
+remain untested.
 
-The next experiments are to replace the synthetic X11 client with a persistent
-Wayland/Xwayland session suitable for the native ARM64 Steam client, remove the
-synchronous wait/empty-submit fence boundary, and add input and lifecycle
-supervision. The actual Steam UI remains a separate acceptance gate.
+The next experiments are to keep the persistent Xwayland session while fixing
+the native Steam bootstrap/child-process lifecycle, remove the synchronous
+wait/empty-submit fence boundary, and add input and lifecycle supervision. The
+actual Steam UI remains a separate acceptance gate.

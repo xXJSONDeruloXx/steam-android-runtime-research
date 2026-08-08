@@ -102,10 +102,11 @@ gamescope/Wayland frame
 ```
 
 The Nova lab has now launched the native ARM64 Steam process through the same
-Xwayland/Gamescope control and resolved the first semaphore, FFmpeg, SDL, and
-X11 authorization boundaries. The process still stops at the offline client
-bootstrap boundary, so this stage is not complete until Steam's actual UI and a
-game render continuously; `vkcube` alone is not enough.
+Xwayland/Gamescope control and resolved the first semaphore, FFmpeg, SDL, X11
+authorization, GTK2, NSS/NSPR, and rootfs-DNS boundaries. The process renders
+its update UI into the Android AHardwareBuffer queue, then stops during
+Bootstrapper HTTP Client teardown before `steamwebhelper`; this stage is not
+complete until Steam's actual Gamepad UI and a game render continuously.
 
 ### Rootless stage 3: user-space Steam session supervision
 
@@ -147,7 +148,7 @@ behavior, and controller handoff per game.
    controller, and audio capabilities.
 2. Reproduce native ARM64 Steam + gamescope on Armada/PockNix or an equivalent full Linux boot.
 3. Build a rooted Android app supervisor around a fixed Holo/Arch-compatible rootfs and the same Steam
-   client bootstrap; finish the offline/online client-install contract first.
+   client bootstrap; finish the Bootstrapper HTTP/child-process lifecycle first.
 4. Make the Android presentation bridge pass Steam login/Gamepad UI, then one game, then suspend/stop.
 5. Move input/audio/scheduling from root services to app-compatible bridges.
 6. Remove root for the Linux process/rootfs path.
