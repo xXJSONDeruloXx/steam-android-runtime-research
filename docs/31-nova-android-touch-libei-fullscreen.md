@@ -122,9 +122,10 @@ and a visible edge-to-edge synthetic pattern in the pulled screenshot. This prov
 the fullscreen Android `SurfaceView`/SurfaceControl stack and display-size destination
 geometry can present a live Gamescope buffer.
 
-The device-native touch acceptance uses the same 4:3 geometry end to end. The visual
-assertion samples the white Steam language-panel header rather than generic bright
-pixels from the Android report UI:
+The device-native touch/presentation acceptance uses the same 4:3 geometry end to end.
+Its visual assertion samples the white Steam language-panel header rather than generic
+bright pixels from the Android report UI; it does not treat the animated welcome copy
+as evidence of UI navigation:
 
 ```sh
 NOVA_FULLSCREEN_PRESENTATION=1 \
@@ -151,7 +152,7 @@ The 2026-08-08 Nova rerun passed with stable fullscreen Steam screenshots:
 ```text
 touch_before_sha256=89ccdaea22f1b8458a8f5715389ebeec3cd9c8b2f30e071147ace5a9c7bc74cb
 touch_after_sha256=610c027815ce9809b2977b87e14c13d6382f47d0f3cf67bb627143f30b54c7e2
-touch_screen_changed=pass
+touch_visual_changed=pass
 touch_steam_panel_yavg=189
 touch_steam_panel_ymax=235
 touch_steam_surface=pass
@@ -160,9 +161,13 @@ native_steam_smoke=pass
 native_steam_touch_input_smoke=pass
 ```
 
-Both captures are `1280×960`; the before image shows the English language selector and
-the after image shows the localized Swedish selector after the tap. The normal bench
-presentation remains a useful control.
+Both captures are `1280×960`. The left welcome copy changed between captures, but that
+is Steam's own localized welcome animation; the white focused language row on the right
+did not move. This run therefore proves aspect-correct presentation and Android-to-
+Gamescope touch dispatch, not touch-driven Steam navigation. The D-pad navigation
+acceptance is recorded in [doc 28](28-nova-steam-dpad-navigation.md) and the Android
+key-event variant in [doc 29](29-nova-android-input-steam-ui-navigation.md). The normal
+bench presentation remains a useful control.
 
 ## Device-native 4:3 interaction iteration
 
@@ -201,10 +206,11 @@ native_steam_touch_input_smoke=pass
 touch_steam_surface=pass
 ```
 
-This is the first proof that the path is not merely transport-complete: a normalized
-Android tap reaches the native Steam UI at the correct 4:3 screen coordinate. The
-device-native resolution is now enforced across the Android presentation, AHardwareBuffer
-allocation, Gamescope output, screen capture, and touch normalization layers.
+The normalized Android tap reaches Gamescope at the correct 4:3 screen coordinate and
+the result remains visible on the native Steam surface. The device-native resolution is
+now enforced across the Android presentation, AHardwareBuffer allocation, Gamescope
+output, screen capture, and touch normalization layers. Touch-driven Steam navigation
+remains an open interaction item.
 
 The live root report also records Xwayland glamor falling back to software because GBM
 Wayland interfaces are unavailable. Hardware CEF rendering remains a separate unresolved
@@ -214,5 +220,5 @@ graphics gate.
 
 The live root report still records Xwayland glamor falling back to software because GBM
 Wayland interfaces are unavailable. Hardware CEF rendering remains a separate unresolved
-graphics gate. Touch scrolling, choosing a timezone, login, broader controls, game
-launch, audio, and lifecycle cleanup remain open.
+graphics gate. Touch-driven focus/navigation, touch scrolling, choosing a timezone,
+login, broader controls, game launch, audio, and lifecycle cleanup remain open.

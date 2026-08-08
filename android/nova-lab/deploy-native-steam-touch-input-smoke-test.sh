@@ -144,7 +144,7 @@ echo "touch_before_screenshot=$BEFORE_SCREENSHOT"
 echo "touch_after_screenshot=$AFTER_SCREENSHOT"
 echo "touch_before_sha256=$(sha256sum "$BEFORE_SCREENSHOT" | cut -c1-64)"
 echo "touch_after_sha256=$(sha256sum "$AFTER_SCREENSHOT" | cut -c1-64)"
-echo "touch_screen_changed=$(cmp -s "$BEFORE_SCREENSHOT" "$AFTER_SCREENSHOT" && echo fail || echo pass)"
+echo "touch_visual_changed=$(cmp -s "$BEFORE_SCREENSHOT" "$AFTER_SCREENSHOT" && echo fail || echo pass)"
 
 if [ "${NOVA_FULLSCREEN_PRESENTATION:-1}" = "1" ]; then
     touch_panel_crop=265:60:982:50
