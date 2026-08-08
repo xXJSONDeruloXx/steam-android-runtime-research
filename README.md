@@ -41,7 +41,8 @@ The useful results are split across several projects:
 - [Nova controlled Steam Gamepad UI input](docs/23-nova-steam-controller-ui-input.md) combines that live FD observation with an exact physical BTN_SOUTH relay; the event reaches the virtual node, but the language-selector navigation region remains unchanged.
 - [Nova D-pad semantic Steam UI input](docs/24-nova-steam-dpad-input.md) repeats the live-session comparison with BTN_DPAD_DOWN; the lower-level path still passes, but the selector remains unchanged, rejecting a narrow A-button mapping explanation.
 - [Nova Android input bridge in Steam UI](docs/25-nova-android-input-steam-ui.md) proves the app-side socket and exact Android-to-Linux D-pad mapping in the live session; key-only isolation still leaves SteamUI navigation unproven.
-- [Nova SDL3 virtual-controller event delivery](docs/26-nova-sdl3-event-input.md) opens Valve's shipped SDL3 directly and proves an injected event reaches the matching virtual joystick instance; Steam's SDL/Gamepad consumer and UI navigation remain open.
+- [Nova SDL3 joystick event target-selection pitfall](docs/26-nova-sdl3-event-input.md) records why the first name-based SDL3 event result was superseded when duplicate virtual nodes were found.
+- [Nova SDL3 Gamepad semantic event delivery](docs/27-nova-sdl3-gamepad-event.md) uses the exact relay-created event path and proves Valve's SDL3 Gamepad mapping receives D-pad press/release events; Steam's own consumer and UI navigation remain open.
 
 ## Recommended direction
 
@@ -86,7 +87,8 @@ the gamescope frames on its own surface.
 - [Nova controlled Steam Gamepad UI input](docs/23-nova-steam-controller-ui-input.md)
 - [Nova D-pad semantic Steam UI input](docs/24-nova-steam-dpad-input.md)
 - [Nova Android input bridge in Steam UI](docs/25-nova-android-input-steam-ui.md)
-- [Nova SDL3 virtual-controller event delivery](docs/26-nova-sdl3-event-input.md)
+- [Nova SDL3 joystick event target-selection pitfall](docs/26-nova-sdl3-event-input.md)
+- [Nova SDL3 Gamepad semantic event delivery](docs/27-nova-sdl3-gamepad-event.md)
 - [Retroid Pocket Nova flashing kit](tools/retroid-pocket-nova/README.md)
 
 ## Evidence standard

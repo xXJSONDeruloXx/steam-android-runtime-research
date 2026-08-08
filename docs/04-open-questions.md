@@ -137,9 +137,12 @@ The target should not be considered proven until all of these work on one device
   selector still remains unchanged. See [doc 25](25-nova-android-input-steam-ui.md).
   A direct check against Valve's shipped SDL3 now discovers and opens the
   virtual node and receives an event whose SDL instance ID matches that node;
-  see [doc 26](26-nova-sdl3-event-input.md). This closes the independent SDL3
-  joystick delivery boundary, but not Steam's separate SDL/Gamepad consumer or
-  SteamUI navigation.
+  see [doc 26](26-nova-sdl3-event-input.md). The first name-based result was
+  superseded after a duplicate same-name node was found. The corrected
+  path-specific Gamepad API probe now reports the Xbox 360 mapping and both
+  semantic D-pad transitions; see [doc 27](27-nova-sdl3-gamepad-event.md).
+  This closes the independent SDL3 Gamepad delivery boundary, but not Steam's
+  separate consumer or SteamUI navigation.
 - Can the Nova expose hardware GLX/CEF for Steam? The bounded `msm` probe keeps
   Gamescope's Turnip/AHardwareBuffer side alive but Steam exits before CEF with
   `SIGILL`; an explicit `freedreno` Gallium profile instead fails at `drisw`

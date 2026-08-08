@@ -167,8 +167,13 @@ the direct SDL3 event boundary, set `NOVA_INPUT_SDL3_PROBE=1` and
 `NOVA_SDL3_EVENT_PROBE=1` (usually with `NOVA_INPUT_UDEV_MODE=enabled`) to
 inject one exact `BTN_DPAD_DOWN` event and require SDL3 to receive a joystick
 event from the matching virtual instance; see
-`docs/26-nova-sdl3-event-input.md`. This is still below Steam's own SDL3
-Gamepad/Input consumer and the SteamUI navigation assertion. For
+`docs/26-nova-sdl3-event-input.md`. The first name-based result is retained
+there as a target-selection pitfall. For the accepted semantic Gamepad API
+check, set `NOVA_SDL3_GAMEPAD_EVENT_PROBE=1`; the harness passes the exact
+relay-created event path, expects the Xbox 360 mapping, and requires SDL3
+button-down and button-up events for D-pad down. See
+`docs/27-nova-sdl3-gamepad-event.md`. Both checks remain below Steam's own
+SDL3 Gamepad/Input consumer and the SteamUI navigation assertion. For
 loader-only diagnostics,
 `NOVA_STEAM_EXECUTABLE` can point at another ARM64 entry point, such as
 `steamwebhelper`, and `NOVA_STEAM_CLIENT_FLAGS` supplies its bounded arguments.

@@ -2,10 +2,12 @@
 #define _POSIX_C_SOURCE 200809L
 
 #include <errno.h>
+#include <ctype.h>
 #include <fcntl.h>
 #include <linux/input.h>
 #include <linux/uinput.h>
 #include <poll.h>
+#include <signal.h>
 #include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -13,12 +15,21 @@
 #include <sys/socket.h>
 #include <sys/ioctl.h>
 #include <sys/stat.h>
+#include <sys/sysmacros.h>
 #include <sys/time.h>
 #include <sys/un.h>
 #include <unistd.h>
 
 #define NOVA_GAMEPAD_NAME "Nova Virtual Xbox Controller"
 #define NOVA_MAX_EVENT_NODES 64
+
+static volatile sig_atomic_t stop_requested;
+
+static void request_stop(int signal_number)
+{
+    (void)signal_number;
+    stop_requested = 1;
+}
 
 static int bit_is_set(const unsigned long *bits, unsigned int bit)
 {
@@ -163,7 +174,7 @@ static int configure_from_source(int uinput_fd, int source_fd)
     return write(uinput_fd, &device, sizeof(device)) == (ssize_t)sizeof(device) ? 0 : -1;
 }
 
-static int find_virtual_event(char *path, size_t path_size)
+static int find_virtual_event_by_name(char *path, size_t path_size)
 {
     for (unsigned int index = 0; index < NOVA_MAX_EVENT_NODES; index++) {
         char candidate[64];
@@ -185,6 +196,117 @@ static int find_virtual_event(char *path, size_t path_size)
         close(fd);
     }
     return -1;
+}
+
+static int find_virtual_event_by_identity(char *path, size_t path_size)
+{
+    for (unsigned int index = 0; index < NOVA_MAX_EVENT_NODES; index++) {
+        char candidate[64];
+        char name[UINPUT_MAX_NAME_SIZE];
+        struct input_id id;
+        int fd;
+
+        snprintf(candidate, sizeof(candidate), "/dev/input/event%u", index);
+        fd = open(candidate, O_RDONLY | O_NONBLOCK);
+        if (fd < 0) {
+            continue;
+        }
+        memset(name, 0, sizeof(name));
+        if (ioctl(fd, EVIOCGNAME(sizeof(name)), name) >= 0 &&
+            strcmp(name, NOVA_GAMEPAD_NAME) == 0 && ioctl(fd, EVIOCGID, &id) == 0) {
+            if (id.bustype == BUS_USB && id.vendor == 0x045e && id.product == 0x028e) {
+                snprintf(path, path_size, "%s", candidate);
+                close(fd);
+                return 0;
+            }
+        }
+        close(fd);
+    }
+    return -1;
+}
+
+static int ensure_event_node(char *path, size_t path_size, unsigned long index)
+{
+    snprintf(path, path_size, "/dev/input/event%lu", index);
+    if (access(path, F_OK) == 0) {
+        return 0;
+    }
+    if (mknod(path, S_IFCHR | 0666, makedev(13, 64 + index)) == 0 ||
+        errno == EEXIST) {
+        return 0;
+    }
+    return -1;
+}
+
+static int find_virtual_event(int uinput_fd, char *path, size_t path_size)
+{
+    char sysname[64];
+
+    memset(sysname, 0, sizeof(sysname));
+    if (ioctl(uinput_fd, UI_GET_SYSNAME(sizeof(sysname) - 1), sysname) >= 0) {
+        printf("uinput_sysname=%s\n", sysname);
+        for (unsigned int index = 0; index < NOVA_MAX_EVENT_NODES; index++) {
+            char sysfs_event[128];
+
+            snprintf(sysfs_event, sizeof(sysfs_event),
+                     "/sys/devices/virtual/input/%s/event%u", sysname, index);
+            if (access(sysfs_event, F_OK) == 0) {
+                if (ensure_event_node(path, path_size, index) == 0) {
+                    return 0;
+                }
+            }
+        }
+        FILE *devices = fopen("/proc/bus/input/devices", "r");
+        if (devices != NULL) {
+            char line[512];
+            char needle[96];
+            int matching_device = 0;
+
+            snprintf(needle, sizeof(needle), "/input/%s", sysname);
+            while (fgets(line, sizeof(line), devices) != NULL) {
+                if (line[0] == '\n') {
+                    matching_device = 0;
+                    continue;
+                }
+                if (strncmp(line, "S: Sysfs=", 9) == 0) {
+                    matching_device = strstr(line, needle) != NULL;
+                    continue;
+                }
+                if (!matching_device || strncmp(line, "H: Handlers=", 12) != 0) {
+                    continue;
+                }
+                for (char *cursor = line + 12;
+                     (cursor = strstr(cursor, "event")) != NULL;
+                     cursor += 5) {
+                    char *end;
+                    unsigned long index;
+
+                    if (!isdigit((unsigned char)cursor[5])) {
+                        continue;
+                    }
+                    index = strtoul(cursor + 5, &end, 10);
+                    if (index >= NOVA_MAX_EVENT_NODES) {
+                        continue;
+                    }
+                    if (ensure_event_node(path, path_size, index) == 0) {
+                        printf("uinput_event_from_procfs=%s\n", path);
+                        fclose(devices);
+                        return 0;
+                    }
+                }
+            }
+            fclose(devices);
+        }
+    }
+    for (unsigned int attempt = 0; attempt < 250; attempt++) {
+        if (find_virtual_event_by_identity(path, path_size) == 0) {
+            printf("uinput_event_identity=045e:028e\n");
+            return 0;
+        }
+        usleep(20000);
+    }
+    printf("uinput_sysname=lookup-fallback\n");
+    return find_virtual_event_by_name(path, path_size);
 }
 
 static void drain_virtual(int fd, unsigned short expected_code,
@@ -469,6 +591,9 @@ int main(int argc, char **argv)
     int last_linux_keycode = -1;
     int status = 1;
 
+    signal(SIGTERM, request_stop);
+    signal(SIGINT, request_stop);
+
     if (argc > 2 && parse_timeout(argv[2], &timeout_ms) != 0) {
         fprintf(stderr, "uinput_error=invalid_timeout\n");
         return 2;
@@ -516,7 +641,7 @@ int main(int argc, char **argv)
     fflush(stdout);
     usleep(150000);
 
-    if (find_virtual_event(virtual_path, sizeof(virtual_path)) != 0) {
+    if (find_virtual_event(uinput_fd, virtual_path, sizeof(virtual_path)) != 0) {
         fprintf(stderr, "uinput_error=find_virtual_event errno=%d\n", errno);
         goto cleanup;
     }
@@ -581,11 +706,11 @@ int main(int argc, char **argv)
     unsigned int elapsed = 0;
     int forwarded = 0;
     int control_event = 0;
-    while (elapsed < timeout_ms) {
+    int control_release = 0;
+    while (elapsed < timeout_ms && !stop_requested) {
         int count = 0;
         int source_position = -1;
         int socket_position = -1;
-        int virtual_position = -1;
         if (source_fd >= 0 && strcmp(mode, "socket") != 0) {
             source_position = count;
             fds[count++] = (struct pollfd){.fd = source_fd, .events = POLLIN};
@@ -594,8 +719,6 @@ int main(int argc, char **argv)
             socket_position = count;
             fds[count++] = (struct pollfd){.fd = socket_fd, .events = POLLIN};
         }
-        virtual_position = count;
-        fds[count++] = (struct pollfd){.fd = virtual_fd, .events = POLLIN};
         int wait_ms = (int)(timeout_ms - elapsed);
         if (wait_ms > 100) {
             wait_ms = 100;
@@ -623,12 +746,16 @@ int main(int argc, char **argv)
                     if (relay_once && event.type == EV_KEY &&
                         event.code == control_code && event.value == 1) {
                         control_event = 1;
-                        break;
+                    }
+                    if (relay_once && event.type == EV_KEY &&
+                        event.code == control_code && event.value == 0 &&
+                        control_event) {
+                        control_release = 1;
                     }
                 }
             }
         }
-        if (control_event) {
+        if (control_event && control_release) {
             break;
         }
         if (socket_position >= 0 &&
@@ -647,11 +774,6 @@ int main(int argc, char **argv)
             if (socket_closed) {
                 break;
             }
-        }
-        if ((fds[virtual_position].revents & POLLIN) != 0) {
-            int ignored_down = 0;
-            int ignored_up = 0;
-            drain_virtual(virtual_fd, BTN_SOUTH, &ignored_down, &ignored_up);
         }
         elapsed += (unsigned int)wait_ms;
     }
