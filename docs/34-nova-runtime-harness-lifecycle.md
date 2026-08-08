@@ -67,6 +67,12 @@ These checks are intentionally separate from exact process cleanup: a clean
 process table does not prove that an old app socket or a different Gamescope
 artifact was not reused.
 
+The first run of this contract also caught an Android shell portability issue:
+passing `run-as PACKAGE sh -c` as separate `adb shell` arguments flattened the
+`-c` payload under the device shell, producing toybox `rm`/`sh` errors. App-file
+cleanup and its residual check now pass one quoted remote command string, and a
+failed cleanup remains a hard gate.
+
 ## Evidence and regression check
 
 The original bad state was reproduced by a fresh app session with a gray

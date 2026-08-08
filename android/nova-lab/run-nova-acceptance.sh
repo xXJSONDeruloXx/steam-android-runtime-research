@@ -188,15 +188,9 @@ if [ -n "$residual_processes" ]; then
 fi
 echo "nova_acceptance_residual_processes=pass"
 
-stale_app_files=$("$ADB" shell run-as "$PACKAGE" sh -c '
-    for path in files/nova-input.sock files/nova-touch.sock \
-        files/nova-lab-ahb-double-buffer.sock.* \
-        files/dmabuf-double-buffer-report.txt \
-        files/android-input-bridge-report.txt \
-        files/android-touch-bridge-report.txt; do
-        [ -e "$path" ] && echo "$path"
-    done
-' 2>/dev/null | tr -d '\r')
+stale_app_files=$("$ADB" shell \
+    "run-as $PACKAGE sh -c 'for path in files/nova-input.sock files/nova-touch.sock files/nova-lab-ahb-double-buffer.sock.* files/dmabuf-double-buffer-report.txt files/android-input-bridge-report.txt files/android-touch-bridge-report.txt; do if [ -e \"\$path\" ]; then echo \"\$path\"; fi; done'" \
+    2>/dev/null | tr -d '\r')
 if [ -n "$stale_app_files" ]; then
     echo "nova_acceptance_app_files=fail" >&2
     printf '%s\n' "$stale_app_files" >&2

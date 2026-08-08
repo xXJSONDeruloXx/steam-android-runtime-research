@@ -148,8 +148,7 @@ cleanup_on_exit() {
     exit 0
 }
 clear_app_runtime_files() {
-    if "$ADB" shell run-as "$PACKAGE" sh -c \
-        'rm -f files/nova-input.sock files/nova-touch.sock files/nova-lab-ahb-double-buffer.sock.* files/dmabuf-double-buffer-report.txt files/android-input-bridge-report.txt files/android-touch-bridge-report.txt' \
+    if "$ADB" shell "run-as $PACKAGE sh -c 'rm -f files/nova-input.sock files/nova-touch.sock files/nova-lab-ahb-double-buffer.sock.* files/dmabuf-double-buffer-report.txt files/android-input-bridge-report.txt files/android-touch-bridge-report.txt'" \
         >/dev/null 2>&1; then
         echo "nova_app_runtime_files_cleanup=pass"
     else
