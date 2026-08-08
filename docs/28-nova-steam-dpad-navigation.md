@@ -144,7 +144,9 @@ physical Android controller
 This does not yet prove hardware CEF rendering, account login, a launched
 game, rumble, axes, or clean suspend/resume. The current UI rendering path
 still reports software CEF/ANGLE rendering as described in [doc 15](15-nova-steam-ui-ahb-smoke.md).
-The Android-keyevent D-pad repeat is accepted in [doc 29](29-nova-android-input-steam-ui-navigation.md),
-and the corrected Android A-button mapping is accepted in [doc 30](30-nova-android-a-button-navigation.md).
-The next input work is B/X/Y, Start, Back, Guide, axes, and repeat/hold
-behavior before attempting login or a game launch.
+The Android-keyevent D-pad path is accepted in [doc 29](29-nova-android-input-steam-ui-navigation.md),
+including the strict Steam-surface visual gate. The corrected Android A-button
+mapping and feedback-loop filter are recorded as a transport checkpoint in
+[doc 30](30-nova-android-a-button-navigation.md); A-button UI consumption is
+still open. The next input work is B/X/Y, Start, Back, Guide, axes, and
+repeat/hold behavior before attempting login or a game launch.

@@ -24,6 +24,7 @@ STABLE_ATTEMPTS=${NOVA_CONTROLLER_UI_STABLE_ATTEMPTS:-20}
 RELAY_TIMEOUT=${NOVA_CONTROLLER_UI_RELAY_TIMEOUT:-180000}
 EXPECT_NAVIGATION=${NOVA_CONTROLLER_UI_EXPECT_NAVIGATION:-0}
 AFTER_DELAY=${NOVA_CONTROLLER_UI_AFTER_DELAY:-20}
+REQUIRE_STEAM_SURFACE=${NOVA_CONTROLLER_UI_REQUIRE_STEAM_SURFACE:-1}
 HELPER="$BUILD_DIR/nova-uinput-gamepad-relay"
 DEVICE_HELPER="$DEVICE_ROOT/opt/nova-kgsl-driver/nova-uinput-gamepad-relay"
 CHROOT_HELPER=/opt/nova-kgsl-driver/nova-uinput-gamepad-relay
@@ -65,6 +66,11 @@ mkdir -p "$BUILD_DIR"
 rm -f "$RUN_LOG" "$HELPER_LOG" "$FD_LOG" \
     "$BEFORE_SCREENSHOT" "$AFTER_SCREENSHOT" "$APP_LOG" "$APP_REPORT"
 
+stop_remote_helper() {
+    "$ADB" shell "su -c 'for remote_pid in \$(pidof nova-uinput-gamepad-relay 2>/dev/null); do kill -9 \$remote_pid; done'" \
+        >/dev/null 2>&1 || true
+}
+
 if [ "$INPUT_MODE" = "android-keyevent" ]; then
     export NOVA_ANDROID_INPUT_BRIDGE=1
     export NOVA_ANDROID_INPUT_KEY_ONLY=${NOVA_CONTROLLER_UI_ANDROID_KEY_ONLY:-1}
@@ -82,14 +88,12 @@ fi
 "$ADB" shell "mkdir -p $DEVICE_STAGE"
 "$ADB" push "$HELPER" "$DEVICE_STAGE/nova-uinput-gamepad-relay" >/dev/null
 "$ADB" shell su -c "mkdir -p $DEVICE_ROOT/opt/nova-kgsl-driver"
+stop_remote_helper
 "$ADB" shell su -c "cp $DEVICE_STAGE/nova-uinput-gamepad-relay $DEVICE_HELPER"
 "$ADB" shell su -c "chmod 755 $DEVICE_HELPER"
 "$ADB" push "$SCRIPT_DIR/device/nova-steam-input-fd-probe.sh" \
     "$DEVICE_FD_SCRIPT" >/dev/null
 "$ADB" shell su -c "chmod 755 $DEVICE_FD_SCRIPT"
-
-previous_app_pid=$("$ADB" shell pidof "$PACKAGE" 2>/dev/null || true)
-previous_app_pid=$(printf '%s\n' "$previous_app_pid" | tr -d '\r' | awk '{print $1}')
 
 device_line_count() {
     local remote_path=$1
@@ -109,6 +113,10 @@ capture_ready_screenshot() {
     local attempt
     local surface_hash
     local surface_yhigh
+    local steam_panel_ymin
+    local steam_panel_ylow
+    local steam_panel_yavg
+    local steam_panel_ymax
 
     for attempt in $(seq 1 "$STABLE_ATTEMPTS"); do
         "$ADB" exec-out screencap -p >"$sample"
@@ -122,6 +130,40 @@ capture_ready_screenshot() {
             ""|*[!0-9]*) surface_yhigh=0 ;;
         esac
         if [ "$surface_yhigh" -ge 40 ]; then
+            if [ "$REQUIRE_STEAM_SURFACE" = "1" ]; then
+                steam_panel_stats=$(ffmpeg -hide_banner -i "$sample" \
+                    -vf "crop=255:280:970:185,signalstats,metadata=print:file=-" \
+                    -f null - 2>&1 | awk -F= '
+                        /lavfi.signalstats.YMIN=/{ymin=$2}
+                        /lavfi.signalstats.YLOW=/{ylow=$2}
+                        /lavfi.signalstats.YAVG=/{yavg=$2}
+                        /lavfi.signalstats.YMAX=/{ymax=$2}
+                        END {printf "%d %d %d %d", ymin, ylow, yavg, ymax}
+                    ')
+                read -r steam_panel_ymin steam_panel_ylow steam_panel_yavg steam_panel_ymax <<EOF
+$steam_panel_stats
+EOF
+                case "$steam_panel_ymin" in
+                    ''|*[!0-9]*) steam_panel_ymin=0 ;;
+                esac
+                case "$steam_panel_ylow" in
+                    ''|*[!0-9]*) steam_panel_ylow=0 ;;
+                esac
+                case "$steam_panel_yavg" in
+                    ''|*[!0-9]*) steam_panel_yavg=0 ;;
+                esac
+                case "$steam_panel_ymax" in
+                    ''|*[!0-9]*) steam_panel_ymax=0 ;;
+                esac
+                if [ "$steam_panel_ymin" -lt 20 ] || \
+                    [ "$steam_panel_ylow" -lt 30 ] || \
+                    [ "$steam_panel_yavg" -lt 50 ] || \
+                    [ "$steam_panel_yavg" -gt 90 ] || \
+                    [ "$steam_panel_ymax" -lt 220 ]; then
+                    sleep 1
+                    continue
+                fi
+            fi
             cp "$sample" "$target"
             stable_surface_hash=$surface_hash
             echo "controller_ui_surface=pass"
@@ -129,6 +171,15 @@ capture_ready_screenshot() {
             echo "controller_ui_screenshot_sha256=$(sha256sum "$target" | cut -c1-64)"
             echo "controller_ui_surface_sha256=$surface_hash"
             echo "controller_ui_surface_yhigh=$surface_yhigh"
+            if [ "$REQUIRE_STEAM_SURFACE" = "1" ]; then
+                echo "controller_ui_steam_surface=pass"
+                echo "controller_ui_steam_panel_ymin=$steam_panel_ymin"
+                echo "controller_ui_steam_panel_ylow=$steam_panel_ylow"
+                echo "controller_ui_steam_panel_yavg=$steam_panel_yavg"
+                echo "controller_ui_steam_panel_ymax=$steam_panel_ymax"
+            else
+                echo "controller_ui_steam_surface=unchecked"
+            fi
             return 0
         fi
         sleep 1
@@ -143,15 +194,40 @@ fd_pid=
 run_pid=
 cleanup_remote_helper() {
     if [ -n "${helper_pid:-}" ]; then
-        "$ADB" shell su -c \
-            "for remote_pid in \$(pidof nova-uinput-gamepad-relay 2>/dev/null); do kill \$remote_pid; done" \
-            >/dev/null 2>&1 || true
+        stop_remote_helper
     fi
 }
 trap cleanup_remote_helper EXIT
 
+focused_window() {
+    "$ADB" shell dumpsys input 2>/dev/null | tr -d '\r' | \
+        awk '/FocusedWindows:/{getline; print; exit}'
+}
+
+dismiss_android_overlay() {
+    local focused
+    focused=$(focused_window)
+    if printf '%s\n' "$focused" | rg -q 'com\.rp\.settings'; then
+        "$ADB" shell input keyevent 4 >/dev/null 2>&1 || true
+        sleep 1
+        focused=$(focused_window)
+        if printf '%s\n' "$focused" | rg -q 'com\.rp\.settings'; then
+            # The Nova settings overlay can show its USB dialog without
+            # honoring BACK; its fixed Cancel action is at this coordinate.
+            "$ADB" shell input tap 920 630 >/dev/null 2>&1 || true
+            sleep 1
+        fi
+        echo "controller_ui_dismissed_overlay=com.rp.settings"
+    fi
+}
+
 steamui_html_lines=$(device_line_count "$STEAM_LOGS_DIR/steamui_html.txt")
 webhelper_js_lines=$(device_line_count "$STEAM_LOGS_DIR/webhelper_js.txt")
+
+# Clear any prior bridge socket before the background Steam launch. Otherwise
+# the readiness loop can attach the helper to an old Activity just before the
+# native smoke test's own force-stop/relaunch.
+"$ADB" shell am force-stop "$PACKAGE"
 
 set +e
 "$SCRIPT_DIR/deploy-native-steam-smoke-test.sh" >"$RUN_LOG" 2>&1 &
@@ -238,11 +314,9 @@ elapsed=0
 while [ "$elapsed" -lt "$WAIT_TIMEOUT" ]; do
     app_pid=$("$ADB" shell pidof "$PACKAGE" 2>/dev/null || true)
     app_pid=$(printf '%s\n' "$app_pid" | tr -d '\r' | awk '{print $1}')
-    if [ -n "$app_pid" ] && [ "$app_pid" != "$previous_app_pid" ] && \
+    if [ -n "$app_pid" ] && \
         "$ADB" shell "su -c 'ps -A -o ARGS | grep -q steamwebhelper && tail -n +$((steamui_html_lines + 1)) $STEAM_LOGS_DIR/steamui_html.txt | grep -q \"Started webhelper process\" && tail -n +$((webhelper_js_lines + 1)) $STEAM_LOGS_DIR/webhelper_js.txt | grep -q \"CWebSocketConnection (steamUI): connection ready\" && tail -n +$((webhelper_js_lines + 1)) $STEAM_LOGS_DIR/webhelper_js.txt | grep -q \"OOBE Store: keyboards\"'" \
-        >/dev/null 2>&1 && \
-        "$ADB" shell logcat -d -s NovaLab:I '*:S' 2>/dev/null | \
-        grep -q " $app_pid .*ahb_double_buffer_frame_in_flight=0"; then
+        >/dev/null 2>&1; then
         ui_ready=0
         break
     fi
@@ -267,19 +341,15 @@ stable_surface_hash=
 navigation_result=unknown
 if [ "$ui_ready" -eq 0 ]; then
     sleep "$SETTLE_DELAY"
+    if [ "$INPUT_MODE" = "android-keyevent" ]; then
+        dismiss_android_overlay
+    fi
     if capture_ready_screenshot "$BEFORE_SCREENSHOT"; then
         if [ "$INPUT_MODE" = "physical" ]; then
             "$ADB" shell su -c \
                 "sendevent $SOURCE_EVENT 1 $EVENT_CODE 1; sendevent $SOURCE_EVENT 0 0 0; sendevent $SOURCE_EVENT 1 $EVENT_CODE 0; sendevent $SOURCE_EVENT 0 0 0" \
                 >/dev/null
         else
-            focused_window=$("$ADB" shell dumpsys input 2>/dev/null | tr -d '\r' | \
-                awk '/FocusedWindows:/{getline; print}')
-            if printf '%s\n' "$focused_window" | rg -q 'com\.rp\.settings'; then
-                "$ADB" shell input keyevent 4 >/dev/null 2>&1 || true
-                sleep 1
-                echo "controller_ui_dismissed_overlay=com.rp.settings"
-            fi
             "$ADB" shell input keyevent "$ANDROID_KEYCODE" >/dev/null 2>&1 || true
         fi
         event_sent=0
@@ -289,6 +359,9 @@ if [ "$ui_ready" -eq 0 ]; then
             echo "controller_ui_android_event=$ANDROID_KEY_NAME code=$ANDROID_KEYCODE maps_to=$EVENT_NAME code=$EVENT_CODE"
         fi
         sleep "$AFTER_DELAY"
+        if [ "$INPUT_MODE" = "android-keyevent" ]; then
+            dismiss_android_overlay
+        fi
         echo "controller_ui_after_delay=$AFTER_DELAY"
         "$ADB" exec-out screencap -p >"$AFTER_SCREENSHOT"
         after_surface="$AFTER_SCREENSHOT.surface.png"
@@ -381,18 +454,35 @@ else
         'uinput_device_ready=pass' \
         'android_input_socket_connected=pass' \
         'android_key_forwarded=pass' \
-        'android_input_forwarded=pass' \
-        "android_input_key_received code=$ANDROID_KEYCODE linux_code=$EVENT_CODE event=$EVENT_NAME action=0"; do
+        'android_input_forwarded=pass'; do
         if ! rg -q -- "$marker" "$HELPER_LOG"; then
             echo "missing Android input relay marker: $marker" >&2
             exit 1
         fi
     done
+    if rg -q -- "android_input_key_received code=$ANDROID_KEYCODE linux_code=$EVENT_CODE event=$EVENT_NAME action=0" \
+        "$HELPER_LOG" && \
+        rg -q -- "android_input_key_received code=$ANDROID_KEYCODE linux_code=$EVENT_CODE event=$EVENT_NAME action=1" \
+        "$HELPER_LOG"; then
+        echo "controller_ui_android_input_marker=press_release"
+    elif rg -q -- "android_input_key_received code=$ANDROID_KEYCODE linux_code=$EVENT_CODE event=$EVENT_NAME action=1" \
+        "$HELPER_LOG"; then
+        echo "controller_ui_android_input_marker=release_only"
+        if ! rg -q -- "android_input_key_normalized keycode=$ANDROID_KEYCODE synthesized_down=1" \
+            "$APP_REPORT"; then
+            echo "missing Android key normalization marker" >&2
+            exit 1
+        fi
+        echo "controller_ui_android_key_normalized=pass"
+    else
+        echo "missing Android input relay marker: exact requested key event" >&2
+        exit 1
+    fi
     for marker in \
         'android_input_socket=listening' \
         'android_input_socket=connected' \
         'android_input_key_forwarded=pass' \
-        "android_input_key_dispatch keycode=$ANDROID_KEYCODE action=0 source=0x"; do
+        "android_input_key_dispatch keycode=$ANDROID_KEYCODE action=[01] source=0x"; do
         if ! rg -q -- "$marker" "$APP_REPORT"; then
             echo "missing Android app bridge marker: $marker" >&2
             exit 1

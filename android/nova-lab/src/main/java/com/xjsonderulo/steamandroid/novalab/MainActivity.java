@@ -11,6 +11,7 @@ import android.net.LocalServerSocket;
 import android.net.LocalSocket;
 import android.os.Bundle;
 import android.util.Log;
+import android.util.SparseBooleanArray;
 import android.view.InputDevice;
 import android.view.KeyEvent;
 import android.view.MotionEvent;
@@ -65,6 +66,7 @@ public final class MainActivity extends Activity implements SurfaceHolder.Callba
     private boolean androidInputKeyDeviceLogged;
     private boolean androidInputMotionLogged;
     private boolean androidInputRelayFiltered;
+    private final SparseBooleanArray androidInputKeysDown = new SparseBooleanArray();
 
     private static native String nativeRunHardwareBufferProbe();
     private static native String nativeRunAndroidVulkanHardwareBufferProbe();
@@ -318,10 +320,9 @@ public final class MainActivity extends Activity implements SurfaceHolder.Callba
     public boolean dispatchKeyEvent(KeyEvent event) {
         if (androidInputBridgeRunning) {
             if (isRelayInputDevice(event.getDevice())) {
-                return super.dispatchKeyEvent(event);
+                return true;
             }
-            sendAndroidInputLine("K " + event.getKeyCode() + " " + event.getAction() + "\n",
-                    true);
+            forwardAndroidKeyEvent(event);
             String dispatchMarker = "android_input_key_dispatch keycode="
                     + event.getKeyCode() + " action=" + event.getAction()
                     + " source=0x" + Integer.toHexString(event.getSource());
@@ -340,6 +341,7 @@ public final class MainActivity extends Activity implements SurfaceHolder.Callba
                 Log.i(TAG, marker);
                 appendAndroidInputReport(marker);
             }
+            return true;
         }
         return super.dispatchKeyEvent(event);
     }
@@ -347,10 +349,12 @@ public final class MainActivity extends Activity implements SurfaceHolder.Callba
     @Override
     public boolean dispatchGenericMotionEvent(MotionEvent event) {
         int controllerSources = InputDevice.SOURCE_GAMEPAD | InputDevice.SOURCE_JOYSTICK;
+        if (androidInputBridgeRunning && isRelayInputDevice(event.getDevice())) {
+            return true;
+        }
         if (androidInputBridgeRunning
                 && !androidInputKeyOnly
                 && event.getAction() == MotionEvent.ACTION_MOVE
-                && !isRelayInputDevice(event.getDevice())
                 && (event.getSource() & controllerSources) != 0) {
             int[] axes = {0, 1, 11, 14, 15, 16, 17, 18};
             for (int axis : axes) {
@@ -358,6 +362,7 @@ public final class MainActivity extends Activity implements SurfaceHolder.Callba
                         event.getAxisValue(axis));
                 sendAndroidInputLine(line, false);
             }
+            return true;
         }
         return super.dispatchGenericMotionEvent(event);
     }
@@ -384,6 +389,7 @@ public final class MainActivity extends Activity implements SurfaceHolder.Callba
         androidInputKeyDeviceLogged = false;
         androidInputMotionLogged = false;
         androidInputRelayFiltered = false;
+        androidInputKeysDown.clear();
         androidInputSocketFile = new File(getFilesDir(), "nova-input.sock");
         androidInputReportFile = new File(getFilesDir(), "android-input-bridge-report.txt");
         if (androidInputSocketFile.exists() && !androidInputSocketFile.delete()) {
@@ -496,6 +502,32 @@ public final class MainActivity extends Activity implements SurfaceHolder.Callba
         } catch (IOException error) {
             Log.w(TAG, "android_input_socket_write_failed", error);
             androidInputOutput = null;
+        }
+    }
+
+    private void forwardAndroidKeyEvent(KeyEvent event) {
+        int keyCode = event.getKeyCode();
+        int action = event.getAction();
+        if (keyCode == KeyEvent.KEYCODE_UNKNOWN) {
+            sendAndroidInputLine("K " + keyCode + " " + action + "\n", true);
+            return;
+        }
+        if (action == KeyEvent.ACTION_DOWN) {
+            androidInputKeysDown.put(keyCode, true);
+            sendAndroidInputLine("K " + keyCode + " 0\n", true);
+        } else if (action == KeyEvent.ACTION_UP) {
+            boolean hadDown = androidInputKeysDown.get(keyCode, false);
+            if (!hadDown) {
+                sendAndroidInputLine("K " + keyCode + " 0\n", true);
+                String marker = "android_input_key_normalized keycode=" + keyCode
+                        + " synthesized_down=1";
+                Log.i(TAG, marker);
+                appendAndroidInputReport(marker);
+            }
+            sendAndroidInputLine("K " + keyCode + " 1\n", true);
+            androidInputKeysDown.delete(keyCode);
+        } else {
+            sendAndroidInputLine("K " + keyCode + " " + action + "\n", true);
         }
     }
 
