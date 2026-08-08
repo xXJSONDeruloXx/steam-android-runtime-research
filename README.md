@@ -54,6 +54,14 @@ The useful results are split across several projects:
 - [Parent session process audit](docs/35-parent-session-process-audit-2026-08-08.md) records Luna's last-two-hours audit of repeated process mistakes and the resulting harness repairs.
 - [Nova bounded acceptance profile](docs/36-nova-bounded-acceptance-profile.md) defines the reproducible 1280×960 AHB/libei acceptance profile and clean-run evidence.
 - [Nova network and update compatibility boundary](docs/37-nova-network-and-update-compat.md) records Android-host network reachability, the research-only updater boundary, and the OOBE restart-branch isolation.
+- [Nova X11 presentation capture](docs/38-nova-x11-presentation-capture.md) adds same-run upstream window captures for separating CEF/Xwayland, Gamescope, and Android presentation failures.
+- [Nova release-message stall](docs/39-nova-release-message-stall-2026-08-08.md) records the first traced AHardwareBuffer release-wait boundary.
+- [Parent session process-audit follow-up](docs/40-parent-session-process-audit-followup-2026-08-08.md) records the next Luna audit and process repairs.
+- [Nova harness provenance/reset fixes](docs/41-nova-harness-provenance-reset-fixes-2026-08-08.md) records the linked-worktree and remote-shell cleanup hardening.
+- [Nova AHB trace stall](docs/42-nova-ahb-trace-stall-2026-08-08.md) records the fresh frame-level timezone-to-network reproducer.
+- [Parent session process-audit follow-up 2](docs/43-parent-session-process-audit-followup-2026-08-08.md) records the latest two-hours Luna audit and remaining workflow risks.
+- [Nova AHB seqpacket experiment](docs/44-nova-ahb-seqpacket-experiment-2026-08-08.md) defines the one-variable transport hypothesis and acceptance gate.
+- [Nova AHB seqpacket result](docs/45-nova-ahb-seqpacket-result-2026-08-08.md) records the negative device result and the next socket-instrumentation gate.
 
 ## Recommended direction
 
@@ -110,6 +118,14 @@ the gamescope frames on its own surface.
 - [Parent session process audit](docs/35-parent-session-process-audit-2026-08-08.md)
 - [Nova bounded acceptance profile](docs/36-nova-bounded-acceptance-profile.md)
 - [Nova network and update compatibility boundary](docs/37-nova-network-and-update-compat.md)
+- [Nova X11 presentation capture](docs/38-nova-x11-presentation-capture.md)
+- [Nova release-message stall](docs/39-nova-release-message-stall-2026-08-08.md)
+- [Parent session process-audit follow-up](docs/40-parent-session-process-audit-followup-2026-08-08.md)
+- [Nova harness provenance/reset fixes](docs/41-nova-harness-provenance-reset-fixes-2026-08-08.md)
+- [Nova AHB trace stall](docs/42-nova-ahb-trace-stall-2026-08-08.md)
+- [Parent session process-audit follow-up 2](docs/43-parent-session-process-audit-followup-2026-08-08.md)
+- [Nova AHB seqpacket experiment](docs/44-nova-ahb-seqpacket-experiment-2026-08-08.md)
+- [Nova AHB seqpacket result](docs/45-nova-ahb-seqpacket-result-2026-08-08.md)
 - [Retroid Pocket Nova flashing kit](tools/retroid-pocket-nova/README.md)
 
 ## Evidence standard

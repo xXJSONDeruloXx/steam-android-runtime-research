@@ -2,7 +2,8 @@
 
 Date: 2026-08-08
 
-Status: prepared for one fresh device run; no device result yet.
+Status: executed once; the transport-only result is recorded in
+[`docs/45-nova-ahb-seqpacket-result-2026-08-08.md`](45-nova-ahb-seqpacket-result-2026-08-08.md).
 
 ## Hypothesis
 
