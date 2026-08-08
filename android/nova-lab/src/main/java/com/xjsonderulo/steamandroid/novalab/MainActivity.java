@@ -10,6 +10,7 @@ import android.hardware.input.InputManager;
 import android.net.LocalServerSocket;
 import android.net.LocalSocket;
 import android.os.Bundle;
+import android.util.DisplayMetrics;
 import android.util.Log;
 import android.util.SparseBooleanArray;
 import android.view.InputDevice;
@@ -77,6 +78,8 @@ public final class MainActivity extends Activity implements SurfaceHolder.Callba
     private File androidTouchSocketFile;
     private File androidTouchReportFile;
     private boolean androidTouchLogged;
+    private boolean androidTouchGeometryLogged;
+    private SurfaceView presentationView;
     private int presentationWidth = 960;
     private int presentationHeight = 540;
 
@@ -117,6 +120,7 @@ public final class MainActivity extends Activity implements SurfaceHolder.Callba
         page.addView(subtitle, new LinearLayout.LayoutParams(-1, -2));
 
         SurfaceView surface = new SurfaceView(this);
+        presentationView = surface;
         doubleBufferPresentationMode = getIntent().getBooleanExtra(
                 "run_dmabuf_double_buffer", false);
         androidInputKeyOnly = getIntent().getBooleanExtra("android_input_key_only", false);
@@ -125,8 +129,17 @@ public final class MainActivity extends Activity implements SurfaceHolder.Callba
         surface.getHolder().setFormat(PixelFormat.RGBA_8888);
         surface.setKeepScreenOn(true);
         if (fullscreenPresentationMode) {
-            int displayWidth = getResources().getDisplayMetrics().widthPixels;
-            int displayHeight = getResources().getDisplayMetrics().heightPixels;
+            DisplayMetrics realMetrics = new DisplayMetrics();
+            getWindowManager().getDefaultDisplay().getRealMetrics(realMetrics);
+            int displayWidth = realMetrics.widthPixels;
+            int displayHeight = realMetrics.heightPixels;
+            DisplayMetrics appMetrics = getResources().getDisplayMetrics();
+            if (appMetrics.widthPixels > appMetrics.heightPixels
+                    && displayWidth < displayHeight) {
+                int rotatedWidth = displayHeight;
+                displayHeight = displayWidth;
+                displayWidth = rotatedWidth;
+            }
             presentationWidth = getIntent().getIntExtra(
                     "fullscreen_width", displayWidth);
             presentationHeight = getIntent().getIntExtra(
@@ -556,6 +569,7 @@ public final class MainActivity extends Activity implements SurfaceHolder.Callba
     private void startAndroidTouchBridge() {
         androidTouchBridgeRunning = true;
         androidTouchLogged = false;
+        androidTouchGeometryLogged = false;
         androidTouchSocketFile = new File(getFilesDir(), "nova-touch.sock");
         androidTouchReportFile = new File(getFilesDir(), "android-touch-bridge-report.txt");
         if (androidTouchSocketFile.exists() && !androidTouchSocketFile.delete()) {
@@ -676,10 +690,28 @@ public final class MainActivity extends Activity implements SurfaceHolder.Callba
             return;
         }
         int pointerId = event.getPointerId(actionIndex);
-        float width = Math.max(1.0f, getWindow().getDecorView().getWidth());
-        float height = Math.max(1.0f, getWindow().getDecorView().getHeight());
-        float x = Math.max(0.0f, Math.min(1.0f, event.getX(actionIndex) / width));
-        float y = Math.max(0.0f, Math.min(1.0f, event.getY(actionIndex) / height));
+        SurfaceView surface = presentationView;
+        int surfaceWidth = surface == null ? 0 : surface.getWidth();
+        int surfaceHeight = surface == null ? 0 : surface.getHeight();
+        int[] surfaceLocation = {0, 0};
+        if (surface != null && surfaceWidth > 0 && surfaceHeight > 0) {
+            surface.getLocationOnScreen(surfaceLocation);
+        } else {
+            surfaceWidth = Math.max(1, getWindow().getDecorView().getWidth());
+            surfaceHeight = Math.max(1, getWindow().getDecorView().getHeight());
+        }
+        if (!androidTouchGeometryLogged) {
+            androidTouchGeometryLogged = true;
+            String geometry = "android_touch_surface_geometry x="
+                    + surfaceLocation[0] + " y=" + surfaceLocation[1]
+                    + " width=" + surfaceWidth + " height=" + surfaceHeight;
+            Log.i(TAG, geometry);
+            appendAndroidTouchReport(geometry);
+        }
+        float x = Math.max(0.0f, Math.min(1.0f,
+                (event.getRawX(actionIndex) - surfaceLocation[0]) / surfaceWidth));
+        float y = Math.max(0.0f, Math.min(1.0f,
+                (event.getRawY(actionIndex) - surfaceLocation[1]) / surfaceHeight));
         int bridgeAction;
         switch (action) {
             case MotionEvent.ACTION_DOWN:

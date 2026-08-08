@@ -26,6 +26,7 @@ REPORT="$BUILD_DIR/device-gamescope-headless-ahb-report.txt"
 LOGCAT="$BUILD_DIR/device-gamescope-headless-ahb-logcat.txt"
 APP_REPORT="$BUILD_DIR/device-gamescope-headless-ahb-app-report.txt"
 SCREENSHOT="$BUILD_DIR/device-gamescope-headless-ahb-screenshot.png"
+REQUIRE_TARGET=${NOVA_GAMESCOPE_AHB_REQUIRE_TARGET:-1}
 
 for required in "$BINARY" "$CLIENT" "$CONTROL"; do
     if [ ! -f "$required" ]; then
@@ -150,7 +151,9 @@ report_markers=(
 if [ "${NOVA_GAMESCOPE_AHB_SKIP_WAYLAND:-0}" = "1" ]; then
     if [ "${NOVA_GAMESCOPE_AHB_XWAYLAND:-0}" = "1" ]; then
         report_markers+=('Starting Xwayland on :0')
-        report_markers+=("android_ahb_target_reached=$FRAME_COUNT")
+        if [ "$REQUIRE_TARGET" = "1" ]; then
+            report_markers+=("android_ahb_target_reached=$FRAME_COUNT")
+        fi
     fi
 else
     report_markers+=('wayland_connect=pass socket=gamescope-0')

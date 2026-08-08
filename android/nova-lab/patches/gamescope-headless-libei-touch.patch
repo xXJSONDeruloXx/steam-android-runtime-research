@@ -22,7 +22,7 @@
 +                        // The Android presentation bridge uses this capability
 +                        // for real touch down/motion/up events.
 +                        eis_device_configure_capability( pVirtualInput, EIS_DEVICE_CAP_TOUCH );
-@@ -218,6 +218,25 @@
+@@ -218,8 +218,35 @@
                  case EIS_EVENT_TOUCH_DOWN:
                  case EIS_EVENT_TOUCH_MOTION:
                  case EIS_EVENT_TOUCH_UP:
@@ -31,18 +31,26 @@
 -                    gamescope_ei.errorf( "No touch support yet! How did you get here?" );
 +                    const enum eis_event_type type = eis_event_get_type( pEisEvent );
 +                    const uint32_t touch_id = eis_event_touch_get_id( pEisEvent );
-+                    gamescope_ei.infof( "EIS touch event type=%d id=%u", (int) type, touch_id );
++                    constexpr double kEisTouchRegionSize = 2147483647.0;
++                    double x = 0.0;
++                    double y = 0.0;
++                    if ( type != EIS_EVENT_TOUCH_UP )
++                    {
++                        x = eis_event_touch_get_x( pEisEvent ) / kEisTouchRegionSize;
++                        y = eis_event_touch_get_y( pEisEvent ) / kEisTouchRegionSize;
++                    }
++                    gamescope_ei.infof( "EIS touch event type=%d id=%u x=%.5f y=%.5f mode=%u",
++                                        (int) type, touch_id, x, y,
++                                        (unsigned) GetBackend()->GetTouchClickMode() );
 +                    wlserver_lock();
 +                    if ( type == EIS_EVENT_TOUCH_DOWN )
 +                    {
-+                        wlserver_touchdown( eis_event_touch_get_x( pEisEvent ),
-+                                            eis_event_touch_get_y( pEisEvent ),
++                        wlserver_touchdown( x, y,
 +                                            touch_id, ++s_uSequence );
 +                    }
 +                    else if ( type == EIS_EVENT_TOUCH_MOTION )
 +                    {
-+                        wlserver_touchmotion( eis_event_touch_get_x( pEisEvent ),
-+                                              eis_event_touch_get_y( pEisEvent ),
++                        wlserver_touchmotion( x, y,
 +                                              touch_id, ++s_uSequence );
 +                    }
 +                    else
