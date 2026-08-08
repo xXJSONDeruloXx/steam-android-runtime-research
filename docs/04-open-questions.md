@@ -109,6 +109,11 @@ The target should not be considered proven until all of these work on one device
   keyboard scancode plus protocol round trip through `gamescope-0-ei`; see
   [doc 16](16-nova-libei-input-smoke.md). This establishes a compositor control
   seam, but not Android gamepad mapping or Linux HID navigation.
+- Can a rooted Android input bridge expose a Steam-compatible gamepad? The Nova
+  now has a repeatable `/dev/input/event7` to `/dev/uinput` relay that creates a
+  readable virtual Xbox-style device and forwards a deterministic evdev event
+  while the native Steam/AHardwareBuffer smoke passes; see [doc 18](18-nova-uinput-gamepad-smoke.md).
+  Steam device enumeration and UI navigation remain open.
 - Can the Nova expose hardware GLX/CEF for Steam? The bounded `msm` probe keeps
   Gamescope's Turnip/AHardwareBuffer side alive but Steam exits before CEF with
   `SIGILL`; an explicit `freedreno` Gallium profile instead fails at `drisw`

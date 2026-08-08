@@ -118,6 +118,11 @@ but native Steam exits before `steamwebhelper` with `SIGILL` when Mesa's `msm`
 path is selected; an explicit `freedreno` profile fails at `drisw` creation.
 See [doc 17](17-nova-steam-hardware-glx-probe.md). Hardware CEF is therefore
 still an open graphics gate, independent of the already-proven Vulkan output.
+The rooted input side now also creates a virtual Xbox-style uinput device from
+the Nova's attached controller and forwards an evdev event while the same
+Steam/presentation smoke passes; [doc 18](18-nova-uinput-gamepad-smoke.md)
+records the kernel-side result. Android `InputDevice` mapping, Steam
+enumeration, and actual navigation are still required.
 
 ### Rootless stage 3: user-space Steam session supervision
 
