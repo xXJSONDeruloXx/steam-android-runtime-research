@@ -153,8 +153,11 @@ and compares the Steam UI navigation region before and after; see
 `docs/23-nova-steam-controller-ui-input.md`. Its default long profile keeps
 the visible AHardwareBuffer UI alive long enough to distinguish the animated
 localized greeting from actual selector navigation. Set
-`NOVA_CONTROLLER_UI_EXPECT_NAVIGATION=1` for a future semantic-navigation
-assertion. For
+`NOVA_CONTROLLER_UI_EVENT_CODE=545` and
+`NOVA_CONTROLLER_UI_EVENT_NAME=BTN_DPAD_DOWN` to probe a semantic D-pad
+action; set `NOVA_CONTROLLER_UI_EXPECT_NAVIGATION=1` to make unchanged
+navigation an assertion failure. The negative D-pad result is documented in
+`docs/24-nova-steam-dpad-input.md`. For
 loader-only diagnostics,
 `NOVA_STEAM_EXECUTABLE` can point at another ARM64 entry point, such as
 `steamwebhelper`, and `NOVA_STEAM_CLIENT_FLAGS` supplies its bounded arguments.

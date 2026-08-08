@@ -60,6 +60,38 @@ static int parse_timeout(const char *text, unsigned int *timeout_ms)
     return 0;
 }
 
+static int parse_control_code(const char *text, unsigned short *code)
+{
+    char *end = NULL;
+    unsigned long value;
+
+    errno = 0;
+    value = strtoul(text, &end, 10);
+    if (errno != 0 || end == text || *end != '\0' || value > KEY_MAX) {
+        return -1;
+    }
+    *code = (unsigned short)value;
+    return 0;
+}
+
+static const char *control_event_label(unsigned short code)
+{
+    switch (code) {
+    case BTN_SOUTH:
+        return "BTN_SOUTH";
+    case BTN_DPAD_UP:
+        return "BTN_DPAD_UP";
+    case BTN_DPAD_DOWN:
+        return "BTN_DPAD_DOWN";
+    case BTN_DPAD_LEFT:
+        return "BTN_DPAD_LEFT";
+    case BTN_DPAD_RIGHT:
+        return "BTN_DPAD_RIGHT";
+    default:
+        return "unknown";
+    }
+}
+
 static int configure_from_source(int uinput_fd, int source_fd)
 {
     unsigned long key_bits[KEY_MAX / (sizeof(unsigned long) * 8u) + 1u];
@@ -431,6 +463,12 @@ int main(int argc, char **argv)
         fprintf(stderr, "uinput_error=invalid_timeout\n");
         return 2;
     }
+    unsigned short control_code = BTN_SOUTH;
+    if (strcmp(mode, "relay-once-code") == 0 &&
+        (argc <= 4 || parse_control_code(argv[4], &control_code) != 0)) {
+        fprintf(stderr, "uinput_error=invalid_control_code\n");
+        return 2;
+    }
     if (strcmp(source_path, "none") != 0) {
         source_fd = open(source_path, O_RDONLY | O_NONBLOCK);
         if (source_fd < 0) {
@@ -519,14 +557,16 @@ int main(int argc, char **argv)
         printf("android_input_socket_connected=pass\n");
         fflush(stdout);
     } else if (strcmp(mode, "none") != 0 && strcmp(mode, "relay") != 0 &&
-               strcmp(mode, "relay-once") != 0) {
+               strcmp(mode, "relay-once") != 0 &&
+               strcmp(mode, "relay-once-code") != 0) {
         fprintf(stderr, "uinput_error=unknown_mode\n");
         goto cleanup;
     }
 
     printf("uinput_relay=begin\n");
     fflush(stdout);
-    const int relay_once = strcmp(mode, "relay-once") == 0;
+    const int relay_once = strcmp(mode, "relay-once") == 0 ||
+                           strcmp(mode, "relay-once-code") == 0;
     struct pollfd fds[3];
     unsigned int elapsed = 0;
     int forwarded = 0;
@@ -571,7 +611,7 @@ int main(int argc, char **argv)
                         forwarded = 1;
                     }
                     if (relay_once && event.type == EV_KEY &&
-                        event.code == BTN_SOUTH && event.value == 1) {
+                        event.code == control_code && event.value == 1) {
                         control_event = 1;
                         break;
                     }
@@ -609,7 +649,9 @@ int main(int argc, char **argv)
         printf("uinput_event_forwarded=none\n");
     }
     if (control_event) {
-        printf("uinput_control_event=BTN_SOUTH\n");
+        printf("uinput_control_event_code=%u\n", control_code);
+        printf("uinput_control_event=%s\n",
+               control_event_label(control_code));
     }
     if (socket_fd >= 0) {
         printf("android_key_forwarded=%s\n",

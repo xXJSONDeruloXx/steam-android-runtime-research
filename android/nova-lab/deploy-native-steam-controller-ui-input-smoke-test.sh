@@ -8,6 +8,8 @@ ADB=${ADB:-/Users/kurt/.local/bin/adb}
 DEVICE_ROOT=${DEVICE_ROOT:-/data/local/tmp/nova-holo-rootfs}
 PACKAGE=com.xjsonderulo.steamandroid.novalab
 SOURCE_EVENT=${NOVA_STEAM_GAMEPAD_SOURCE:-/dev/input/event7}
+EVENT_CODE=${NOVA_CONTROLLER_UI_EVENT_CODE:-304}
+EVENT_NAME=${NOVA_CONTROLLER_UI_EVENT_NAME:-BTN_SOUTH}
 WAIT_TIMEOUT=${NOVA_CONTROLLER_UI_WAIT_TIMEOUT:-140}
 SETTLE_DELAY=${NOVA_CONTROLLER_UI_SETTLE_DELAY:-30}
 STABLE_ATTEMPTS=${NOVA_CONTROLLER_UI_STABLE_ATTEMPTS:-20}
@@ -139,7 +141,7 @@ while [ "$elapsed" -lt "$WAIT_TIMEOUT" ]; do
         >/dev/null 2>&1; then
         set +e
         "$ADB" shell su -c \
-            "/system/bin/chroot $DEVICE_ROOT /usr/bin/env -i PATH=/usr/bin:/bin HOME=/tmp XDG_RUNTIME_DIR=/tmp $CHROOT_HELPER $SOURCE_EVENT $RELAY_TIMEOUT relay-once" \
+            "/system/bin/chroot $DEVICE_ROOT /usr/bin/env -i PATH=/usr/bin:/bin HOME=/tmp XDG_RUNTIME_DIR=/tmp $CHROOT_HELPER $SOURCE_EVENT $RELAY_TIMEOUT relay-once-code $EVENT_CODE" \
             >"$HELPER_LOG" 2>&1 &
         helper_pid=$!
         set -e
@@ -212,10 +214,10 @@ if [ "$ui_ready" -eq 0 ]; then
     sleep "$SETTLE_DELAY"
     if capture_ready_screenshot "$BEFORE_SCREENSHOT"; then
         "$ADB" shell su -c \
-            "sendevent $SOURCE_EVENT 1 304 1; sendevent $SOURCE_EVENT 0 0 0; sendevent $SOURCE_EVENT 1 304 0; sendevent $SOURCE_EVENT 0 0 0" \
+            "sendevent $SOURCE_EVENT 1 $EVENT_CODE 1; sendevent $SOURCE_EVENT 0 0 0; sendevent $SOURCE_EVENT 1 $EVENT_CODE 0; sendevent $SOURCE_EVENT 0 0 0" \
             >/dev/null
         event_sent=0
-        echo "controller_ui_event=BTN_SOUTH"
+        echo "controller_ui_event=$EVENT_NAME code=$EVENT_CODE"
         sleep "$AFTER_DELAY"
         echo "controller_ui_after_delay=$AFTER_DELAY"
         "$ADB" exec-out screencap -p >"$AFTER_SCREENSHOT"
@@ -285,13 +287,17 @@ if [ "$run_status" -ne 0 ]; then
 fi
 for marker in \
     'uinput_device_ready=pass' \
-    'uinput_event_forwarded=pass' \
-    'uinput_control_event=BTN_SOUTH'; do
+    'uinput_event_forwarded=pass'; do
     if ! rg -q -- "$marker" "$HELPER_LOG"; then
         echo "missing controller relay marker: $marker" >&2
         exit 1
     fi
 done
+control_marker="uinput_control_event=$EVENT_NAME"
+if ! rg -q -- "$control_marker" "$HELPER_LOG"; then
+    echo "missing controller relay marker: $control_marker" >&2
+    exit 1
+fi
 if [ "$fd_status" -ne 0 ] || ! rg -q -- 'steam_input_fd_probe=pass' "$FD_LOG"; then
     echo "missing Steam process FD marker" >&2
     exit 1

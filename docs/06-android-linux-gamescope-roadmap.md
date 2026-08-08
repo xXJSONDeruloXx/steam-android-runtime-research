@@ -133,6 +133,11 @@ socket into the same rooted virtual device; [doc 19](19-nova-android-input-uinpu
   observation with an exact physical BTN_SOUTH event and a before/after
   selector-region comparison. The relay and FD pass, but the selector remains
   unchanged, so Steam Input/Gamepad UI consumption is still the next gate.
+  [Doc 24](24-nova-steam-dpad-input.md) repeats that session with
+  `BTN_DPAD_DOWN`; the event reaches the virtual node and the native Steam FD,
+  but the selector is still unchanged. The next investigation should therefore
+  move above uinput creation toward Steam's higher-level input path or an
+  alternative compositor/keyboard route.
 
 ### Rootless stage 3: user-space Steam session supervision
 
