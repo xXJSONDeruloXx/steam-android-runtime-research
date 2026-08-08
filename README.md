@@ -29,6 +29,7 @@ The useful results are split across several projects:
 - [Nova Gamescope Android output](docs/12-nova-gamescope-ahb-output.md) records the imported AHardwareBuffer output path from Gamescope through Android SurfaceControl, including sustained 60-frame and 960x540 acquire/release fence runs.
 - [Nova Xwayland Android AHardwareBuffer output](docs/13-nova-xwayland-ahb-output.md) records an animated ARM64 X11 client crossing Xwayland, Gamescope, and the same 960x540 Android fence loop.
 - [Nova native ARM64 Steam seed and startup](docs/14-nova-steam-arm64-seed-and-startup.md) records the live Valve seed/runtime, reproducible deployment, System V semaphore and loader ABI probes, and the first bounded native Steam launch.
+- [Nova Bionic Mesa glamor sidecar](docs/15-nova-bionic-mesa-glamor-experiment.md) records the pinned upstream Android/Bionic EGL/GBM/Gallium/Zink/Turnip build and its ABI boundary.
 
 ## Recommended direction
 
@@ -62,6 +63,7 @@ the gamescope frames on its own surface.
 - [Nova Gamescope Android AHardwareBuffer output](docs/12-nova-gamescope-ahb-output.md)
 - [Nova Xwayland Android AHardwareBuffer output](docs/13-nova-xwayland-ahb-output.md)
 - [Nova native ARM64 Steam seed and startup](docs/14-nova-steam-arm64-seed-and-startup.md)
+- [Nova Bionic Mesa glamor sidecar](docs/15-nova-bionic-mesa-glamor-experiment.md)
 - [Retroid Pocket Nova flashing kit](tools/retroid-pocket-nova/README.md)
 
 ## Evidence standard

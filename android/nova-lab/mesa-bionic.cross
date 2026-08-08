@@ -1,0 +1,14 @@
+[binaries]
+c = 'aarch64-linux-android34-clang'
+cpp = ['aarch64-linux-android34-clang++', '-fno-exceptions', '-fno-unwind-tables', '-fno-asynchronous-unwind-tables', '--start-no-unused-arguments', '-static-libstdc++', '--end-no-unused-arguments']
+ar = 'llvm-ar'
+strip = 'llvm-strip'
+c_ld = 'lld'
+cpp_ld = 'lld'
+pkg-config = ['env', 'PKG_CONFIG_LIBDIR=', 'pkg-config']
+
+[host_machine]
+system = 'android'
+cpu_family = 'aarch64'
+cpu = 'armv8-a'
+endian = 'little'

@@ -82,6 +82,7 @@ android/nova-lab/install-holo-packages.sh
 android/nova-lab/install-holo-gamescope.sh
 android/nova-lab/build-kgsl-turnip.sh
 android/nova-lab/deploy-kgsl-turnip.sh
+android/nova-lab/build-mesa-bionic-glamor.sh
 android/nova-lab/build-vulkan-offscreen-probe.sh
 android/nova-lab/deploy-vulkan-offscreen-probe.sh
 android/nova-lab/deploy-holo-probe.sh
@@ -108,6 +109,19 @@ reproducible `UID:GID` marker so the bounded client runs with `setpriv` under a
 non-root user. The seed/bootstrap and current ABI boundary are documented in
 `docs/14-nova-steam-arm64-seed-and-startup.md`; the current checkpoint reaches
 the native update UI but not login or Gamepad UI.
+
+## Bionic Mesa glamor sidecar
+
+`build-mesa-bionic-glamor.sh` builds a pinned upstream Mesa ARM64 Android/Bionic
+sidecar. It enables EGL, GBM, GLES, Freedreno Gallium DRI, Zink, and the matching
+KGSL Turnip ICD, producing `build/mesa-bionic-glamor/nova-mesa-bionic-glamor-arm64.tar.gz`.
+
+This is deliberately a sidecar experiment, not a drop-in replacement for the
+current Holo/glibc Xwayland process. Bionic and glibc DSOs cannot be mixed in one
+loader namespace; the artifact is intended for a Bionic-linked Xwayland/Termux
+experiment or a later launcher that keeps the Bionic graphics stack in its own
+process boundary. The exact scope and current limitation are recorded in
+`docs/15-nova-bionic-mesa-glamor-experiment.md`.
 
 `deploy-holo-probe.sh` returns the Vulkan probe status but always pulls its report,
 including expected failures. Set `VULKAN_LOADER_DEBUG=all` for loader diagnostics or
