@@ -6,16 +6,21 @@ SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
 BUILD_DIR="$SCRIPT_DIR/build"
 ADB=${ADB:-/Users/kurt/.local/bin/adb}
 PACKAGE=com.xjsonderulo.steamandroid.novalab
+DEVICE_ROOT=${DEVICE_ROOT:-/data/local/tmp/nova-holo-rootfs}
+RUNTIME_CLEANUP="$SCRIPT_DIR/device/nova-runtime-cleanup.sh"
+DEVICE_RUNTIME_CLEANUP=/data/local/tmp/nova-runtime-cleanup.sh
 PID_FILE="$BUILD_DIR/native-steam-manual-session.pid"
 LOG_FILE="$BUILD_DIR/native-steam-manual-session.log"
 
+cleanup_remote_runtime() {
+    "$ADB" push "$RUNTIME_CLEANUP" "$DEVICE_RUNTIME_CLEANUP" \
+        >/dev/null 2>&1 || true
+    "$ADB" shell su -c "/system/bin/sh $DEVICE_RUNTIME_CLEANUP $DEVICE_ROOT" \
+        2>/dev/null | tr -d '\r' || true
+}
+
 stop_remote_lab() {
-    for remote_name in gamescope-headless nova-libei-input-bridge nova-uinput-gamepad-relay; do
-        remote_pids=$("$ADB" shell pidof "$remote_name" 2>/dev/null | tr -d '\r' || true)
-        if [ -n "$remote_pids" ]; then
-            "$ADB" shell su -c "kill $remote_pids" >/dev/null 2>&1 || true
-        fi
-    done
+    cleanup_remote_runtime
     "$ADB" shell am force-stop "$PACKAGE" >/dev/null 2>&1 || true
 }
 

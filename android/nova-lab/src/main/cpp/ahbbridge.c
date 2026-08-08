@@ -39,6 +39,9 @@ extern void ASurfaceTransaction_setBuffer(ASurfaceTransaction *transaction,
                                           ASurfaceControl *surface_control,
                                           AHardwareBuffer *buffer,
                                           int acquire_fence_fd);
+extern void ASurfaceTransaction_setEnableBackPressure(
+    ASurfaceTransaction *transaction, ASurfaceControl *surface_control,
+    int enable_back_pressure);
 extern void ASurfaceTransaction_setGeometry(ASurfaceTransaction *transaction,
                                             ASurfaceControl *surface_control,
                                             const ARect *source,
@@ -200,6 +203,7 @@ present_surface_buffer(JNIEnv *env, jobject surface_object,
     }
     ASurfaceTransaction_setBuffer(transaction, surface_control, buffer,
                                   acquire_fence_fd);
+    ASurfaceTransaction_setEnableBackPressure(transaction, surface_control, 0);
     append_line(report, capacity, used, "surface_acquire_fence=passed\n");
     ARect source = {0, 0, 64, 64};
     ARect destination = {0, 0, 960, 540};
@@ -294,6 +298,7 @@ present_surface_frame(ASurfaceControl *surface_control, AHardwareBuffer *buffer,
     }
     ASurfaceTransaction_setBuffer(transaction, surface_control, buffer,
                                   acquire_fence_fd);
+    ASurfaceTransaction_setEnableBackPressure(transaction, surface_control, 0);
     append_line(report, capacity, used,
                 "surface_frame_acquire_fence=passed\n");
     ARect source = {0, 0, buffer_width, buffer_height};
@@ -732,7 +737,8 @@ JNIEXPORT jstring JNICALL
 Java_com_xjsonderulo_steamandroid_novalab_MainActivity_nativeRunDmaBufDoubleBufferBridge(
     JNIEnv *env, jobject object, jstring socket_path_string,
     jobject surface_object, jint frame_count_argument,
-    jint frame_width_argument, jint frame_height_argument)
+    jint frame_width_argument, jint frame_height_argument,
+    jboolean force_gpu_composition)
 {
     (void)object;
     char report[65536] = "";
@@ -751,10 +757,10 @@ Java_com_xjsonderulo_steamandroid_novalab_MainActivity_nativeRunDmaBufDoubleBuff
         return report_string(env, report);
     }
 
-    AHardwareBuffer *buffers[2] = {NULL, NULL};
-    int servers[2] = {-1, -1};
-    int clients[2] = {-1, -1};
-    char socket_paths[2][sizeof(((struct sockaddr_un *)0)->sun_path)] = {{0}};
+    AHardwareBuffer *buffers[3] = {NULL, NULL, NULL};
+    int servers[3] = {-1, -1, -1};
+    int clients[3] = {-1, -1, -1};
+    char socket_paths[3][sizeof(((struct sockaddr_un *)0)->sun_path)] = {{0}};
     ASurfaceControl *surface_control = NULL;
     int success = 0;
     int frame_count = 0;
@@ -771,7 +777,9 @@ Java_com_xjsonderulo_steamandroid_novalab_MainActivity_nativeRunDmaBufDoubleBuff
                            AHARDWAREBUFFER_USAGE_CPU_WRITE_OFTEN |
                            AHARDWAREBUFFER_USAGE_GPU_SAMPLED_IMAGE |
                            AHARDWAREBUFFER_USAGE_GPU_FRAMEBUFFER |
-                           AHARDWAREBUFFER_USAGE_COMPOSER_OVERLAY;
+                           (force_gpu_composition
+                                ? 0
+                                : AHARDWAREBUFFER_USAGE_COMPOSER_OVERLAY);
     AHardwareBuffer_Desc description = {
         .width = (uint32_t)buffer_width,
         .height = (uint32_t)buffer_height,
@@ -783,10 +791,13 @@ Java_com_xjsonderulo_steamandroid_novalab_MainActivity_nativeRunDmaBufDoubleBuff
     append_line(report, sizeof(report), &used,
                 "ahb_double_buffer_supported=%d usage=0x%llx\n", status,
                 (unsigned long long)usage);
+    append_line(report, sizeof(report), &used,
+                "ahb_double_buffer_composer_overlay=%s\n",
+                force_gpu_composition ? "disabled" : "enabled");
     if (!status) {
         goto double_buffer_done;
     }
-    for (int index = 0; index < 2; ++index) {
+    for (int index = 0; index < 3; ++index) {
         status = AHardwareBuffer_allocate(&description, &buffers[index]);
         append_line(report, sizeof(report), &used,
                     "ahb_double_buffer_allocate_%d_status=%d\n", index,
@@ -817,7 +828,7 @@ Java_com_xjsonderulo_steamandroid_novalab_MainActivity_nativeRunDmaBufDoubleBuff
         }
     }
 
-    for (int index = 0; index < 2; ++index) {
+    for (int index = 0; index < 3; ++index) {
         clients[index] = accept(servers[index], NULL, NULL);
         append_line(report, sizeof(report), &used,
                     "ahb_double_buffer_accept_%d=%s\n", index,
@@ -871,9 +882,9 @@ Java_com_xjsonderulo_steamandroid_novalab_MainActivity_nativeRunDmaBufDoubleBuff
         goto double_buffer_done;
     }
 
-    /* Holo sends two frames before waiting for the first release fence. The
-     * alternating order then allows each side to overlap one GPU write with
-     * the other buffer's SurfaceControl presentation. */
+    /* Holo sends three frames before waiting for the first release fence. The
+     * extra slot absorbs a panel/compositor release-latency spike without
+     * reusing a buffer that SurfaceFlinger still owns. */
     /* A negative frame count is the manual-session sentinel. Keep the
      * bounded positive mode strict for automated smoke tests, while allowing
      * the live Android presentation and input bridges to remain available for
@@ -896,7 +907,7 @@ Java_com_xjsonderulo_steamandroid_novalab_MainActivity_nativeRunDmaBufDoubleBuff
                 "ahb_double_buffer_size=%dx%d\n", buffer_width,
                 buffer_height);
     for (int frame = 0; continuous || frame < total_frames; ++frame) {
-        int index = frame & 1;
+        int index = frame % 3;
         char acknowledgement[256] = {0};
         int acquire_fence_fd = -1;
         ssize_t acknowledgement_bytes = receive_bridge_acknowledgement(
@@ -935,6 +946,12 @@ Java_com_xjsonderulo_steamandroid_novalab_MainActivity_nativeRunDmaBufDoubleBuff
             buffer_height, destination_width, destination_height,
             &previous_release_fence_fd, report, sizeof(report), &used);
         acquire_fence_fd = -1;
+        if (frame < 4 || (frame % 30) == 0) {
+            __android_log_print(
+                ANDROID_LOG_INFO, "NovaLab",
+                "ahb_double_buffer_present_result frame=%d pass=%d previous_release=%d",
+                frame, frame_pass, previous_release_fence_fd >= 0);
+        }
         if (!frame_pass) {
             if (previous_release_fence_fd >= 0) {
                 close(previous_release_fence_fd);
@@ -950,7 +967,7 @@ Java_com_xjsonderulo_steamandroid_novalab_MainActivity_nativeRunDmaBufDoubleBuff
             goto double_buffer_done;
         }
         if (previous_release_fence_fd >= 0) {
-            int previous_index = index ^ 1;
+            int previous_index = (index + 2) % 3;
             int release_status = send_release_fence(
                 clients[previous_index], previous_index,
                 previous_release_fence_fd);
@@ -975,7 +992,7 @@ double_buffer_done:
     if (surface_control != NULL) {
         ASurfaceControl_release(surface_control);
     }
-    for (int index = 0; index < 2; ++index) {
+    for (int index = 0; index < 3; ++index) {
         if (clients[index] >= 0) {
             close(clients[index]);
         }

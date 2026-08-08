@@ -35,13 +35,14 @@ INSTALL_HOLO_GAMESCOPE=0 \
 ```
 
 The script builds and installs the Nova lab APK, starts its configurable
-two-buffer AHardwareBuffer test (60 frames by default), stages the Gamescope
+three-buffer AHardwareBuffer test (60 frames by default), stages the Gamescope
 binary and control client, runs the rooted Holo probe, and checks both sides of
 the protocol.
 Artifacts are saved under `android/nova-lab/build/`:
 
 - `device-gamescope-headless-ahb-report.txt`
 - `device-gamescope-headless-ahb-logcat.txt`
+- `device-gamescope-headless-ahb-metadata.txt` (binary hash and mode identity)
 - `device-gamescope-headless-ahb-screenshot.png`
 
 Only disposable files below
@@ -64,10 +65,10 @@ the short control path stays cheap to reproduce.
 
 ## Implemented handoff
 
-The Android app offers two `AHardwareBuffer` allocations as DMA-BUF handles
-on `nova-lab-ahb-double-buffer.sock.0` and `.1`. Gamescope:
+The Android app offers three `AHardwareBuffer` allocations as DMA-BUF handles
+on `nova-lab-ahb-double-buffer.sock.0`, `.1`, and `.2`. Gamescope:
 
-1. imports both handles as output `CVulkanTexture` objects;
+1. imports all three handles as output `CVulkanTexture` objects;
 2. composites each Wayland frame into the next buffer;
 3. waits for the compositor submission to complete;
 4. exports a signaled Linux sync FD and sends the existing Android bridge
@@ -85,6 +86,12 @@ acquire FD is a signaled semaphore submitted after `vulkan_wait()`; it is a
 valid Android handoff fence, but it is not yet the compositor submission's
 native asynchronous timeline. The next optimization is to preserve the
 compositor signal directly and remove this wait/empty-submit boundary.
+
+## Historical two-buffer baseline
+
+The first runs recorded below used the original two-buffer implementation. They
+remain useful evidence for the protocol shape, but are not the current queue
+contract; current deploys explicitly report three imported buffers.
 
 ## Nova evidence
 
@@ -161,7 +168,7 @@ could close Gamescope's Android sockets before Android completed its last
 bounded 1,000 ms release-drain window after the final callback. The 960x540 run
 and the 64x64/60-frame regression both completed their final release fence.
 
-This proves the first complete measured path:
+This proved the first complete measured path:
 
 ```text
 Wayland SHM surface
@@ -170,12 +177,73 @@ Wayland SHM surface
   -> Linux acquire fence
   -> Android SurfaceControl presentation
   -> Android release fence
-  -> safe two-buffer reuse
+  -> safe two-buffer reuse (historical baseline)
 ```
 
 The saved screenshot is a post-run Android display capture, not a frame-locked
 capture of the short 64x64 compositor run. It is therefore retained as a
 device artifact but is not used as visual proof of the Gamescope pixels.
+
+## Debug-only frame-order and pacing diagnostic
+
+The bounded frame counts, SurfaceControl latch spans, acquire fences, and
+release fences prove successful handoff and safe queue reuse. They do not
+yet prove that the Android display presents every frame in monotonically
+increasing order, that frames are not repeated or dropped, or that production
+is locked to the panel's actual vsync cadence. An `adb screencap` is also an
+arbitrary-time capture and is not frame-locked evidence.
+
+The upcoming diagnostic path should be enabled only for investigation and
+should stamp every submitted frame with a monotonically increasing `frame_id`
+and producer timestamp. The trace should correlate:
+
+```text
+frame_id -> Gamescope submit -> Android latch -> present -> release
+```
+
+It should run in a continuous session long enough to distinguish repeats,
+drops, and reordering, while recording the AHardwareBuffer index and the
+associated acquire/release fence result. The result must drive a concrete
+classification:
+
+- decreasing frame IDs indicate transaction ordering, buffer lifetime, or
+  premature buffer reuse and must be fixed;
+- monotonic IDs with repeats or gaps indicate a pacing/vsync or producer-load
+  issue and require an explicit policy;
+- monotonic IDs in the bridge trace but a visually inconsistent screenshot
+  indicate that the capture method is not measuring panel presentation.
+
+Keep this instrumentation behind a debug flag and default it off after the
+root cause is understood; retain the final measurements and any pacing fix as
+the permanent acceptance evidence.
+
+## Current three-buffer and fullscreen gate
+
+On 2026-08-08, a clean 1280x960 run with composer-overlay usage enabled
+(`NOVA_FORCE_GPU_COMPOSITION=0`) completed the current three-buffer contract:
+
+```text
+Android AHardwareBuffer output imported: 3 x 1280x960 RGBA
+ahb_double_buffer_frames=10 releases=9
+ahb_double_buffer=pass
+android_ahb_target_reached=10
+nova_runtime_cleanup=pass ... remaining=
+```
+
+The full-resolution Android Surface is therefore the device's native 4:3
+geometry rather than a stretched 16:9 target. The `force_gpu_composition=0`
+mode retains the Android composer-overlay usage bit required by the
+`ASurfaceTransaction_setBuffer()` path; the rejected back-pressure experiment
+and the older force-GPU mode remain separate diagnostic configurations.
+
+The long-lived session is not yet promoted to a release gate. A historical
+libei-enabled binary sustained at least 120 sampled compositor frames (and the
+later run crossed 480), while the current locally selected binary reports that
+it was built without libei and stalled at the three-buffer release boundary.
+The harness now records the exact binary SHA-256 and libei build marker in the
+metadata artifact. Build the current libei-enabled artifact and repeat the
+same clean 1280x960 session before attributing that difference to the Android
+queue itself.
 
 ## Remaining boundary
 

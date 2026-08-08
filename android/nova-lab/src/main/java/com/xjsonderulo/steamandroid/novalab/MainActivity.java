@@ -70,6 +70,7 @@ public final class MainActivity extends Activity implements SurfaceHolder.Callba
     private boolean androidInputRelayFiltered;
     private final SparseBooleanArray androidInputKeysDown = new SparseBooleanArray();
     private boolean fullscreenPresentationMode;
+    private boolean forceGpuComposition;
     private boolean androidTouchBridgeRunning;
     private Thread androidTouchBridgeThread;
     private volatile LocalServerSocket androidTouchServer;
@@ -90,7 +91,8 @@ public final class MainActivity extends Activity implements SurfaceHolder.Callba
                                                                      Surface surface,
                                                                      int frameCount,
                                                                      int frameWidth,
-                                                                     int frameHeight);
+                                                                     int frameHeight,
+                                                                     boolean forceGpuComposition);
 
     @Override
     protected void onCreate(Bundle state) {
@@ -98,6 +100,8 @@ public final class MainActivity extends Activity implements SurfaceHolder.Callba
         getWindow().addFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         fullscreenPresentationMode = getIntent().getBooleanExtra(
                 "fullscreen_presentation", false);
+        forceGpuComposition = getIntent().getBooleanExtra(
+                "force_gpu_composition", fullscreenPresentationMode);
         if (fullscreenPresentationMode) {
             enterFullscreenPresentationMode();
         }
@@ -234,7 +238,7 @@ public final class MainActivity extends Activity implements SurfaceHolder.Callba
         vulkanButtons.addView(bridgeButton,
                 new LinearLayout.LayoutParams(0, -2, 1.0f));
         Button doubleBufferButton = new Button(this);
-        doubleBufferButton.setText("Run 2-buffer loop");
+        doubleBufferButton.setText("Run 3-buffer loop");
         doubleBufferButton.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
@@ -287,6 +291,7 @@ public final class MainActivity extends Activity implements SurfaceHolder.Callba
                         "dmabuf_double_buffer_width", -1)
                 + "x" + getIntent().getIntExtra(
                         "dmabuf_double_buffer_height", -1)
+                + " force_gpu_composition=" + forceGpuComposition
                 + " android_input_key_only=" + androidInputKeyOnly);
         Log.i(TAG, "presentation fullscreen=" + fullscreenPresentationMode
                 + " size=" + presentationWidth + "x" + presentationHeight);
@@ -1034,16 +1039,16 @@ public final class MainActivity extends Activity implements SurfaceHolder.Callba
         final int frameHeight = getIntent().getIntExtra(
                 "dmabuf_double_buffer_height", 64);
         if (bridgeStatus != null) {
-            bridgeStatus.setText("Linux 2-buffer loop: waiting for Holo importer...");
+            bridgeStatus.setText("Linux 3-buffer loop: waiting for Holo importer...");
         }
         worker.execute(new Runnable() {
             @Override
             public void run() {
                 String result;
                 try {
-                    result = nativeRunDmaBufDoubleBufferBridge(socketPath,
+            result = nativeRunDmaBufDoubleBufferBridge(socketPath,
                             presentationSurface, frameCount, frameWidth,
-                            frameHeight);
+                            frameHeight, forceGpuComposition);
                 } catch (Throwable error) {
                     result = "native_exception=" + error;
                 }
@@ -1057,7 +1062,7 @@ public final class MainActivity extends Activity implements SurfaceHolder.Callba
                     @Override
                     public void run() {
                         if (bridgeStatus != null) {
-                            bridgeStatus.setText("Linux 2-buffer loop:\n" + trimForUi(report));
+                            bridgeStatus.setText("Linux 3-buffer loop:\n" + trimForUi(report));
                         }
                     }
                 });

@@ -13,22 +13,27 @@ BUFFER_HEIGHT=${NOVA_AHB_HEIGHT:-64}
 BINARY=${NOVA_GAMESCOPE_HEADLESS:-$BUILD_DIR/gamescope-headless-build/src/gamescope}
 CLIENT=${NOVA_WAYLAND_SHM_CONTROL:-$BUILD_DIR/wayland-shm-control}
 CONTROL=${NOVA_GAMESCOPE_AHB_CONTROL:-$SCRIPT_DIR/device/gamescope-headless-ahb-control.sh}
+NETWORK_COMPAT=${NOVA_STEAM_NETWORK_API_COMPAT_HELPER:-$SCRIPT_DIR/device/nova-steam-network-api-compat.sh}
+RUNTIME_CLEANUP="$SCRIPT_DIR/device/nova-runtime-cleanup.sh"
 X11_CLIENT=${NOVA_GAMESCOPE_X11_CLIENT:-}
 TOUCH_HELPER=${NOVA_EIS_TOUCH_HELPER:-}
 DEVICE_ROOT=${DEVICE_ROOT:-/data/local/tmp/nova-holo-rootfs}
 DEVICE_STAGE=/data/local/tmp/nova-gamescope-stage
+DEVICE_RUNTIME_CLEANUP=/data/local/tmp/nova-runtime-cleanup.sh
 DEVICE_DRIVER_DIR="$DEVICE_ROOT/opt/nova-kgsl-driver"
 DEVICE_BINARY="$DEVICE_DRIVER_DIR/gamescope-headless"
 DEVICE_CLIENT="$DEVICE_DRIVER_DIR/wayland-shm-control"
 DEVICE_CONTROL="$DEVICE_DRIVER_DIR/gamescope-headless-ahb-control.sh"
+DEVICE_NETWORK_COMPAT="$DEVICE_DRIVER_DIR/nova-steam-network-api-compat.sh"
 DEVICE_TOUCH_HELPER="$DEVICE_DRIVER_DIR/nova-libei-input-bridge"
 REPORT="$BUILD_DIR/device-gamescope-headless-ahb-report.txt"
 LOGCAT="$BUILD_DIR/device-gamescope-headless-ahb-logcat.txt"
 APP_REPORT="$BUILD_DIR/device-gamescope-headless-ahb-app-report.txt"
 SCREENSHOT="$BUILD_DIR/device-gamescope-headless-ahb-screenshot.png"
+METADATA="$BUILD_DIR/device-gamescope-headless-ahb-metadata.txt"
 REQUIRE_TARGET=${NOVA_GAMESCOPE_AHB_REQUIRE_TARGET:-1}
 
-for required in "$BINARY" "$CLIENT" "$CONTROL"; do
+for required in "$BINARY" "$CLIENT" "$CONTROL" "$RUNTIME_CLEANUP"; do
     if [ ! -f "$required" ]; then
         echo "missing test input: $required" >&2
         echo "build gamescope and wayland-shm-control first" >&2
@@ -53,6 +58,10 @@ fi
 "$ADB" push "$BINARY" "$DEVICE_STAGE/gamescope-headless" >/dev/null
 "$ADB" push "$CLIENT" "$DEVICE_STAGE/wayland-shm-control" >/dev/null
 "$ADB" push "$CONTROL" "$DEVICE_STAGE/gamescope-headless-ahb-control.sh" >/dev/null
+"$ADB" push "$RUNTIME_CLEANUP" "$DEVICE_STAGE/nova-runtime-cleanup.sh" >/dev/null
+if [ -f "$NETWORK_COMPAT" ]; then
+    "$ADB" push "$NETWORK_COMPAT" "$DEVICE_STAGE/nova-steam-network-api-compat.sh" >/dev/null
+fi
 if [ -n "$X11_CLIENT" ]; then
     "$ADB" push "$X11_CLIENT" "$DEVICE_STAGE/nova-x11-animate" >/dev/null
 fi
@@ -63,7 +72,10 @@ if [ -n "$TOUCH_HELPER" ]; then
     fi
     "$ADB" push "$TOUCH_HELPER" "$DEVICE_STAGE/nova-libei-input-bridge" >/dev/null
 fi
-"$ADB" shell "su -c 'cp $DEVICE_STAGE/gamescope-headless $DEVICE_BINARY; cp $DEVICE_STAGE/wayland-shm-control $DEVICE_CLIENT; cp $DEVICE_STAGE/gamescope-headless-ahb-control.sh $DEVICE_CONTROL; chmod 755 $DEVICE_BINARY $DEVICE_CLIENT $DEVICE_CONTROL'"
+"$ADB" shell "su -c 'cp $DEVICE_STAGE/gamescope-headless $DEVICE_BINARY; cp $DEVICE_STAGE/wayland-shm-control $DEVICE_CLIENT; cp $DEVICE_STAGE/gamescope-headless-ahb-control.sh $DEVICE_CONTROL; cp $DEVICE_STAGE/nova-runtime-cleanup.sh $DEVICE_RUNTIME_CLEANUP; chmod 755 $DEVICE_BINARY $DEVICE_CLIENT $DEVICE_CONTROL $DEVICE_RUNTIME_CLEANUP'"
+if [ -f "$NETWORK_COMPAT" ]; then
+    "$ADB" shell "su -c 'cp $DEVICE_STAGE/nova-steam-network-api-compat.sh $DEVICE_NETWORK_COMPAT; chmod 755 $DEVICE_NETWORK_COMPAT'"
+fi
 if [ -n "$TOUCH_HELPER" ]; then
     "$ADB" shell "su -c 'cp $DEVICE_STAGE/nova-libei-input-bridge $DEVICE_TOUCH_HELPER; chmod 755 $DEVICE_TOUCH_HELPER'"
 fi
@@ -74,9 +86,32 @@ fi
 APP_DATA_DIR=$("$ADB" shell run-as "$PACKAGE" pwd | tr -d '\r')
 SOCKET_HOST_DIR="$APP_DATA_DIR/files"
 
+cleanup_runtime() {
+    "$ADB" shell su -c "/system/bin/sh $DEVICE_RUNTIME_CLEANUP $DEVICE_ROOT" \
+        2>/dev/null | tr -d '\r' || true
+}
+trap cleanup_runtime EXIT
+
+{
+    libei_build_marker=$(strings "$BINARY" | rg -m1 -i 'successfully initialized libei|built without libei' || true)
+    echo "gamescope_binary=$BINARY"
+    echo "gamescope_binary_sha256=$(shasum -a 256 "$BINARY" | awk '{print $1}')"
+    if printf '%s\n' "$libei_build_marker" | rg -qi 'successfully initialized libei'; then
+        echo "gamescope_libei_build=enabled"
+    elif printf '%s\n' "$libei_build_marker" | rg -qi 'built without libei'; then
+        echo "gamescope_libei_build=disabled"
+    else
+        echo "gamescope_libei_build=unknown"
+    fi
+    echo "gamescope_input_emulation=${NOVA_GAMESCOPE_INPUT_EMULATION:-unset}"
+    echo "fullscreen_presentation=${NOVA_FULLSCREEN_PRESENTATION:-0}"
+    echo "force_gpu_composition=${NOVA_FORCE_GPU_COMPOSITION:-unset}"
+} >"$METADATA"
+
 rm -f "$REPORT" "$LOGCAT" "$APP_REPORT" "$SCREENSHOT"
 
 "$ADB" logcat -c
+cleanup_runtime
 "$ADB" shell am force-stop "$PACKAGE"
 activity_args=(
     --ez run_dmabuf_double_buffer true
@@ -84,6 +119,20 @@ activity_args=(
     --ei dmabuf_double_buffer_width "$BUFFER_WIDTH"
     --ei dmabuf_double_buffer_height "$BUFFER_HEIGHT"
 )
+if [ -n "${NOVA_FORCE_GPU_COMPOSITION:-}" ]; then
+    case "$NOVA_FORCE_GPU_COMPOSITION" in
+        1|true|TRUE|yes|YES)
+            activity_args+=(--ez force_gpu_composition true)
+            ;;
+        0|false|FALSE|no|NO)
+            activity_args+=(--ez force_gpu_composition false)
+            ;;
+        *)
+            echo "invalid NOVA_FORCE_GPU_COMPOSITION: $NOVA_FORCE_GPU_COMPOSITION" >&2
+            exit 2
+            ;;
+    esac
+fi
 if [ "${NOVA_ANDROID_INPUT_BRIDGE:-0}" = "1" ]; then
     activity_args+=(--ez run_android_input_bridge true)
     if [ "${NOVA_ANDROID_INPUT_KEY_ONLY:-0}" = "1" ]; then
@@ -130,6 +179,7 @@ if [ "${NOVA_ANDROID_TOUCH_BRIDGE:-0}" = "1" ]; then
         > "$BUILD_DIR/nova-android-touch-bridge-report.txt" 2>/dev/null || true
 fi
 "$ADB" exec-out screencap -p > "$SCREENSHOT"
+cleanup_runtime
 
 echo "report:     $REPORT"
 echo "app logcat: $LOGCAT"
@@ -142,7 +192,7 @@ fi
 
 report_markers=(
     'vulkaninfo_status=0'
-    "Android AHardwareBuffer output imported: 2 x ${BUFFER_WIDTH}x${BUFFER_HEIGHT} RGBA"
+    "Android AHardwareBuffer output imported: 3 x ${BUFFER_WIDTH}x${BUFFER_HEIGHT} RGBA"
     "Running compositor on wayland display 'gamescope-0'"
     'android_ahb_composite_frame='
     'offscreen_probe_status=0'

@@ -561,10 +561,18 @@ static int forward_android_line(int uinput_fd, char *line,
 
     if (sscanf(line, "K %d %d", &code, &action) == 2) {
         int linux_code = map_android_key(code);
+        int linux_action = action;
         if (linux_code < 0 || action < 0 || action > 2) {
             return 0;
         }
-        if (emit_key(uinput_fd, (unsigned short)linux_code, action) != 0) {
+        /* Android KeyEvent uses 0=down and 1=up; Linux input uses the
+         * opposite values for EV_KEY. Preserve repeat=2. */
+        if (action == 0) {
+            linux_action = 1;
+        } else if (action == 1) {
+            linux_action = 0;
+        }
+        if (emit_key(uinput_fd, (unsigned short)linux_code, linux_action) != 0) {
             return -1;
         }
         *key_forwarded = 1;

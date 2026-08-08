@@ -54,9 +54,74 @@ The first Android milestone should be intentionally narrow:
 5. Forward one controller class reliably.
 6. Stop the session and clean every child process.
 
+The cleanup requirement is now an explicit harness contract: see
+[doc 34](34-nova-runtime-harness-lifecycle.md) for the exact-rootfs process
+tree teardown and Gamescope artifact identity recorded around each run.
+
 This is the right place to reuse GameNative's Android lifecycle/storage/controller patterns and the
 existing `steam-arm-findings` graphics work. The first release can clearly say “root required” while the
 Linux session is being stabilized.
+
+## Network contract: use Android's active data path
+
+The desired network data plane is inherited Android connectivity, not a second Linux-owned Wi-Fi or
+Ethernet setup. A normal `chroot` changes the visible filesystem, and PRoot performs user-space path
+and syscall mediation; neither creates a kernel network namespace by itself. Unless the supervisor
+explicitly uses `CLONE_NEWNET`/`unshare -n`, Linux processes should create ordinary IPv4/IPv6 sockets
+through the Android kernel's existing routing, firewall, NAT, and VPN machinery. The session must not
+try to own `wlan0`/`eth0`, run DHCP, or invent a second route/NAT layer for normal Steam traffic.
+
+“Inherited” has several distinct parts and each needs a contract:
+
+1. **Kernel network namespace and routes.** Preserve the Android network namespace when entering the
+   rootfs. A process normally does not need to see a Linux-named Wi-Fi or Ethernet device in order to
+   use sockets; if `/proc` and `/sys` are exposed, the interface view may still reflect Android's host
+   view and is not a stable Steam-facing API.
+2. **Android network selection policy.** Android can select a default network per process/UID and can
+   apply VPN or per-app restrictions. The app's `ConnectivityManager.bindProcessToNetwork()` choice is
+   explicitly process-scoped, while Android's netd also applies UID-based policy. Therefore a rooted
+   `su` helper must not be assumed to inherit an app-bound network or per-app VPN merely because it
+   shares the kernel namespace. The glibc rootfs also does not automatically load Android bionic's
+   `libnetd_client` hooks, which normally communicate socket and DNS network selection to `netd`.
+   Basic default-route connectivity may still work, but same-namespace is not proof of same Android
+   `Network` selection. Rootless execution under the app UID is the more natural path for this
+   requirement, but both modes need device evidence; a guaranteed app-bound/VPN path may require a
+   deliberate netd-compatible shim, an app-UID supervisor, or a last-resort proxy/relay.
+3. **Linux userspace name resolution.** The glibc rootfs needs a working, dynamically refreshed
+   `/etc/resolv.conf`/resolver path and any required proxy configuration. The current
+   `NOVA_HOLO_NAMESERVER` override is a diagnostic/bootstrap fallback, not the final network contract.
+4. **Steam's System.Network API.** Steam Gamepad UI's network-device callbacks and scan controls are
+   a UI/control-plane compatibility surface, not the transport that supplies Steam's HTTP, WebSocket,
+   TCP, or UDP sockets. The current [network API compatibility shim](../android/nova-lab/device/nova-steam-network-api-compat.sh)
+   may make those optional Android-hosted calls safe, but “Continue with Android host network” must
+   mean use the already-available Android data path, not register a fake Ethernet/Wi-Fi adapter.
+
+The end user should not need to choose Wi-Fi versus Ethernet inside Steam. Android's active transport
+may be Wi-Fi, cellular, USB/Ethernet, or a VPN; external servers will observe the resulting Android
+egress path and NAT/VPN address, not a special “Linux Ethernet” identity. Transport labels are useful
+for Android diagnostics only.
+
+Required validation before calling networking complete:
+
+- launch a trivial glibc resolver/HTTPS probe and the native Steam bootstrap through the same session;
+- verify that no new network namespace is created and record the namespace identity for the app,
+  supervisor, root helper, and Steam processes;
+- test actual socket/DNS selection from glibc rather than treating `ip route` or visible interface names
+  as sufficient evidence; compare the result with an Android-native socket on the same device;
+- test Wi-Fi/default-network changes, IPv4 and IPv6, DNS changes, VPN/per-app VPN policy, and loss and
+  restoration of connectivity;
+- compare rootless/app-UID and rooted/`su` behavior, especially whether Steam follows the intended
+  VPN/default-network policy after the UID transition;
+- keep an app-side `ConnectivityManager` default-network callback for lifecycle/diagnostics, but do not
+  add a separate network request solely to make the Linux session reach the Internet;
+- treat a local proxy or socket relay as a last-resort fallback only after direct inherited sockets fail,
+  since Steam and games may require arbitrary TCP/UDP behavior.
+
+This contract is based on Android's [`ConnectivityManager` network-selection semantics](https://developer.android.com/reference/android/net/ConnectivityManager),
+Android's [VPN/per-app routing model](https://developer.android.com/develop/connectivity/vpn), Linux's
+[network namespace definition](https://man7.org/linux/man-pages/man7/network_namespaces.7.html),
+PRoot's [host-information and rootfs behavior](https://manpages.debian.org/trixie/proot/proot.1.en.html),
+and AOSP's [netd socket-marking client](https://android.googlesource.com/platform/system/netd/+/refs/heads/main/client/NetdClient.cpp).
 
 ## Rootless stages
 
@@ -80,7 +145,7 @@ gamescope-backed Steam Deck session.
 ### Rootless stage 2: app-owned compositor surface
 
 Replace the desktop display with an Android app-owned `Surface`/`ANativeWindow` or a proven equivalent. The
-Nova lab now has a two-buffer AHardwareBuffer/SurfaceControl queue with acquire/release-fence
+Nova lab now has a three-buffer AHardwareBuffer/SurfaceControl queue with acquire/release-fence
 backpressure, [doc 12](12-nova-gamescope-ahb-output.md) connects that pool to the patched headless
 Gamescope compositor for sustained 60-frame and 960x540 Wayland-SHM runs, and [doc 13](13-nova-xwayland-ahb-output.md)
 crosses the same path with an animated ARM64 X11 client through Xwayland. The first acquire fence is
@@ -89,7 +154,11 @@ blocked by its unconditional `VK_EXT_physical_device_drm` device-identity requir
 patched headless path crosses that identity boundary.
 If the existing AHardwareBuffer/SurfaceControl path relies on privileged APIs, use a buffer-copy or
 producer/consumer path that the ordinary app sandbox permits. Measure frame latency, buffer reuse, release
-fences, rotation, and lifecycle loss before optimizing.
+fences, rotation, and lifecycle loss before optimizing. As a debug-only
+temporal-correctness substep, add the frame ID/timestamp trace from [doc 12](12-nova-gamescope-ahb-output.md)
+and verify monotonic frame order, intentional repeat/drop behavior, and actual
+display cadence during a continuous session. Disable the trace after the root
+cause is understood, but preserve the resulting pacing decision and evidence.
 
 The desired contract is:
 
@@ -99,6 +168,14 @@ gamescope/Wayland frame
     -> app-owned Surface
       -> SurfaceView/TextureView/HardwareBuffer presentation
 ```
+
+Manual observation of the continuous Nova Steam session currently suggests only roughly 1–3
+visibly changing UI frames per second from an end-user perspective. This is an unmeasured symptom,
+not yet a confirmed panel refresh rate: software CEF repaint behavior, dirty-frame behavior, capture
+timing, and bridge pacing/repeat/drop behavior are still confounded. Keep networking and Steam API
+compatibility work moving in parallel, but treat this as an immediate presentation-validation gate:
+run a continuous synthetic animation or frame-counter test and correlate producer/Gamescope submit,
+Android latch/present, and release timestamps before declaring the presentation path complete.
 
 The Nova lab has now launched the native ARM64 Steam process through the same
 Xwayland/Gamescope control and resolved the first semaphore, FFmpeg, SDL, X11
@@ -149,6 +226,11 @@ socket into the same rooted virtual device; [doc 19](19-nova-android-input-uinpu
   now proves the Android touch → libei → Gamescope event path and native Steam Gamepad
   UI visible on the fullscreen AHardwareBuffer output after a bounded settle. Hardware
   CEF, broader controls, login, audio, game launch, and lifecycle cleanup remain open.
+  The live Steam OOBE also exposes a separate font-coverage issue: several
+  language and network labels appear as empty square/rectangle glyphs even
+  though the Steam DOM contains their Unicode text. Track this after the
+  current fullscreen presentation and login gates in [doc 33](33-nova-steam-font-coverage-open-question.md);
+  do not treat it as an input or SurfaceControl failure.
 
 ### Rootless stage 3: user-space Steam session supervision
 
@@ -207,7 +289,8 @@ Do not advance to the next stage until the current stage produces artifacts:
 | Native client | ARM64 manifest/runtime revision, bootstrap logs, `steamui.so`, `.installed` manifest |
 | Steam UI | Screenshot/video of login and Gamepad UI; `steamwebhelper` hardware-rendering logs |
 | Linux session | gamescope logs, controller navigation, one launched game |
-| Android presentation | continuous Steam UI/game frames on the app-owned surface, with frame/fence metrics |
+| Network | Native Steam bootstrap plus glibc DNS/HTTPS through Android's active data path; IPv4/IPv6, reconnect, and rootless/rooted UID/VPN behavior recorded; no synthetic Wi-Fi/Ethernet registration required |
+| Android presentation | continuous synthetic and Steam UI/game frames on the app-owned surface, frame/fence metrics, a debug frame-order/pacing trace, and no unexplained 1–3 FPS visible-update behavior |
 | Lifecycle | clean start/stop, no stale Steam/gamescope processes, suspend/resume behavior |
 | Rootless | same UI/session evidence without privileged helper; documented fallbacks for missing APIs |
 

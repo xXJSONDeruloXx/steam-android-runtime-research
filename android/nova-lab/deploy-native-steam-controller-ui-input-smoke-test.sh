@@ -7,6 +7,8 @@ BUILD_DIR="$SCRIPT_DIR/build"
 ADB=${ADB:-/Users/kurt/.local/bin/adb}
 DEVICE_ROOT=${DEVICE_ROOT:-/data/local/tmp/nova-holo-rootfs}
 PACKAGE=com.xjsonderulo.steamandroid.novalab
+RUNTIME_CLEANUP="$SCRIPT_DIR/device/nova-runtime-cleanup.sh"
+DEVICE_RUNTIME_CLEANUP=/data/local/tmp/nova-runtime-cleanup.sh
 SOURCE_EVENT=${NOVA_STEAM_GAMEPAD_SOURCE:-/dev/input/event7}
 INPUT_MODE=${NOVA_CONTROLLER_UI_INPUT_MODE:-physical}
 ANDROID_KEYCODE=${NOVA_CONTROLLER_UI_ANDROID_KEYCODE:-20}
@@ -43,6 +45,8 @@ CHROOT_HELPER=/opt/nova-kgsl-driver/nova-uinput-gamepad-relay
 DEVICE_STAGE=/data/local/tmp/nova-libei-stage
 DEVICE_FD_SCRIPT=/data/local/tmp/nova-steam-input-fd-probe.sh
 DEVICE_FD_REPORT=/data/local/tmp/nova-controller-ui-steam-input-fd.txt
+DEVICE_RELAY_LAUNCHER=/data/local/tmp/nova-uinput-gamepad-relay-launcher.sh
+DEVICE_MOUNT_PRIVATE_HELPER=/data/local/tmp/nova-mount-private
 STEAM_LOGS_DIR="$DEVICE_ROOT/opt/nova-steam/home/.local/share/Steam/logs"
 RUN_LOG="$BUILD_DIR/native-steam-controller-ui-input-smoke.log"
 HELPER_LOG="$BUILD_DIR/nova-controller-ui-uinput-relay.log"
@@ -87,6 +91,13 @@ stop_remote_helper() {
         >/dev/null 2>&1 || true
 }
 
+cleanup_remote_runtime() {
+    "$ADB" push "$RUNTIME_CLEANUP" "$DEVICE_RUNTIME_CLEANUP" \
+        >/dev/null 2>&1 || true
+    "$ADB" shell su -c "/system/bin/sh $DEVICE_RUNTIME_CLEANUP $DEVICE_ROOT" \
+        2>/dev/null | tr -d '\r' || true
+}
+
 if [ "$INPUT_MODE" = "android-keyevent" ]; then
     export NOVA_ANDROID_INPUT_BRIDGE=1
     export NOVA_ANDROID_INPUT_KEY_ONLY=${NOVA_CONTROLLER_UI_ANDROID_KEY_ONLY:-1}
@@ -110,6 +121,14 @@ stop_remote_helper
 "$ADB" push "$SCRIPT_DIR/device/nova-steam-input-fd-probe.sh" \
     "$DEVICE_FD_SCRIPT" >/dev/null
 "$ADB" shell su -c "chmod 755 $DEVICE_FD_SCRIPT"
+"$ADB" push "$SCRIPT_DIR/device/nova-uinput-gamepad-relay-launcher.sh" \
+    "$DEVICE_RELAY_LAUNCHER" >/dev/null
+"$ADB" shell su -c "chmod 755 $DEVICE_RELAY_LAUNCHER"
+if [ ! -x "$BUILD_DIR/nova-mount-private" ]; then
+    "$SCRIPT_DIR/build-mount-private.sh" >/dev/null
+fi
+"$ADB" push "$BUILD_DIR/nova-mount-private" "$DEVICE_MOUNT_PRIVATE_HELPER" >/dev/null
+"$ADB" shell su -c "chmod 755 $DEVICE_MOUNT_PRIVATE_HELPER"
 
 device_line_count() {
     local remote_path=$1
@@ -217,12 +236,7 @@ stop_remote_lab() {
     if [ "$MANUAL_SESSION" != "1" ]; then
         return
     fi
-    for remote_name in gamescope-headless nova-libei-input-bridge nova-uinput-gamepad-relay; do
-        remote_pids=$("$ADB" shell pidof "$remote_name" 2>/dev/null | tr -d '\r' || true)
-        if [ -n "$remote_pids" ]; then
-            "$ADB" shell su -c "kill $remote_pids" >/dev/null 2>&1 || true
-        fi
-    done
+    cleanup_remote_runtime
     "$ADB" shell am force-stop "$PACKAGE" >/dev/null 2>&1 || true
 }
 cleanup_session() {
@@ -276,12 +290,12 @@ elapsed=0
 while [ "$elapsed" -lt "$WAIT_TIMEOUT" ]; do
     input_available=0
     if [ "$INPUT_MODE" = "physical" ] && \
-        "$ADB" shell su -c "test -e $DEVICE_ROOT$SOURCE_EVENT" \
+        "$ADB" shell su -c "test -e $SOURCE_EVENT" \
             >/dev/null 2>&1; then
         input_available=1
     elif [ "$INPUT_MODE" = "android-keyevent" ]; then
         source_available=0
-        if "$ADB" shell su -c "test -e $DEVICE_ROOT$SOURCE_EVENT" \
+        if "$ADB" shell su -c "test -e $SOURCE_EVENT" \
             >/dev/null 2>&1; then
             source_available=1
         fi
@@ -301,11 +315,11 @@ while [ "$elapsed" -lt "$WAIT_TIMEOUT" ]; do
         set +e
         if [ "$INPUT_MODE" = "physical" ]; then
             "$ADB" shell su -c \
-                "/system/bin/chroot $DEVICE_ROOT /usr/bin/env -i PATH=/usr/bin:/bin HOME=/tmp XDG_RUNTIME_DIR=/tmp $CHROOT_HELPER $SOURCE_EVENT $RELAY_TIMEOUT $PHYSICAL_RELAY_MODE $([ "$PHYSICAL_RELAY_MODE" = "relay-once-code" ] && printf '%s' "$EVENT_CODE")" \
+                "/system/bin/sh $DEVICE_RELAY_LAUNCHER $DEVICE_ROOT $CHROOT_HELPER $SOURCE_EVENT $RELAY_TIMEOUT $PHYSICAL_RELAY_MODE $([ "$PHYSICAL_RELAY_MODE" = "relay-once-code" ] && printf '%s' "$EVENT_CODE")" \
                 >"$HELPER_LOG" 2>&1 &
         else
             "$ADB" shell su -c \
-                "/system/bin/chroot $DEVICE_ROOT /usr/bin/env -i PATH=/usr/bin:/bin HOME=/tmp XDG_RUNTIME_DIR=/tmp $CHROOT_HELPER $SOURCE_EVENT $RELAY_TIMEOUT socket $socket_path" \
+                "/system/bin/sh $DEVICE_RELAY_LAUNCHER $DEVICE_ROOT $CHROOT_HELPER $SOURCE_EVENT $RELAY_TIMEOUT socket $socket_path" \
                 >"$HELPER_LOG" 2>&1 &
         fi
         helper_pid=$!

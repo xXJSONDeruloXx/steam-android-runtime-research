@@ -68,7 +68,7 @@ The important output is:
 
 The fixed ARM64 glibc rootfs, KGSL Turnip probe, Android image-memory handoff, and
 one-frame SurfaceControl presentation with a transferred acquire fence and a
-five-frame two-buffer acquire/release loop are now automated by the scripts below. The
+five-frame three-buffer acquire/release loop are now automated by the scripts below. The
 next target is a compositor-facing render target and minimal Wayland/gamescope session.
 
 ## Holo ARM64 glibc probe
@@ -220,7 +220,7 @@ verified buffer through SurfaceControl. With `VULKAN_AHB_ASYNC_FENCE=1`, it expo
 final image's Linux acquire fence before waiting and lets SurfaceControl consume it;
 the current run observed the fence as unsignaled at Android handoff. It does not yet
 implement a real compositor protocol, Wayland, or gamescope; the separate
-`deploy-ahb-double-buffer-test.sh` now proves the reusable two-buffer and release-fence
+`deploy-ahb-double-buffer-test.sh` now proves the reusable three-buffer and release-fence
 queue contract.
 
 To install the Holo `gamescope` package and run the stock DRM/auto-backend control:
@@ -268,7 +268,7 @@ The accepted Nova run produced 298 Wayland SHM frames and 298 synchronous
 three exportable Vulkan images. The
 `deploy-gamescope-headless-ahb-test.sh` iteration imports the existing Android
 AHardwareBuffer pool at this connector seam, composites 60 frames by default
-into the two-buffer queue, and checks the Linux acquire plus Android release
+into the three-buffer queue, and checks the Linux acquire plus Android release
 fences. Set `NOVA_AHB_FRAME_COUNT`, `NOVA_AHB_WIDTH`, and
 `NOVA_AHB_HEIGHT` to repeat the same test at another bounded count or display
 size; a 30-frame 960x540 run is accepted on the Nova. The control client keeps

@@ -64,6 +64,7 @@ if [ "${1:-}" = "--client" ]; then
     client_log=/tmp/nova-steam-client.log
     client_stdout=/tmp/nova-steam-client.stdout
     client_stderr=/tmp/nova-steam-client.stderr
+    network_compat_helper=${NOVA_STEAM_NETWORK_API_COMPAT_HELPER:-/opt/nova-kgsl-driver/nova-steam-network-api-compat.sh}
     client_flags="${NOVA_STEAM_CLIENT_FLAGS:--gamepadui -steamos3 -steampal -steamdeck}"
     bootstrap_mode=${NOVA_STEAM_BOOTSTRAP_MODE:-auto}
     if [ "$bootstrap_mode" = "auto" ] && [ "${NOVA_STEAM_SKIP_INITIAL_BOOTSTRAP:-0}" = "1" ]; then
@@ -126,6 +127,20 @@ if [ "${1:-}" = "--client" ]; then
     echo "client_xauthority=${XAUTHORITY:-unset}" >> "$client_log"
     echo "client_runtime_dir=$runtime_dir" >> "$client_log"
     echo "client_runtime_owner_status=$runtime_owner_status" >> "$client_log"
+    if [ "${NOVA_STEAM_NETWORK_API_COMPAT:-1}" = "1" ]; then
+        if [ ! -x "$network_compat_helper" ]; then
+            echo "client_network_api_compat=fail reason=missing_helper path=$network_compat_helper" >> "$client_log"
+            exit 1
+        fi
+        "$network_compat_helper" "$STEAM_ROOT" >> "$client_log" 2>&1
+        network_compat_status=$?
+        echo "client_network_api_compat_status=$network_compat_status" >> "$client_log"
+        if [ "$network_compat_status" -ne 0 ]; then
+            exit 1
+        fi
+    else
+        echo "client_network_api_compat=disabled" >> "$client_log"
+    fi
 
     export HOME="$STEAM_HOME"
     if [ "$STEAM_UID" -eq 0 ]; then

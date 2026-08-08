@@ -1,13 +1,22 @@
 --- a/src/Backends/HeadlessBackend.cpp
 +++ b/src/Backends/HeadlessBackend.cpp
-@@ -5,0 +6,6 @@
+@@ -3,6 +3,12 @@
+ #include "wlserver.hpp"
+ #include "refresh_rate.h"
+ 
 +#include <cstdlib>
 +#include <poll.h>
 +#include <sys/socket.h>
 +#include <sys/un.h>
 +#include <unistd.h>
 +
-@@ -12,0 +19,193 @@
+ extern int g_nPreferredOutputWidth;
+ extern int g_nPreferredOutputHeight;
+ 
+@@ -10,16 +16,274 @@
+ {
+     static LogScope headless_log( "headless" );
+ 
 +    static int android_output_dimension( const char *name, int fallback )
 +    {
 +        const char *value = getenv( name );
@@ -147,7 +156,11 @@
 +            pollResult = poll( &socketPoll, 1, 5000 );
 +        } while ( pollResult < 0 && errno == EINTR );
 +        if ( pollResult <= 0 || ( socketPoll.revents & ( POLLIN | POLLERR | POLLHUP ) ) == 0 )
++        {
++            headless_log.errorf( "Android release message wait failed buffer %d poll=%d revents=0x%x errno=%d",
++                expectedBuffer, pollResult, socketPoll.revents, errno );
 +            return false;
++        }
 +
 +        char payload[128] = {};
 +        char control[CMSG_SPACE( sizeof( int ) * 4 )] = {};
@@ -184,6 +197,8 @@
 +        bool validMessage = received > 0 && strstr( payload, expectedMessage ) != nullptr && releaseFenceFd >= 0;
 +        if ( !validMessage )
 +        {
++            headless_log.errorf( "Android release message invalid buffer %d bytes=%zd fd=%d payload=%s",
++                expectedBuffer, received, releaseFenceFd, payload );
 +            if ( releaseFenceFd >= 0 )
 +                close( releaseFenceFd );
 +            return false;
@@ -198,10 +213,21 @@
 +            pollResult = poll( &fencePoll, 1, 5000 );
 +        } while ( pollResult < 0 && errno == EINTR );
 +        close( releaseFenceFd );
-+        return pollResult > 0 && ( fencePoll.revents & ( POLLIN | POLLERR | POLLHUP ) ) != 0;
++        if ( pollResult <= 0 || ( fencePoll.revents & ( POLLIN | POLLERR | POLLHUP ) ) == 0 )
++        {
++            headless_log.errorf( "Android release fence wait failed buffer %d poll=%d revents=0x%x errno=%d",
++                expectedBuffer, pollResult, fencePoll.revents, errno );
++            return false;
++        }
++        return true;
 +    }
 +
-@@ -19,3 +218,41 @@
+     class CHeadlessConnector final : public CBaseBackendConnector
+     {
+     public:
+         CHeadlessConnector()
+         {
+         }
 -        virtual ~CHeadlessConnector()
 -        {
 -        }
@@ -213,7 +239,7 @@
 +					close( connection );
 +			}
 +		}
-+
+ 
 +		bool InitAndroidOutput()
 +		{
 +			const char *socketBase = getenv( "NOVA_AHB_OUTPUT_SOCKET" );
@@ -222,7 +248,7 @@
 +			int outputWidth = android_output_dimension( "NOVA_AHB_WIDTH", 64 );
 +			int outputHeight = android_output_dimension( "NOVA_AHB_HEIGHT", 64 );
 +
-+			for ( int index = 0; index < 2; index++ )
++			for ( int index = 0; index < 3; index++ )
 +			{
 +				char socketPath[sizeof( ( (sockaddr_un *)nullptr )->sun_path )];
 +				int pathLength = snprintf( socketPath, sizeof( socketPath ), "%s.%d", socketBase, index );
@@ -246,7 +272,7 @@
 +				attributes.fd[0] = handleFd;
 +				attributes.offset[0] = 0;
 +				attributes.stride[0] = outputWidth * 4;
-@@ -22,0 +260,15 @@
++
 +				m_androidTextures[index] = vulkan_create_output_texture_from_dmabuf( &attributes );
 +				close( handleFd );
 +				if ( m_androidTextures[index] == nullptr )
@@ -257,12 +283,18 @@
 +			}
 +
 +			m_androidOutput = true;
-+			headless_log.infof( "Android AHardwareBuffer output imported: 2 x %dx%d RGBA",
++			headless_log.infof( "Android AHardwareBuffer output imported: 3 x %dx%d RGBA",
 +				outputWidth, outputHeight );
 +			return true;
 +		}
 +
-@@ -91,0 +344,51 @@
+         virtual gamescope::GamescopeScreenType GetScreenType() const override
+         {
+             return GAMESCOPE_SCREEN_TYPE_INTERNAL;
+@@ -89,6 +353,57 @@
+ 
+ 		virtual int Present( const FrameInfo_t *pFrameInfo, bool bAsync ) override
+ 		{
 +			if ( m_androidOutput )
 +			{
 +				int targetFrameCount = android_output_frame_limit();
@@ -276,7 +308,7 @@
 +					return 0;
 +				}
 +
-+				int index = m_androidFrameCount & 1;
++				int index = m_androidFrameCount % 3;
 +				if ( m_androidSubmitted[index] )
 +				{
 +					if ( !wait_android_release( m_androidConnections[index], index ) )
@@ -314,21 +346,39 @@
 +				return 0;
 +			}
 +
-@@ -116,0 +420,6 @@
+ 			static uint64_t s_ulCompositeFrames = 0;
+ 
+ 			std::optional<uint64_t> oSequence = vulkan_composite(
+@@ -114,6 +429,12 @@
+ 
+     private:
+         BackendConnectorHDRInfo m_HDRInfo{};
 +		bool m_androidOutput = false;
-+		int m_androidConnections[2] = {-1, -1};
-+		gamescope::OwningRc<CVulkanTexture> m_androidTextures[2];
-+		bool m_androidSubmitted[2] = {false, false};
++		int m_androidConnections[3] = {-1, -1, -1};
++		gamescope::OwningRc<CVulkanTexture> m_androidTextures[3];
++		bool m_androidSubmitted[3] = {false, false, false};
 +		uint64_t m_androidFrameCount = 0;
 +		bool m_androidTargetReached = false;
-@@ -154,0 +464,6 @@
+     };
+ 
+ 	class CHeadlessBackend final : public CBaseBackend
+@@ -152,6 +473,12 @@
+ 				return false;
+ 			}
+ 
 +			if ( !m_Connector.InitAndroidOutput() )
 +			{
 +				fprintf( stderr, "Failed to initialize Android AHardwareBuffer output\n" );
 +				return false;
 +			}
 +
-@@ -301 +616 @@
+ 			if ( !wlsession_init() )
+ 			{
+ 				fprintf( stderr, "Failed to initialize Wayland session\n" );
+@@ -298,4 +625,4 @@
+ 		return Set( new CHeadlessBackend{} );
+ 	}
+ 
 -}
 \ No newline at end of file
 +}

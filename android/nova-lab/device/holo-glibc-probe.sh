@@ -40,6 +40,9 @@ NOVA_EIS_TOUCH_HELPER="${NOVA_EIS_TOUCH_HELPER:-/opt/nova-kgsl-driver/nova-libei
 NOVA_EIS_TOUCH_APP_SOCKET="${NOVA_EIS_TOUCH_APP_SOCKET:-/run/nova-lab-app/nova-touch.sock}"
 NOVA_EIS_TOUCH_TIMEOUT="${NOVA_EIS_TOUCH_TIMEOUT:-60000}"
 NOVA_EIS_TOUCH_CONTINUOUS="${NOVA_EIS_TOUCH_CONTINUOUS:-0}"
+NOVA_HOLO_HIDE_ANDROID_VIRTUAL_GAMEPAD="${NOVA_HOLO_HIDE_ANDROID_VIRTUAL_GAMEPAD:-1}"
+NOVA_HOLO_HIDE_ANDROID_SOURCE_GAMEPAD="${NOVA_HOLO_HIDE_ANDROID_SOURCE_GAMEPAD:-1}"
+NOVA_HOLO_MOUNT_PRIVATE_HELPER="${NOVA_HOLO_MOUNT_PRIVATE_HELPER:-/data/local/tmp/nova-mount-private}"
 mkdir -p "$OUT_DIR" "$WORK"
 
 {
@@ -100,8 +103,24 @@ NOVA_EIS_TOUCH_HELPER='$NOVA_EIS_TOUCH_HELPER'
 NOVA_EIS_TOUCH_APP_SOCKET='$NOVA_EIS_TOUCH_APP_SOCKET'
 NOVA_EIS_TOUCH_TIMEOUT='$NOVA_EIS_TOUCH_TIMEOUT'
 NOVA_EIS_TOUCH_CONTINUOUS='$NOVA_EIS_TOUCH_CONTINUOUS'
+NOVA_HOLO_HIDE_ANDROID_VIRTUAL_GAMEPAD='$NOVA_HOLO_HIDE_ANDROID_VIRTUAL_GAMEPAD'
+NOVA_HOLO_HIDE_ANDROID_SOURCE_GAMEPAD='$NOVA_HOLO_HIDE_ANDROID_SOURCE_GAMEPAD'
+NOVA_HOLO_MOUNT_PRIVATE_HELPER='$NOVA_HOLO_MOUNT_PRIVATE_HELPER'
 VULKAN_AHB_HANDLE_SOCKET=''
 status=0
+
+mount_private_status=1
+if [ -x "\$NOVA_HOLO_MOUNT_PRIVATE_HELPER" ]; then
+    mount_private_output=\$("\$NOVA_HOLO_MOUNT_PRIVATE_HELPER" / 2>&1)
+    mount_private_status=\$?
+    printf '%s\\n' "\$mount_private_output"
+fi
+if [ "\$mount_private_status" -eq 0 ]; then
+    echo "mount_propagation=private"
+else
+    echo "mount_propagation=private-fail"
+    status=1
+fi
 
 unmount_target() {
     unmount_path="\$1"
@@ -120,6 +139,7 @@ cleanup() {
     unmount_target "\$ROOT/vendor"
     unmount_target "\$ROOT/sys"
     unmount_target "\$ROOT/proc"
+    unmount_target "\$ROOT/dev/input"
     unmount_target "\$ROOT/dev/shm"
     unmount_target "\$ROOT/dev"
 }
@@ -157,6 +177,48 @@ mount_one /dev "\$ROOT/dev"
 mount_shm
 mount_one /proc "\$ROOT/proc"
 mount_one /sys "\$ROOT/sys"
+mount_input() {
+    mount_target="\$ROOT/dev/input"
+    unmount_target "\$mount_target"
+    mkdir -p "\$mount_target"
+    if ! /system/bin/mount -t tmpfs -o mode=1777 tmpfs "\$mount_target"; then
+        echo "mount.\$mount_target=fail"
+        status=1
+        return
+    fi
+    hide_duplicate=0
+    if [ "\$NOVA_HOLO_HIDE_ANDROID_VIRTUAL_GAMEPAD" = "1" ] && \
+        [ -r /sys/class/input/event10/device/name ] && \
+        [ "\$(cat /sys/class/input/event10/device/name)" = "Nova Virtual Xbox Controller" ] && \
+        [ "\$(cat /sys/class/input/event10/device/id/vendor 2>/dev/null)" = "2022" ] && \
+        [ "\$(cat /sys/class/input/event10/device/id/product 2>/dev/null)" = "3001" ]; then
+        hide_duplicate=1
+    fi
+    hide_source=0
+    if [ "\$NOVA_HOLO_HIDE_ANDROID_SOURCE_GAMEPAD" = "1" ] && \
+        [ -r /sys/class/input/event7/device/name ] && \
+        [ "\$(cat /sys/class/input/event7/device/name)" = "Xbox Wireless Controller" ] && \
+        [ "\$(cat /sys/class/input/event7/device/id/vendor 2>/dev/null)" = "2022" ] && \
+        [ "\$(cat /sys/class/input/event7/device/id/product 2>/dev/null)" = "3002" ]; then
+        hide_source=1
+    fi
+    input_index=0
+    while [ "\$input_index" -lt 64 ]; do
+        if { [ "\$hide_duplicate" -eq 0 ] || [ "\$input_index" -ne 10 ]; } && \
+            { [ "\$hide_source" -eq 0 ] || [ "\$input_index" -ne 7 ]; }; then
+            input_node="\$mount_target/event\$input_index"
+            if /system/bin/mknod "\$input_node" c 13 \$((64 + input_index)) >/dev/null 2>&1; then
+                /system/bin/chmod 0666 "\$input_node"
+            else
+                echo "mount.\$mount_target.event\$input_index=fail"
+                status=1
+            fi
+        fi
+        input_index=\$((input_index + 1))
+    done
+    echo "mount.\$mount_target=pass hidden_event7=\$hide_source hidden_event10=\$hide_duplicate"
+}
+mount_input
 mount_one /vendor "\$ROOT/vendor"
 mount_one /system "\$ROOT/system"
 mount_one /apex "\$ROOT/apex"

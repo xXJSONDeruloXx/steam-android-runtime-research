@@ -1,5 +1,14 @@
 # Open Questions and Next Experiments
 
+## Harness hygiene checkpoint
+
+The Nova loop previously allowed a stopped rootfs Steam/Gamescope tree to
+survive into the next run, which could make stale Steam log lines look like
+fresh readiness while the new Android Surface was gray. That methodology issue
+is resolved by the exact-scope cleanup and artifact-provenance gate in
+[doc 34](34-nova-runtime-harness-lifecycle.md). Keep its zero-residual-process
+check mandatory when adding new long-lived experiments.
+
 ## Phase 0: verify the live ARM64 sources
 
 The native client is now directly observable rather than inferred from a repackaged kit:
@@ -69,7 +78,8 @@ This will show whether the failure is in Steam, Gamescope WSI, Xwayland, or the 
 Once Steam renders in the Linux/gamescope session:
 
 - Replace Termux:X11 output with the persistent AHardwareBuffer pool; the Nova lab now
-  proves the two-buffer version of this contract.
+  proves the current three-buffer version of this contract, with the historical
+  two-buffer baseline labeled in [doc 12](12-nova-gamescope-ahb-output.md).
 - Carry the proven acquire/release-fence queue into the real Wayland/gamescope session.
 - The stock Holo gamescope control reaches the KGSL Turnip Adreno device, then fails at
   `VK_EXT_physical_device_drm`. The explicit headless experiment now crosses that seam,
@@ -154,11 +164,34 @@ The target should not be considered proven until all of these work on one device
   compositor run and a 30-second settle, the native Steam fullscreen run reaches
   SteamUI readiness and shows the language selector/welcome screen edge to edge under
   the strict Steam-surface gate; see [doc 31](31-nova-android-touch-libei-fullscreen.md).
+- Are frames reaching the Android panel in monotonically increasing order at a
+  stable display cadence? The current acquire/release-fence and latch metrics
+  prove handoff and safe buffer reuse, but not visual ordering, repeats, drops,
+  or vsync-locked pacing. Add the debug-only frame ID/timestamp trace described
+  in [doc 12](12-nova-gamescope-ahb-output.md), correlate producer submit,
+  Android latch/present, and release events, then act on the classification
+  before treating the presentation path as temporally correct.
 - Can the Nova expose hardware GLX/CEF for Steam? The bounded `msm` probe keeps
   Gamescope's Turnip/AHardwareBuffer side alive but Steam exits before CEF with
   `SIGILL`; an explicit `freedreno` Gallium profile instead fails at `drisw`
   initialization. See [doc 17](17-nova-steam-hardware-glx-probe.md).
+- Why do some Steam OOBE language and network labels render as empty square or
+  rectangle glyphs? The DOM contains the expected Unicode strings, while the
+  live 1280x960 CEF surface renders Latin/Cyrillic/Greek and some accented
+  Latin text but visibly substitutes missing glyphs for several CJK and other
+  entries. This is recorded as a post-login font-coverage/fallback gate in
+  [doc 33](33-nova-steam-font-coverage-open-question.md); first capture
+  fontconfig and CDP font evidence before changing the current presentation
+  path.
 - Can a rooted Android app give a Linux userspace enough GPU/DMABUF/Surface access without booting a separate kernel?
+- Does the Linux session use Android's already-active network data path without a second Wi-Fi/Ethernet
+  registration step? `chroot`/PRoot should preserve the host network namespace by default, but the
+  rooted `su` helper's UID may not inherit the app's process-bound or per-app VPN selection, and the
+  glibc rootfs does not automatically receive Android bionic's `libnetd_client` socket/DNS hooks.
+  Validate actual glibc socket selection, namespace identity, netd/UID behavior, DNS, IPv4/IPv6,
+  reconnect, and VPN policy for both rooted and rootless launch modes. Steam's `System.Network` calls
+  should remain a UI compatibility seam rather than become a requirement to emulate Android network
+  hardware; see the [network contract in the roadmap](06-android-linux-gamescope-roadmap.md).
 - For rootless mode, can an app-owned `Surface`/`ANativeWindow` replace the current privileged/low-level presentation path without a copy bottleneck?
 - Which rootless process boundary works for glibc Steam: proot, a user namespace, Termux:X11, or a future Android-native launcher?
 - Can FEX/Proton run with explicit wrappers and no host `binfmt_misc` or privileged helper?

@@ -97,3 +97,6 @@ The bounded test logs and captures remain under the ignored
 Android Activity for its Surface and touch socket to stay attached; if Android's
 Launcher force-stops or backgrounds the Activity, the displayed frame can become
 stale again even if rootfs children have not yet unwound.
+
+The stale-child failure mode is now covered by the shared exact-scope cleanup
+helper and artifact metadata gate in [doc 34](34-nova-runtime-harness-lifecycle.md).
