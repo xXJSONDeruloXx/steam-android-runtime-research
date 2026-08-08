@@ -92,6 +92,16 @@ focus check at readiness, not only around bounded screenshots. This closes the
 observed case where `com.rp.settings` owned the USB chooser and consumed the
 operator's real D-pad/touch input before Steam received it.
 
+The OOBE compatibility patcher was then observed spending minutes in toybox
+`awk` while rewriting a single 14 MB minified Steam bundle. Its substring-based
+rewrite was effectively quadratic for Android's one-line input. The patcher now
+uses a streamed, escaped `sed` substitution and keeps the old temp-file,
+checksum, and post-write verification contract. The verifier treats the
+awaited callback as a deliberate substring exception, and startup removes only
+this patcher's stale temp suffix after an interruption. A future bundle-size or
+patch latency regression should be treated as a harness failure, not allowed to
+look like a Steam readiness timeout.
+
 ## Evidence and regression check
 
 The original bad state was reproduced by a fresh app session with a gray

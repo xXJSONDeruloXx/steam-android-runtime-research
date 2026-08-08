@@ -16,6 +16,8 @@ patch_file() {
     new=$3
     label=$4
 
+    tmp="$file$TMP_SUFFIX"
+    rm -f "$file".nova-network-compat.* "$tmp"
     if grep -Fq "$new" "$file"; then
         echo "steam_network_compat_${label}=already-patched file=$file"
         return 0
@@ -25,24 +27,13 @@ patch_file() {
     fi
 
     before=$(sha256sum "$file" | awk '{print $1}')
-    tmp="$file$TMP_SUFFIX"
-    rm -f "$tmp"
-    if ! awk -v old="$old" -v new="$new" '
-        {
-            line = $0
-            replaced = 0
-            while ((at = index(line, old)) != 0) {
-                line = substr(line, 1, at - 1) new substr(line, at + length(old))
-                replaced++
-            }
-            total += replaced
-            print line
-        }
-        END {
-            if (total == 0)
-                exit 42
-        }
-    ' "$file" >"$tmp"; then
+    # Steam's minified bundles are single 10–15 MB lines.  Android toybox awk
+    # copies that line for every substring operation, making the old rewrite
+    # path effectively quadratic.  sed streams the same exact replacement in
+    # one pass; escape BRE metacharacters and the command delimiter first.
+    old_sed=$(printf '%s' "$old" | sed 's/[][\\.^$*|]/\\&/g')
+    new_sed=$(printf '%s' "$new" | sed 's/[\\&|]/\\&/g')
+    if ! sed "s|$old_sed|$new_sed|g" "$file" >"$tmp"; then
         rm -f "$tmp"
         echo "steam_network_compat_${label}=fail reason=replace" >&2
         return 1
@@ -53,7 +44,19 @@ patch_file() {
         return 1
     fi
     rm -f "$tmp"
-    if grep -Fq "$old" "$file" || ! grep -Fq "$new" "$file"; then
+    if [ "$label" = "oobe_completion_order" ]; then
+        # The new await form necessarily contains the old call as a suffix.
+        verified=1
+        if ! grep -Fq "$new" "$file"; then
+            verified=0
+        fi
+    else
+        verified=1
+        if grep -Fq "$old" "$file" || ! grep -Fq "$new" "$file"; then
+            verified=0
+        fi
+    fi
+    if [ "$verified" -ne 1 ]; then
         echo "steam_network_compat_${label}=fail reason=verify" >&2
         return 1
     fi
