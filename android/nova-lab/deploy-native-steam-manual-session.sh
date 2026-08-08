@@ -13,25 +13,50 @@ PID_FILE="$BUILD_DIR/native-steam-manual-session.pid"
 LOG_FILE="$BUILD_DIR/native-steam-manual-session.log"
 
 cleanup_remote_runtime() {
-    "$ADB" push "$RUNTIME_CLEANUP" "$DEVICE_RUNTIME_CLEANUP" \
-        >/dev/null 2>&1 || true
-    "$ADB" shell su -c "/system/bin/sh $DEVICE_RUNTIME_CLEANUP $DEVICE_ROOT" \
-        2>/dev/null | tr -d '\r' || true
+    local push_status cleanup_status cleanup_output
+    if "$ADB" push "$RUNTIME_CLEANUP" "$DEVICE_RUNTIME_CLEANUP" \
+        >/dev/null 2>&1; then
+        push_status=0
+    else
+        push_status=$?
+    fi
+    if [ "$push_status" -eq 0 ]; then
+        if cleanup_output=$("$ADB" shell su -c \
+            "/system/bin/sh $DEVICE_RUNTIME_CLEANUP $DEVICE_ROOT" 2>&1); then
+            cleanup_status=0
+        else
+            cleanup_status=$?
+        fi
+    else
+        cleanup_status=1
+        cleanup_output=
+    fi
+    cleanup_output=$(printf '%s\n' "$cleanup_output" | tr -d '\r')
+    printf '%s\n' "$cleanup_output"
+    if [ "$push_status" -ne 0 ] || [ "$cleanup_status" -ne 0 ] || \
+        ! printf '%s\n' "$cleanup_output" | rg -q '^nova_runtime_cleanup=pass '; then
+        echo "native_steam_runtime_cleanup=fail push=$push_status command=$cleanup_status" >&2
+        return 1
+    fi
+    echo "native_steam_runtime_cleanup=pass"
 }
 
 stop_remote_lab() {
-    cleanup_remote_runtime
+    local cleanup_status=0
+    cleanup_remote_runtime || cleanup_status=$?
     "$ADB" shell am force-stop "$PACKAGE" >/dev/null 2>&1 || true
+    return "$cleanup_status"
 }
 
 if [ "${1:-}" = "stop" ]; then
     if [ ! -f "$PID_FILE" ]; then
         echo "native_steam_manual_session=not_running"
+        stop_remote_lab
         exit 0
     fi
     session_pid=$(cat "$PID_FILE")
     if kill -0 "$session_pid" 2>/dev/null; then
-        kill "$session_pid"
+        kill "$session_pid" 2>/dev/null || true
         echo "native_steam_manual_session=stopping pid=$session_pid"
     else
         echo "native_steam_manual_session=stale_pid pid=$session_pid"

@@ -90,6 +90,16 @@ cleanup_runtime() {
     "$ADB" shell su -c "/system/bin/sh $DEVICE_RUNTIME_CLEANUP $DEVICE_ROOT" \
         2>/dev/null | tr -d '\r' || true
 }
+clear_app_runtime_files() {
+    if "$ADB" shell run-as "$PACKAGE" sh -c \
+        'rm -f files/nova-input.sock files/nova-touch.sock files/nova-lab-ahb-double-buffer.sock.* files/dmabuf-double-buffer-report.txt files/android-input-bridge-report.txt files/android-touch-bridge-report.txt' \
+        >/dev/null 2>&1; then
+        echo "nova_app_runtime_files_cleanup=pass"
+    else
+        echo "nova_app_runtime_files_cleanup=fail" >&2
+        return 1
+    fi
+}
 trap cleanup_runtime EXIT
 
 {
@@ -104,15 +114,23 @@ trap cleanup_runtime EXIT
         echo "gamescope_libei_build=unknown"
     fi
     echo "gamescope_input_emulation=${NOVA_GAMESCOPE_INPUT_EMULATION:-unset}"
+    echo "gamescope_source_tree=${GAMESCOPE_HEADLESS_SOURCE:-unset}"
+    if [ -n "${GAMESCOPE_HEADLESS_SOURCE:-}" ] && [ -d "$GAMESCOPE_HEADLESS_SOURCE/.git" ]; then
+        echo "gamescope_source_commit=$(git -C "$GAMESCOPE_HEADLESS_SOURCE" rev-parse HEAD)"
+    else
+        echo "gamescope_source_commit=unknown"
+    fi
     echo "fullscreen_presentation=${NOVA_FULLSCREEN_PRESENTATION:-0}"
     echo "force_gpu_composition=${NOVA_FORCE_GPU_COMPOSITION:-unset}"
 } >"$METADATA"
+cat "$METADATA"
 
 rm -f "$REPORT" "$LOGCAT" "$APP_REPORT" "$SCREENSHOT"
 
 "$ADB" logcat -c
 cleanup_runtime
 "$ADB" shell am force-stop "$PACKAGE"
+clear_app_runtime_files
 activity_args=(
     --ez run_dmabuf_double_buffer true
     --ei dmabuf_double_buffer_frames "$FRAME_COUNT"

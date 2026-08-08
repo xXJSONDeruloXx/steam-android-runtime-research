@@ -92,10 +92,32 @@ stop_remote_helper() {
 }
 
 cleanup_remote_runtime() {
-    "$ADB" push "$RUNTIME_CLEANUP" "$DEVICE_RUNTIME_CLEANUP" \
-        >/dev/null 2>&1 || true
-    "$ADB" shell su -c "/system/bin/sh $DEVICE_RUNTIME_CLEANUP $DEVICE_ROOT" \
-        2>/dev/null | tr -d '\r' || true
+    local push_status cleanup_status cleanup_output
+    if "$ADB" push "$RUNTIME_CLEANUP" "$DEVICE_RUNTIME_CLEANUP" \
+        >/dev/null 2>&1; then
+        push_status=0
+    else
+        push_status=$?
+    fi
+    if [ "$push_status" -eq 0 ]; then
+        if cleanup_output=$("$ADB" shell su -c \
+            "/system/bin/sh $DEVICE_RUNTIME_CLEANUP $DEVICE_ROOT" 2>&1); then
+            cleanup_status=0
+        else
+            cleanup_status=$?
+        fi
+    else
+        cleanup_status=1
+        cleanup_output=
+    fi
+    cleanup_output=$(printf '%s\n' "$cleanup_output" | tr -d '\r')
+    printf '%s\n' "$cleanup_output"
+    if [ "$push_status" -ne 0 ] || [ "$cleanup_status" -ne 0 ] || \
+        ! printf '%s\n' "$cleanup_output" | rg -q '^nova_runtime_cleanup=pass '; then
+        echo "native_steam_runtime_cleanup=fail push=$push_status command=$cleanup_status" >&2
+        return 1
+    fi
+    echo "native_steam_runtime_cleanup=pass"
 }
 
 if [ "$INPUT_MODE" = "android-keyevent" ]; then
@@ -236,15 +258,19 @@ stop_remote_lab() {
     if [ "$MANUAL_SESSION" != "1" ]; then
         return
     fi
-    cleanup_remote_runtime
+    local cleanup_status=0
+    cleanup_remote_runtime || cleanup_status=$?
     "$ADB" shell am force-stop "$PACKAGE" >/dev/null 2>&1 || true
+    return "$cleanup_status"
 }
 cleanup_session() {
     if [ -n "${run_pid:-}" ] && kill -0 "$run_pid" 2>/dev/null; then
         kill "$run_pid" 2>/dev/null || true
     fi
     cleanup_remote_helper
-    stop_remote_lab
+    if ! stop_remote_lab; then
+        echo "controller_ui_runtime_cleanup=fail" >&2
+    fi
 }
 trap cleanup_session EXIT INT TERM
 
@@ -273,9 +299,8 @@ dismiss_android_overlay() {
 steamui_html_lines=$(device_line_count "$STEAM_LOGS_DIR/steamui_html.txt")
 webhelper_js_lines=$(device_line_count "$STEAM_LOGS_DIR/webhelper_js.txt")
 
-# Clear any prior bridge socket before the background Steam launch. Otherwise
-# the readiness loop can attach the helper to an old Activity just before the
-# native smoke test's own force-stop/relaunch.
+# The nested deploy path force-stops the APK, purges its app-owned bridge files,
+# and records fresh Steam log baselines before launching the new Activity.
 "$ADB" shell am force-stop "$PACKAGE"
 
 set +e

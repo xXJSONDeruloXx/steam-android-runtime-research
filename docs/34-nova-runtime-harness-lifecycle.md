@@ -51,6 +51,22 @@ The bounded AHardwareBuffer deploy path runs the helper before launch and after
 report capture. The manual-session and controller smoke-test stop paths use the
 same helper instead of maintaining separate partial process-name lists.
 
+The follow-up hardening closes three less obvious lifecycle gaps:
+
+- `stop` performs exact-scope cleanup even when the local PID file is already
+  missing, so an interrupted launcher cannot make a live runtime look absent;
+- cleanup push/command failures and a non-pass helper marker now fail visibly
+  in the manual/controller logs instead of being swallowed by `|| true` or a
+  trap; and
+- the bounded deploy path force-stops the APK and removes its app-owned bridge
+  sockets and reports before launch, then prints the selected Gamescope
+  metadata (path, SHA-256, source/build identity, libei marker, and
+  presentation/input flags) into the run log.
+
+These checks are intentionally separate from exact process cleanup: a clean
+process table does not prove that an old app socket or a different Gamescope
+artifact was not reused.
+
 ## Evidence and regression check
 
 The original bad state was reproduced by a fresh app session with a gray
