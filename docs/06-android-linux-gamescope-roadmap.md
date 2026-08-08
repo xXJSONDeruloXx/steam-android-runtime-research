@@ -124,8 +124,9 @@ Steam/presentation smoke passes; [doc 18](18-nova-uinput-gamepad-smoke.md)
 records the kernel-side result. The Android app now enumerates the attached
 controller and forwards a deterministic key event through an abstract Unix
 socket into the same rooted virtual device; [doc 19](19-nova-android-input-uinput-bridge.md)
-records the accepted end-to-end bridge. Physical controller dispatch, Steam
-enumeration, and actual navigation are still required.
+  records the accepted end-to-end bridge. [Doc 20](20-nova-physical-controller-dispatch.md)
+  then proves a rooted evdev event is dispatched by Android as a controller-class
+  `KeyEvent`. Steam enumeration and actual navigation are still required.
 
 ### Rootless stage 3: user-space Steam session supervision
 

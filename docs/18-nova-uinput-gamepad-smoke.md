@@ -84,6 +84,7 @@ gamepad device can be created and fed while the Steam session is alive. The
 app-side Android key/socket extension is recorded separately in
 [doc 19](19-nova-android-input-uinput-bridge.md).
 
-Next, capture a physical Nova controller event through the app supervisor,
-then test whether Steam uid 501 actually enumerates the virtual device and
-whether rumble can return through the same root helper.
+The controlled physical-controller dispatch checkpoint is now recorded in
+[doc 20](20-nova-physical-controller-dispatch.md). Next, test whether Steam uid
+501 actually enumerates the virtual device and whether rumble can return through
+the same root helper.

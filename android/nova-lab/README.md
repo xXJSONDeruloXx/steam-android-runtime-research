@@ -130,8 +130,11 @@ creates a Linux-visible virtual gamepad from the Nova's attached Xbox evdev node
 the app enumerates Android controller devices, accepts a key event over an
 abstract Unix socket, and the rooted ARM64 helper maps it into that virtual
 device. The accepted evidence is documented in
-`docs/19-nova-android-input-uinput-bridge.md`; physical controller dispatch
-and a Steam navigation assertion are still open. For
+`docs/19-nova-android-input-uinput-bridge.md`. Set
+`NOVA_STEAM_ANDROID_INPUT_MODE=physical` to inject a controlled rooted evdev
+event and assert that Android dispatches it as a controller-class `KeyEvent`;
+that checkpoint is documented in `docs/20-nova-physical-controller-dispatch.md`.
+Steam device consumption, navigation, axes, and rumble are still open. For
 loader-only diagnostics,
 `NOVA_STEAM_EXECUTABLE` can point at another ARM64 entry point, such as
 `steamwebhelper`, and `NOVA_STEAM_CLIENT_FLAGS` supplies its bounded arguments.

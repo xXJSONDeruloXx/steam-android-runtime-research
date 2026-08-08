@@ -116,7 +116,9 @@ The target should not be considered proven until all of these work on one device
   The next app-side seam now also passes: Android enumerates the attached Xbox
   controller, dispatches a deterministic key event through an abstract socket,
   and the rooted helper maps it into the virtual device; see [doc 19](19-nova-android-input-uinput-bridge.md).
-  Physical controller dispatch, Steam device enumeration, and UI navigation remain open.
+  Physical controller dispatch now also passes through the Android activity and
+  rooted bridge; see [doc 20](20-nova-physical-controller-dispatch.md). Steam
+  device enumeration and UI navigation remain open.
 - Can the Nova expose hardware GLX/CEF for Steam? The bounded `msm` probe keeps
   Gamescope's Turnip/AHardwareBuffer side alive but Steam exits before CEF with
   `SIGILL`; an explicit `freedreno` Gallium profile instead fails at `drisw`

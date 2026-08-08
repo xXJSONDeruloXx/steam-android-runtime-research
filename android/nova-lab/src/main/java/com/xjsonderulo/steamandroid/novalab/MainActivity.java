@@ -60,6 +60,7 @@ public final class MainActivity extends Activity implements SurfaceHolder.Callba
     private File androidInputSocketFile;
     private File androidInputReportFile;
     private boolean androidInputKeyLogged;
+    private boolean androidInputKeyDeviceLogged;
     private boolean androidInputMotionLogged;
 
     private static native String nativeRunHardwareBufferProbe();
@@ -307,6 +308,17 @@ public final class MainActivity extends Activity implements SurfaceHolder.Callba
         if (androidInputBridgeRunning) {
             sendAndroidInputLine("K " + event.getKeyCode() + " " + event.getAction() + "\n",
                     true);
+            int controllerSources = InputDevice.SOURCE_GAMEPAD | InputDevice.SOURCE_JOYSTICK;
+            if (!androidInputKeyDeviceLogged
+                    && event.getDeviceId() >= 0
+                    && (event.getSource() & controllerSources) != 0) {
+                androidInputKeyDeviceLogged = true;
+                String marker = "android_input_key_event device=" + event.getDeviceId()
+                        + " keycode=" + event.getKeyCode()
+                        + " source=0x" + Integer.toHexString(event.getSource());
+                Log.i(TAG, marker);
+                appendAndroidInputReport(marker);
+            }
         }
         return super.dispatchKeyEvent(event);
     }
@@ -330,6 +342,7 @@ public final class MainActivity extends Activity implements SurfaceHolder.Callba
     private void startAndroidInputBridge() {
         androidInputBridgeRunning = true;
         androidInputKeyLogged = false;
+        androidInputKeyDeviceLogged = false;
         androidInputMotionLogged = false;
         androidInputSocketFile = new File(getFilesDir(), "nova-input.sock");
         androidInputReportFile = new File(getFilesDir(), "android-input-bridge-report.txt");

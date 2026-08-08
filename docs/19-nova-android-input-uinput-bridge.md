@@ -106,11 +106,10 @@ Steam/AHB presentation smoke.
 
 It does not yet prove that Steam uid 501 opens the virtual device, that Steam
 Input maps it, or that the Gamepad UI changes state. The formal run uses an
-Android key injection rather than a physical controller gesture; enumeration
-of the attached Xbox controller is proven, but physical controller dispatch
-through the activity still needs a separate assertion. The axis mapping is
+Android key injection rather than a physical controller gesture. A separate
+controlled evdev-to-Android dispatch assertion is now accepted in
+[doc 20](20-nova-physical-controller-dispatch.md). The axis mapping is
 implemented but not yet covered by a device acceptance run.
 
-Next, capture a before/after Gamepad UI state change from a physical Nova
-controller event, then inspect Steam's Linux device enumeration and add rumble
-return through the same supervisor boundary.
+Next, capture a before/after Gamepad UI state change, inspect Steam's Linux
+device enumeration, and add rumble return through the same supervisor boundary.

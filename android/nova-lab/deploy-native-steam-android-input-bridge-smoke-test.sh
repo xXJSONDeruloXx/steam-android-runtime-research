@@ -16,6 +16,8 @@ MODE=socket
 RELAY_TIMEOUT=${NOVA_STEAM_ANDROID_INPUT_RELAY_TIMEOUT:-30000}
 WAIT_TIMEOUT=${NOVA_STEAM_ANDROID_INPUT_WAIT_TIMEOUT:-60}
 INPUT_KEYCODE=${NOVA_STEAM_ANDROID_INPUT_KEYCODE:-96}
+INPUT_MODE=${NOVA_STEAM_ANDROID_INPUT_MODE:-keyevent}
+INPUT_EVENT_CODE=${NOVA_STEAM_ANDROID_INPUT_EVENT_CODE:-305}
 RUN_LOG="$BUILD_DIR/native-steam-android-input-bridge-smoke.log"
 HELPER_LOG="$BUILD_DIR/nova-uinput-android-input-bridge.log"
 APP_LOG="$BUILD_DIR/nova-android-input-bridge-logcat.txt"
@@ -95,7 +97,18 @@ if [ "$socket_ready" -eq 1 ]; then
         sleep 0.1
     done
     if [ "$connected" -eq 1 ]; then
-        "$ADB" shell input keyevent "$INPUT_KEYCODE" || true
+        case "$INPUT_MODE" in
+            keyevent)
+                "$ADB" shell input keyevent "$INPUT_KEYCODE" || true
+                ;;
+            physical)
+                "$ADB" shell su -c "sendevent $SOURCE_EVENT 1 $INPUT_EVENT_CODE 1; sendevent $SOURCE_EVENT 0 0 0; sendevent $SOURCE_EVENT 1 $INPUT_EVENT_CODE 0; sendevent $SOURCE_EVENT 0 0 0" || true
+                ;;
+            *)
+                echo "unknown Android input mode: $INPUT_MODE" >&2
+                exit 2
+                ;;
+        esac
     fi
     set +e
     wait "$helper_pid"
@@ -152,6 +165,11 @@ for marker in \
         exit 1
     fi
 done
+if [ "$INPUT_MODE" = "physical" ] && \
+    ! rg -q -- 'android_input_key_event device=[0-9]+ keycode=[0-9]+ source=0x' "$APP_REPORT"; then
+    echo "missing physical Android controller key marker" >&2
+    exit 1
+fi
 if [ "$run_status" -ne 0 ]; then
     echo "native_steam_android_input_bridge_smoke=fail underlying_status=$run_status" >&2
     exit "$run_status"
