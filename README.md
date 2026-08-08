@@ -66,6 +66,8 @@ The useful results are split across several projects:
 - [Nova AHB socket-trace experiment](docs/47-nova-ahb-socket-trace-experiment-2026-08-08.md) predeclares syscall, ancillary-FD, inode, and poll evidence for the original stream baseline.
 - [Nova mandatory preflight manifest](docs/48-nova-preflight-manifest-2026-08-08.md) records and enforces the cleanup, reset, run-identity, and provenance gate repaired after the latest Luna audit.
 - [Nova AHB socket-trace result](docs/49-nova-ahb-socket-trace-result-2026-08-08.md) records the stream baseline's valid message/FD exchange and the frame-432 Android receive/release boundary.
+- [Parent session process-audit follow-up 4](docs/50-parent-session-process-audit-followup-2026-08-08.md) records Luna's latest two-hour audit and the remaining capture, timeout, focus, and phase-serialization risks.
+- [Nova Android receive-wait experiment](docs/51-nova-ahb-app-receive-wait-experiment-2026-08-08.md) predeclares the next diagnostic-only app-side ACK wait boundary.
 
 ## Recommended direction
 
@@ -134,6 +136,8 @@ the gamescope frames on its own surface.
 - [Nova AHB socket-trace experiment](docs/47-nova-ahb-socket-trace-experiment-2026-08-08.md)
 - [Nova mandatory preflight manifest](docs/48-nova-preflight-manifest-2026-08-08.md)
 - [Nova AHB socket-trace result](docs/49-nova-ahb-socket-trace-result-2026-08-08.md)
+- [Parent session process-audit follow-up 4](docs/50-parent-session-process-audit-followup-2026-08-08.md)
+- [Nova Android receive-wait experiment](docs/51-nova-ahb-app-receive-wait-experiment-2026-08-08.md)
 - [Retroid Pocket Nova flashing kit](tools/retroid-pocket-nova/README.md)
 
 ## Evidence standard
