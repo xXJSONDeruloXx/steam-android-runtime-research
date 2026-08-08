@@ -17,6 +17,7 @@ SDL_EVENT_CODE="${12:-545}"
 SDL_EVENT_TIMEOUT="${13:-10000}"
 SDL_GAMEPAD_PROBE="${14:-}"
 SDL_GAMEPAD_EVENT_MODE="${15:-0}"
+SDL_GAMEPAD_EXPECT_BUTTON="${16:-12}"
 if [ "$SDL_PROBE" = "none" ]; then
     SDL_PROBE=
 fi
@@ -168,7 +169,7 @@ else
             /system/bin/chroot "$ROOT" /usr/bin/env -i PATH=/usr/bin:/bin HOME=/tmp \
                 LD_LIBRARY_PATH="${SDL_LIBRARY%/*}:/usr/lib" "$SDL_GAMEPAD_PROBE" \
                 "$SDL_LIBRARY" "Nova Virtual Xbox Controller" gamepad-event "$SDL_EVENT_TIMEOUT" \
-                "$virtual_path" \
+                "$virtual_path" "$SDL_GAMEPAD_EXPECT_BUTTON" \
                 >"$GAMEPAD_LOG" 2>&1 &
             gamepad_pid=$!
             gamepad_ready=0
@@ -278,6 +279,7 @@ else
             echo "udev_smoke_sdl3_gamepad_probe=$gamepad_status"
             echo "udev_smoke_sdl3_gamepad_event_mode=$SDL_GAMEPAD_EVENT_MODE"
             echo "udev_smoke_sdl3_gamepad_event_code=$SDL_EVENT_CODE"
+            echo "udev_smoke_sdl3_gamepad_expected_button=$SDL_GAMEPAD_EXPECT_BUTTON"
             echo "udev_smoke_sdl3_gamepad_event_sent=$gamepad_event_sent"
             echo "udev_smoke_sdl3_gamepad_log_begin"
             cat "$GAMEPAD_LOG" 2>/dev/null || true

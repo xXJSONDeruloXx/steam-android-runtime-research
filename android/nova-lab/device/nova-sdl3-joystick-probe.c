@@ -66,6 +66,7 @@ int main(int argc, char **argv)
     const int gamepad_mode = (argc > 3 && strcmp(argv[3], "gamepad") == 0) ||
         gamepad_event_mode;
     unsigned int event_timeout_ms = 10000;
+    unsigned int expected_gamepad_button = 12;
     void *handle;
     sdl_init_fn sdl_init;
     sdl_quit_fn sdl_quit;
@@ -115,6 +116,17 @@ int main(int argc, char **argv)
             return 2;
         }
         event_timeout_ms = (unsigned int)value;
+    }
+    if (gamepad_event_mode && argc > 6) {
+        char *end = NULL;
+        unsigned long value;
+        errno = 0;
+        value = strtoul(argv[6], &end, 10);
+        if (errno != 0 || end == argv[6] || *end != '\0' || value > 31u) {
+            fprintf(stderr, "sdl3_error=invalid_expected_gamepad_button\n");
+            return 2;
+        }
+        expected_gamepad_button = (unsigned int)value;
     }
 
     printf("sdl3_probe_begin\n");
@@ -271,6 +283,7 @@ int main(int argc, char **argv)
             while (sdl_poll_event(event_storage) != 0) {
             }
             printf("sdl3_gamepad_event_ready=pass\n");
+            printf("sdl3_gamepad_expected_button=%u\n", expected_gamepad_button);
             fflush(stdout);
             deadline = monotonic_milliseconds() + event_timeout_ms;
             while (monotonic_milliseconds() < deadline && (!button_down || !button_up)) {
@@ -290,7 +303,7 @@ int main(int argc, char **argv)
                     if (type != 0x651u && type != 0x652u) {
                         continue;
                     }
-                    if (which != virtual_gamepad_id || button != 12u) {
+                    if (which != virtual_gamepad_id || button != expected_gamepad_button) {
                         printf("sdl3_gamepad_event_ignored type=0x%03x which=%u button=%u\n",
                                type, which, button);
                         continue;

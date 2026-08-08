@@ -45,7 +45,7 @@ The useful results are split across several projects:
 - [Nova SDL3 Gamepad semantic event delivery](docs/27-nova-sdl3-gamepad-event.md) uses the exact relay-created event path and proves Valve's SDL3 Gamepad mapping receives D-pad press/release events.
 - [Nova Steam Gamepad UI D-pad navigation acceptance](docs/28-nova-steam-dpad-navigation.md) proves an exact rooted `BTN_DPAD_DOWN` event changes the live Steam Gamepad UI navigation panel while native Steam owns the matching event FD and Android presentation passes.
 - [Nova Android input bridge Steam UI navigation acceptance](docs/29-nova-android-input-steam-ui-navigation.md) proves the Android app dispatch/socket path changes the live Steam Gamepad UI navigation panel under a strict Steam-surface visual gate.
-- [Nova Android A-button mapping and feedback-loop checkpoint](docs/30-nova-android-a-button-navigation.md) corrects the Nova ABXY semantic table, filters the virtual-device feedback loop, and proves Android `KEYCODE_BUTTON_A` reaches the rooted helper as `BTN_SOUTH`; A-button UI navigation remains open.
+- [Nova Android A-button mapping and feedback-loop checkpoint](docs/30-nova-android-a-button-navigation.md) corrects the Nova ABXY semantic table, filters the virtual-device feedback loop, and proves Android `KEYCODE_BUTTON_A` reaches SDL3 as Xbox button 0 / Linux `BTN_SOUTH`; A-button UI activation remains open.
 
 ## Recommended direction
 

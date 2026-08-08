@@ -104,6 +104,52 @@ steam_input_fd=pass
 steam_input_fd_probe=pass
 ```
 
+## SDL3 semantic mapping check
+
+The same `BTN_SOUTH` code was tested independently against Valve's shipped
+SDL3 Gamepad API, using the exact relay-created `event9` path. The generalized
+probe accepts an expected SDL button number; SDL Gamepad button 0 is the
+Xbox-style A/SOUTH button.
+
+```sh
+NOVA_INPUT_UDEV_MODE=enabled \
+NOVA_SDL3_GAMEPAD_EVENT_PROBE=1 \
+NOVA_SDL3_GAMEPAD_EXPECT_BUTTON=0 \
+NOVA_SDL3_EVENT_CODE=304 \
+NOVA_SDL3_EVENT_TIMEOUT=10000 \
+NOVA_INPUT_UDEV_RELAY_TIMEOUT=10000 \
+android/nova-lab/deploy-native-steam-input-device-probe.sh
+```
+
+The accepted SDL3 result was:
+
+```text
+udev_smoke_virtual_device=/dev/input/event9
+udev_smoke_udevd=pass
+udev_smoke_sdl3_gamepad_probe=0
+udev_smoke_sdl3_gamepad_event_mode=1
+udev_smoke_sdl3_gamepad_event_code=304
+udev_smoke_sdl3_gamepad_expected_button=0
+udev_smoke_sdl3_gamepad_event_sent=pass
+sdl3_gamepad id=2 name=Xbox 360 Controller path=/dev/input/event9 vendor=0x045e product=0x028e type=2
+sdl3_virtual_gamepad_open=pass
+sdl3_gamepad_event_ready=pass
+sdl3_gamepad_expected_button=0
+sdl3_gamepad_button_event=pass type=0x651 which=2 button=0 state=down
+sdl3_gamepad_button_event=pass type=0x652 which=2 button=0 state=up
+sdl3_virtual_gamepad=pass id=2
+sdl3_gamepad_probe=pass
+sdl3_gamepad_event_probe=pass
+sdl3_probe=pass
+udev_probe=pass
+native_steam_input_device_probe=pass
+```
+
+This proves the corrected A/SOUTH mapping through Android, the rooted virtual
+Xbox node, and SDL3's Xbox 360 semantic layer. It still does not prove that
+Steam's current language-selector page activates on A; the strict live Steam
+probe above remains unchanged.
+
 ## Visual reassessment
 
 The earlier A run used only a panel hash difference and was recorded as

@@ -24,6 +24,7 @@ SDL3_EVENT_MODE=${NOVA_SDL3_EVENT_PROBE:-0}
 SDL3_EVENT_CODE=${NOVA_SDL3_EVENT_CODE:-545}
 SDL3_EVENT_TIMEOUT=${NOVA_SDL3_EVENT_TIMEOUT:-10000}
 SDL3_GAMEPAD_EVENT_MODE=${NOVA_SDL3_GAMEPAD_EVENT_PROBE:-0}
+SDL3_GAMEPAD_EXPECT_BUTTON=${NOVA_SDL3_GAMEPAD_EXPECT_BUTTON:-12}
 CHROOT_SDL3_PROBE=/opt/nova-kgsl-driver/nova-sdl3-joystick-probe
 REPORT="$BUILD_DIR/nova-input-udev-report.txt"
 
@@ -79,7 +80,7 @@ fi
 "$ADB" shell su -c "chmod 755 $DEVICE_HELPER $DEVICE_PROBE $DEVICE_SCRIPT"
 
 set +e
-"$ADB" shell su -c "/system/bin/sh $DEVICE_SCRIPT $DEVICE_ROOT /opt/nova-kgsl-driver/nova-uinput-gamepad-relay /opt/nova-kgsl-driver/nova-input-udev-probe $SOURCE_EVENT $RELAY_TIMEOUT $DEVICE_REPORT /data/local/tmp/nova-input-udev-work '$UDEVD_MODE' '$SDL3_PROBE_ARG' '$SDL3_LIBRARY' '$SDL3_EVENT_MODE' '$SDL3_EVENT_CODE' '$SDL3_EVENT_TIMEOUT' '$SDL3_GAMEPAD_PROBE_ARG' '$SDL3_GAMEPAD_EVENT_MODE'" >/dev/null
+"$ADB" shell su -c "/system/bin/sh $DEVICE_SCRIPT $DEVICE_ROOT /opt/nova-kgsl-driver/nova-uinput-gamepad-relay /opt/nova-kgsl-driver/nova-input-udev-probe $SOURCE_EVENT $RELAY_TIMEOUT $DEVICE_REPORT /data/local/tmp/nova-input-udev-work '$UDEVD_MODE' '$SDL3_PROBE_ARG' '$SDL3_LIBRARY' '$SDL3_EVENT_MODE' '$SDL3_EVENT_CODE' '$SDL3_EVENT_TIMEOUT' '$SDL3_GAMEPAD_PROBE_ARG' '$SDL3_GAMEPAD_EVENT_MODE' '$SDL3_GAMEPAD_EXPECT_BUTTON'" >/dev/null
 run_status=$?
 set -e
 "$ADB" pull "$DEVICE_REPORT" "$REPORT" >/dev/null 2>&1 || true

@@ -187,6 +187,9 @@ map is `96->304` (A/SOUTH), `97->305` (B/EAST), `98->306` (C), `99->307`
 (X/NORTH), and `100->308` (Y/WEST). The app deliberately ignores events from
 the `Nova Virtual Xbox Controller` identity after the rooted helper creates it,
 so the app does not feed its own uinput output back into the socket.
+The SDL3 semantic probe accepts `NOVA_SDL3_GAMEPAD_EXPECT_BUTTON`; use `0` for
+the Xbox A/SOUTH button and `12` for D-pad down. The exact A/SOUTH SDL3 result
+is recorded in `docs/30-nova-android-a-button-navigation.md`.
 For loader-only diagnostics,
 `NOVA_STEAM_EXECUTABLE` can point at another ARM64 entry point, such as
 `steamwebhelper`, and `NOVA_STEAM_CLIENT_FLAGS` supplies its bounded arguments.
