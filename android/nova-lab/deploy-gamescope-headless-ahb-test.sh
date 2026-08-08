@@ -32,6 +32,18 @@ APP_REPORT="$BUILD_DIR/device-gamescope-headless-ahb-app-report.txt"
 SCREENSHOT="$BUILD_DIR/device-gamescope-headless-ahb-screenshot.png"
 METADATA="$BUILD_DIR/device-gamescope-headless-ahb-metadata.txt"
 REQUIRE_TARGET=${NOVA_GAMESCOPE_AHB_REQUIRE_TARGET:-1}
+RUN_ID=${NOVA_RUN_ID:-legacy-$(date -u +%Y%m%dT%H%M%SZ)-$$}
+RUN_DIR=${NOVA_RUN_DIR:-}
+RUN_STARTED_UTC=${NOVA_RUN_STARTED_UTC:-$(date -u +%Y-%m-%dT%H:%M:%SZ)}
+
+if [ -n "$RUN_DIR" ]; then
+    mkdir -p "$RUN_DIR"
+    REPORT="$RUN_DIR/device-gamescope-headless-ahb-report.txt"
+    LOGCAT="$RUN_DIR/device-gamescope-headless-ahb-logcat.txt"
+    APP_REPORT="$RUN_DIR/device-gamescope-headless-ahb-app-report.txt"
+    SCREENSHOT="$RUN_DIR/device-gamescope-headless-ahb-screenshot.png"
+    METADATA="$RUN_DIR/device-gamescope-headless-ahb-metadata.txt"
+fi
 
 for required in "$BINARY" "$CLIENT" "$CONTROL" "$RUNTIME_CLEANUP"; do
     if [ ! -f "$required" ]; then
@@ -87,8 +99,53 @@ APP_DATA_DIR=$("$ADB" shell run-as "$PACKAGE" pwd | tr -d '\r')
 SOCKET_HOST_DIR="$APP_DATA_DIR/files"
 
 cleanup_runtime() {
-    "$ADB" shell su -c "/system/bin/sh $DEVICE_RUNTIME_CLEANUP $DEVICE_ROOT" \
-        2>/dev/null | tr -d '\r' || true
+    local cleanup_status=0 cleanup_output
+    if cleanup_output=$("$ADB" shell su -c \
+        "/system/bin/sh $DEVICE_RUNTIME_CLEANUP $DEVICE_ROOT" 2>&1); then
+        cleanup_status=0
+    else
+        cleanup_status=$?
+    fi
+    cleanup_output=$(printf '%s\n' "$cleanup_output" | tr -d '\r')
+    printf '%s\n' "$cleanup_output"
+    if [ "$cleanup_status" -ne 0 ] || \
+        ! printf '%s\n' "$cleanup_output" | rg -q '^nova_runtime_cleanup=pass '; then
+        echo "nova_runtime_cleanup=fail command=$cleanup_status" >&2
+        return 1
+    fi
+    echo "headless_ahb_runtime_cleanup=pass"
+}
+residual_runtime_check() {
+    local process_list residual
+    process_list=$("$ADB" shell su -c "/system/bin/ps -A -o PID,PPID,ARGS" 2>/dev/null | tr -d '\r')
+    residual=$(printf '%s\n' "$process_list" | \
+        rg -e "$DEVICE_ROOT/opt/nova-steam" \
+           -e '/opt/nova-kgsl-driver/gamescope-headless' \
+           -e '/opt/nova-kgsl-driver/nova-libei-input-bridge' \
+           -e '/opt/nova-kgsl-driver/nova-uinput-gamepad-relay' | \
+        rg -v 'nova-runtime-cleanup|ps -A -o PID,PPID,ARGS' || true)
+    if [ -n "$residual" ]; then
+        echo "headless_ahb_residual_processes=fail" >&2
+        printf '%s\n' "$residual" >&2
+        return 1
+    fi
+    echo "headless_ahb_residual_processes=pass"
+}
+cleanup_on_exit() {
+    local original_status=$? cleanup_status residual_status
+    trap - EXIT
+    set +e
+    cleanup_runtime
+    cleanup_status=$?
+    residual_runtime_check
+    residual_status=$?
+    if [ "$original_status" -ne 0 ]; then
+        exit "$original_status"
+    fi
+    if [ "$cleanup_status" -ne 0 ] || [ "$residual_status" -ne 0 ]; then
+        exit 1
+    fi
+    exit 0
 }
 clear_app_runtime_files() {
     if "$ADB" shell run-as "$PACKAGE" sh -c \
@@ -100,10 +157,12 @@ clear_app_runtime_files() {
         return 1
     fi
 }
-trap cleanup_runtime EXIT
+trap cleanup_on_exit EXIT
 
 {
     libei_build_marker=$(strings "$BINARY" | rg -m1 -i 'successfully initialized libei|built without libei' || true)
+    echo "nova_run_id=$RUN_ID"
+    echo "run_started_utc=$RUN_STARTED_UTC"
     echo "gamescope_binary=$BINARY"
     echo "gamescope_binary_sha256=$(shasum -a 256 "$BINARY" | awk '{print $1}')"
     if printf '%s\n' "$libei_build_marker" | rg -qi 'successfully initialized libei'; then
@@ -124,6 +183,20 @@ trap cleanup_runtime EXIT
     echo "force_gpu_composition=${NOVA_FORCE_GPU_COMPOSITION:-unset}"
 } >"$METADATA"
 cat "$METADATA"
+
+if [ "${NOVA_REQUIRE_GAMESCOPE_PROVENANCE:-0}" = "1" ]; then
+    if ! rg -q '^gamescope_binary_sha256=[0-9a-f]{64}$' "$METADATA" || \
+        ! rg -q '^gamescope_source_tree=[^u].+' "$METADATA" || \
+        ! rg -q '^gamescope_source_commit=[0-9a-f]{40}$' "$METADATA"; then
+        echo "missing required Gamescope provenance" >&2
+        exit 1
+    fi
+fi
+if [ "${NOVA_REQUIRE_GAMESCOPE_LIBEI:-0}" = "1" ] && \
+    ! rg -q '^gamescope_libei_build=enabled$' "$METADATA"; then
+    echo "Gamescope binary is not libei-enabled" >&2
+    exit 1
+fi
 
 rm -f "$REPORT" "$LOGCAT" "$APP_REPORT" "$SCREENSHOT"
 
@@ -197,7 +270,18 @@ if [ "${NOVA_ANDROID_TOUCH_BRIDGE:-0}" = "1" ]; then
         > "$BUILD_DIR/nova-android-touch-bridge-report.txt" 2>/dev/null || true
 fi
 "$ADB" exec-out screencap -p > "$SCREENSHOT"
+for artifact in "$REPORT" "$LOGCAT" "$APP_REPORT"; do
+    if [ -f "$artifact" ]; then
+        artifact_tmp="$artifact.tmp"
+        {
+            echo "nova_run_id=$RUN_ID"
+            cat "$artifact"
+        } >"$artifact_tmp"
+        mv "$artifact_tmp" "$artifact"
+    fi
+done
 cleanup_runtime
+residual_runtime_check
 
 echo "report:     $REPORT"
 echo "app logcat: $LOGCAT"

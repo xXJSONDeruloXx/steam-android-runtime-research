@@ -95,6 +95,9 @@ android/nova-lab/build-wayland-shm-control.sh
 android/nova-lab/deploy-gamescope-headless-test.sh
 android/nova-lab/deploy-gamescope-headless-composite-test.sh
 android/nova-lab/deploy-gamescope-headless-ahb-test.sh
+GAMESCOPE_HEADLESS_SOURCE=/path/to/gamescope \
+NOVA_GAMESCOPE_HEADLESS=/path/to/gamescope-build/src/gamescope \
+android/nova-lab/run-nova-acceptance.sh
 android/nova-lab/deploy-native-steam-smoke-test.sh
 android/nova-lab/deploy-native-steam-ui-smoke-test.sh
 android/nova-lab/deploy-native-steam-input-smoke-test.sh
