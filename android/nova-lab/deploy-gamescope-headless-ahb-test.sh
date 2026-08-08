@@ -14,6 +14,7 @@ BINARY=${NOVA_GAMESCOPE_HEADLESS:-$BUILD_DIR/gamescope-headless-build/src/gamesc
 CLIENT=${NOVA_WAYLAND_SHM_CONTROL:-$BUILD_DIR/wayland-shm-control}
 CONTROL=${NOVA_GAMESCOPE_AHB_CONTROL:-$SCRIPT_DIR/device/gamescope-headless-ahb-control.sh}
 NETWORK_COMPAT=${NOVA_STEAM_NETWORK_API_COMPAT_HELPER:-$SCRIPT_DIR/device/nova-steam-network-api-compat.sh}
+STEAMOS_UPDATE_COMPAT=${NOVA_STEAMOS_UPDATE_COMPAT_HELPER:-$SCRIPT_DIR/device/nova-steamos-update-compat.sh}
 RUNTIME_CLEANUP="$SCRIPT_DIR/device/nova-runtime-cleanup.sh"
 X11_CLIENT=${NOVA_GAMESCOPE_X11_CLIENT:-}
 TOUCH_HELPER=${NOVA_EIS_TOUCH_HELPER:-}
@@ -25,6 +26,7 @@ DEVICE_BINARY="$DEVICE_DRIVER_DIR/gamescope-headless"
 DEVICE_CLIENT="$DEVICE_DRIVER_DIR/wayland-shm-control"
 DEVICE_CONTROL="$DEVICE_DRIVER_DIR/gamescope-headless-ahb-control.sh"
 DEVICE_NETWORK_COMPAT="$DEVICE_DRIVER_DIR/nova-steam-network-api-compat.sh"
+DEVICE_STEAMOS_UPDATE_COMPAT="$DEVICE_ROOT/usr/bin/steamos-polkit-helpers/steamos-update"
 DEVICE_TOUCH_HELPER="$DEVICE_DRIVER_DIR/nova-libei-input-bridge"
 REPORT="$BUILD_DIR/device-gamescope-headless-ahb-report.txt"
 LOGCAT="$BUILD_DIR/device-gamescope-headless-ahb-logcat.txt"
@@ -45,7 +47,7 @@ if [ -n "$RUN_DIR" ]; then
     METADATA="$RUN_DIR/device-gamescope-headless-ahb-metadata.txt"
 fi
 
-for required in "$BINARY" "$CLIENT" "$CONTROL" "$RUNTIME_CLEANUP"; do
+for required in "$BINARY" "$CLIENT" "$CONTROL" "$RUNTIME_CLEANUP" "$STEAMOS_UPDATE_COMPAT"; do
     if [ ! -f "$required" ]; then
         echo "missing test input: $required" >&2
         echo "build gamescope and wayland-shm-control first" >&2
@@ -71,6 +73,7 @@ fi
 "$ADB" push "$CLIENT" "$DEVICE_STAGE/wayland-shm-control" >/dev/null
 "$ADB" push "$CONTROL" "$DEVICE_STAGE/gamescope-headless-ahb-control.sh" >/dev/null
 "$ADB" push "$RUNTIME_CLEANUP" "$DEVICE_STAGE/nova-runtime-cleanup.sh" >/dev/null
+"$ADB" push "$STEAMOS_UPDATE_COMPAT" "$DEVICE_STAGE/nova-steamos-update-compat.sh" >/dev/null
 if [ -f "$NETWORK_COMPAT" ]; then
     "$ADB" push "$NETWORK_COMPAT" "$DEVICE_STAGE/nova-steam-network-api-compat.sh" >/dev/null
 fi
@@ -84,7 +87,7 @@ if [ -n "$TOUCH_HELPER" ]; then
     fi
     "$ADB" push "$TOUCH_HELPER" "$DEVICE_STAGE/nova-libei-input-bridge" >/dev/null
 fi
-"$ADB" shell "su -c 'cp $DEVICE_STAGE/gamescope-headless $DEVICE_BINARY; cp $DEVICE_STAGE/wayland-shm-control $DEVICE_CLIENT; cp $DEVICE_STAGE/gamescope-headless-ahb-control.sh $DEVICE_CONTROL; cp $DEVICE_STAGE/nova-runtime-cleanup.sh $DEVICE_RUNTIME_CLEANUP; chmod 755 $DEVICE_BINARY $DEVICE_CLIENT $DEVICE_CONTROL $DEVICE_RUNTIME_CLEANUP'"
+"$ADB" shell "su -c 'cp $DEVICE_STAGE/gamescope-headless $DEVICE_BINARY; cp $DEVICE_STAGE/wayland-shm-control $DEVICE_CLIENT; cp $DEVICE_STAGE/gamescope-headless-ahb-control.sh $DEVICE_CONTROL; cp $DEVICE_STAGE/nova-runtime-cleanup.sh $DEVICE_RUNTIME_CLEANUP; mkdir -p $DEVICE_ROOT/usr/bin/steamos-polkit-helpers; cp $DEVICE_STAGE/nova-steamos-update-compat.sh $DEVICE_STEAMOS_UPDATE_COMPAT; chmod 755 $DEVICE_BINARY $DEVICE_CLIENT $DEVICE_CONTROL $DEVICE_RUNTIME_CLEANUP $DEVICE_STEAMOS_UPDATE_COMPAT'"
 if [ -f "$NETWORK_COMPAT" ]; then
     "$ADB" shell "su -c 'cp $DEVICE_STAGE/nova-steam-network-api-compat.sh $DEVICE_NETWORK_COMPAT; chmod 755 $DEVICE_NETWORK_COMPAT'"
 fi
@@ -177,12 +180,13 @@ trap cleanup_on_exit EXIT
     echo "gamescope_input_emulation=${NOVA_GAMESCOPE_INPUT_EMULATION:-unset}"
     echo "gamescope_source_tree=${GAMESCOPE_HEADLESS_SOURCE:-unset}"
     if [ -n "${GAMESCOPE_HEADLESS_SOURCE:-}" ] && [ -d "$GAMESCOPE_HEADLESS_SOURCE/.git" ]; then
-        echo "gamescope_source_commit=$(git -C "$GAMESCOPE_HEADLESS_SOURCE" rev-parse HEAD)"
+    echo "gamescope_source_commit=$(git -C "$GAMESCOPE_HEADLESS_SOURCE" rev-parse HEAD)"
     else
         echo "gamescope_source_commit=unknown"
     fi
     echo "fullscreen_presentation=${NOVA_FULLSCREEN_PRESENTATION:-0}"
     echo "force_gpu_composition=${NOVA_FORCE_GPU_COMPOSITION:-unset}"
+    echo "steamos_update_compat=installed"
 } >"$METADATA"
 cat "$METADATA"
 
