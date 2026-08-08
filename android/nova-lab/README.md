@@ -163,6 +163,12 @@ through the app's abstract input socket; this mode defaults to
 `KEYCODE_DPAD_DOWN`, maps it to Linux code 545, and enables key-only isolation.
 Its transport-passing/UI-negative result is documented in
 `docs/25-nova-android-input-steam-ui.md`. For
+the direct SDL3 event boundary, set `NOVA_INPUT_SDL3_PROBE=1` and
+`NOVA_SDL3_EVENT_PROBE=1` (usually with `NOVA_INPUT_UDEV_MODE=enabled`) to
+inject one exact `BTN_DPAD_DOWN` event and require SDL3 to receive a joystick
+event from the matching virtual instance; see
+`docs/26-nova-sdl3-event-input.md`. This is still below Steam's own SDL3
+Gamepad/Input consumer and the SteamUI navigation assertion. For
 loader-only diagnostics,
 `NOVA_STEAM_EXECUTABLE` can point at another ARM64 entry point, such as
 `steamwebhelper`, and `NOVA_STEAM_CLIENT_FLAGS` supplies its bounded arguments.

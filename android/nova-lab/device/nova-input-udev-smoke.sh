@@ -12,7 +12,11 @@ WORK="${7:-/data/local/tmp/nova-input-udev-work}"
 UDEVD_MODE="${8:-disabled}"
 SDL_PROBE="${9:-}"
 SDL_LIBRARY="${10:-/opt/nova-steam/home/.local/share/Steam/steamrtarm64/libSDL3.so.0}"
+SDL_EVENT_MODE="${11:-0}"
+SDL_EVENT_CODE="${12:-545}"
+SDL_EVENT_TIMEOUT="${13:-10000}"
 helper_pid=
+sdl_pid=
 udevd_pid=
 udevd_started=0
 status=0
@@ -23,6 +27,10 @@ cleanup() {
     if [ -n "$helper_pid" ]; then
         /system/bin/kill "$helper_pid" >/dev/null 2>&1 || true
         wait "$helper_pid" >/dev/null 2>&1 || true
+    fi
+    if [ -n "$sdl_pid" ]; then
+        /system/bin/kill "$sdl_pid" >/dev/null 2>&1 || true
+        wait "$sdl_pid" >/dev/null 2>&1 || true
     fi
     if [ "$udevd_started" -eq 1 ]; then
         /system/bin/chroot "$ROOT" /usr/bin/udevadm control --exit >/dev/null 2>&1 || true
@@ -68,8 +76,14 @@ fi
 
 HELPER_LOG="$WORK/helper.log"
 PROBE_LOG="$WORK/probe.log"
-/system/bin/chroot "$ROOT" /usr/bin/env -i PATH=/usr/bin:/bin HOME=/tmp \
-    "$HELPER" "$SOURCE" "$RELAY_TIMEOUT" none >"$HELPER_LOG" 2>&1 &
+if [ "$SDL_EVENT_MODE" = "1" ]; then
+    /system/bin/chroot "$ROOT" /usr/bin/env -i PATH=/usr/bin:/bin HOME=/tmp \
+        "$HELPER" "$SOURCE" "$RELAY_TIMEOUT" relay-once-code "$SDL_EVENT_CODE" \
+        >"$HELPER_LOG" 2>&1 &
+else
+    /system/bin/chroot "$ROOT" /usr/bin/env -i PATH=/usr/bin:/bin HOME=/tmp \
+        "$HELPER" "$SOURCE" "$RELAY_TIMEOUT" none >"$HELPER_LOG" 2>&1 &
+fi
 helper_pid=$!
 
 virtual_path=
@@ -88,18 +102,59 @@ if [ -z "$virtual_path" ] || [ ! -e "$ROOT$virtual_path" ]; then
     status=1
 else
     sdl_status=0
+    if [ "$SDL_EVENT_MODE" = "1" ]; then
+        /system/bin/chroot "$ROOT" /usr/bin/env -i PATH=/usr/bin:/bin HOME=/tmp \
+            "$PROBE" "Nova Virtual Xbox Controller" "$virtual_path" >"$PROBE_LOG" 2>&1
+        probe_status=$?
+    fi
     SDL_LOG="$WORK/sdl3.log"
     if [ -n "$SDL_PROBE" ]; then
         SDL_LIBRARY_DIR=${SDL_LIBRARY%/*}
         LD_LIBRARY_PATH="$SDL_LIBRARY_DIR:/usr/lib"
-        /system/bin/chroot "$ROOT" /usr/bin/env -i PATH=/usr/bin:/bin HOME=/tmp \
-            LD_LIBRARY_PATH="$LD_LIBRARY_PATH" "$SDL_PROBE" "$SDL_LIBRARY" \
-            "Nova Virtual Xbox Controller" >"$SDL_LOG" 2>&1
-        sdl_status=$?
+        if [ "$SDL_EVENT_MODE" = "1" ]; then
+            /system/bin/chroot "$ROOT" /usr/bin/env -i PATH=/usr/bin:/bin HOME=/tmp \
+                LD_LIBRARY_PATH="$LD_LIBRARY_PATH" "$SDL_PROBE" "$SDL_LIBRARY" \
+                "Nova Virtual Xbox Controller" event "$SDL_EVENT_TIMEOUT" \
+                >"$SDL_LOG" 2>&1 &
+            sdl_pid=$!
+            sdl_ready=0
+            attempt=0
+            while [ "$attempt" -lt 100 ]; do
+                if grep -q '^sdl3_event_ready=pass$' "$SDL_LOG" 2>/dev/null; then
+                    sdl_ready=1
+                    break
+                fi
+                if ! /system/bin/kill -0 "$sdl_pid" >/dev/null 2>&1; then
+                    break
+                fi
+                /system/bin/sleep 0.1
+                attempt=$((attempt + 1))
+            done
+            if [ "$sdl_ready" -eq 1 ]; then
+                /system/bin/sendevent "$SOURCE" 1 "$SDL_EVENT_CODE" 1
+                /system/bin/sendevent "$SOURCE" 0 0 0
+                /system/bin/sendevent "$SOURCE" 1 "$SDL_EVENT_CODE" 0
+                /system/bin/sendevent "$SOURCE" 0 0 0
+                sdl_event_sent=pass
+            else
+                sdl_event_sent=fail
+            fi
+            wait "$sdl_pid"
+            sdl_status=$?
+            sdl_pid=
+        else
+            /system/bin/chroot "$ROOT" /usr/bin/env -i PATH=/usr/bin:/bin HOME=/tmp \
+                LD_LIBRARY_PATH="$LD_LIBRARY_PATH" "$SDL_PROBE" "$SDL_LIBRARY" \
+                "Nova Virtual Xbox Controller" >"$SDL_LOG" 2>&1
+            sdl_status=$?
+            sdl_event_sent=disabled
+        fi
     fi
-    /system/bin/chroot "$ROOT" /usr/bin/env -i PATH=/usr/bin:/bin HOME=/tmp \
-        "$PROBE" "Nova Virtual Xbox Controller" "$virtual_path" >"$PROBE_LOG" 2>&1
-    probe_status=$?
+    if [ "$SDL_EVENT_MODE" != "1" ]; then
+        /system/bin/chroot "$ROOT" /usr/bin/env -i PATH=/usr/bin:/bin HOME=/tmp \
+            "$PROBE" "Nova Virtual Xbox Controller" "$virtual_path" >"$PROBE_LOG" 2>&1
+        probe_status=$?
+    fi
     {
         echo "udev_smoke_source=$SOURCE"
         echo "udev_smoke_virtual_device=$virtual_path"
@@ -111,6 +166,9 @@ else
         fi
         if [ -n "$SDL_PROBE" ]; then
             echo "udev_smoke_sdl3_probe=$sdl_status"
+            echo "udev_smoke_sdl3_event_mode=$SDL_EVENT_MODE"
+            echo "udev_smoke_sdl3_event_code=$SDL_EVENT_CODE"
+            echo "udev_smoke_sdl3_event_sent=${sdl_event_sent:-disabled}"
             echo "udev_smoke_sdl3_log_begin"
             cat "$SDL_LOG" 2>/dev/null || true
             echo "udev_smoke_sdl3_log_end"

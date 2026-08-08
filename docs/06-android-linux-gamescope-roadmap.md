@@ -142,6 +142,10 @@ socket into the same rooted virtual device; [doc 19](19-nova-android-input-uinpu
   through the Android app's `dispatchKeyEvent` and abstract socket, with
   generic-motion forwarding disabled. The app bridge and exact Linux mapping
   pass in the live session, but SteamUI navigation remains unproven.
+  [Doc 26](26-nova-sdl3-event-input.md) then proves the independent Valve SDL3
+  joystick instance can open the virtual node and receive the exact injected
+  event; Steam's own SDL3/Gamepad consumer and UI navigation remain the next
+  input boundary.
 
 ### Rootless stage 3: user-space Steam session supervision
 

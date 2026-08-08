@@ -19,6 +19,9 @@ UDEVD_MODE=${NOVA_INPUT_UDEV_MODE:-disabled}
 SDL3_MODE=${NOVA_INPUT_SDL3_PROBE:-0}
 SDL3_PROBE=${NOVA_SDL3_JOYSTICK_PROBE:-$BUILD_DIR/nova-sdl3-joystick-probe}
 SDL3_LIBRARY=${NOVA_SDL3_LIBRARY:-/opt/nova-steam/home/.local/share/Steam/steamrtarm64/libSDL3.so.0}
+SDL3_EVENT_MODE=${NOVA_SDL3_EVENT_PROBE:-0}
+SDL3_EVENT_CODE=${NOVA_SDL3_EVENT_CODE:-545}
+SDL3_EVENT_TIMEOUT=${NOVA_SDL3_EVENT_TIMEOUT:-10000}
 CHROOT_SDL3_PROBE=/opt/nova-kgsl-driver/nova-sdl3-joystick-probe
 REPORT="$BUILD_DIR/nova-input-udev-report.txt"
 
@@ -30,6 +33,10 @@ if [ ! -x "$PROBE" ]; then
 fi
 if [ "$SDL3_MODE" = "1" ] && [ ! -x "$SDL3_PROBE" ]; then
     "$SCRIPT_DIR/build-sdl3-joystick-probe.sh"
+fi
+if [ "$SDL3_EVENT_MODE" = "1" ] && [ "$SDL3_MODE" != "1" ]; then
+    echo "NOVA_SDL3_EVENT_PROBE requires NOVA_INPUT_SDL3_PROBE=1" >&2
+    exit 2
 fi
 
 mkdir -p "$BUILD_DIR"
@@ -54,7 +61,7 @@ fi
 "$ADB" shell su -c "chmod 755 $DEVICE_HELPER $DEVICE_PROBE $DEVICE_SCRIPT"
 
 set +e
-"$ADB" shell su -c "/system/bin/sh $DEVICE_SCRIPT $DEVICE_ROOT /opt/nova-kgsl-driver/nova-uinput-gamepad-relay /opt/nova-kgsl-driver/nova-input-udev-probe $SOURCE_EVENT $RELAY_TIMEOUT $DEVICE_REPORT /data/local/tmp/nova-input-udev-work $UDEVD_MODE $SDL_ARGS" >/dev/null
+"$ADB" shell su -c "/system/bin/sh $DEVICE_SCRIPT $DEVICE_ROOT /opt/nova-kgsl-driver/nova-uinput-gamepad-relay /opt/nova-kgsl-driver/nova-input-udev-probe $SOURCE_EVENT $RELAY_TIMEOUT $DEVICE_REPORT /data/local/tmp/nova-input-udev-work $UDEVD_MODE $SDL_ARGS $SDL3_EVENT_MODE $SDL3_EVENT_CODE $SDL3_EVENT_TIMEOUT" >/dev/null
 run_status=$?
 set -e
 "$ADB" pull "$DEVICE_REPORT" "$REPORT" >/dev/null 2>&1 || true
@@ -93,6 +100,18 @@ if [ "$SDL3_MODE" = "1" ]; then
         'sdl3_probe=pass'; do
         if ! rg -q -- "$marker" "$REPORT"; then
             echo "missing SDL3 joystick marker: $marker" >&2
+            exit 1
+        fi
+    done
+fi
+if [ "$SDL3_EVENT_MODE" = "1" ]; then
+    for marker in \
+        'udev_smoke_sdl3_event_sent=pass' \
+        'sdl3_event_ready=pass' \
+        'sdl3_joystick_event=pass' \
+        'sdl3_event_probe=pass'; do
+        if ! rg -q -- "$marker" "$REPORT"; then
+            echo "missing SDL3 event marker: $marker" >&2
             exit 1
         fi
     done

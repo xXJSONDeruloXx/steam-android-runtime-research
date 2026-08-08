@@ -1,11 +1,14 @@
 #define _GNU_SOURCE
 #define _POSIX_C_SOURCE 200809L
 
+#include <errno.h>
 #include <dlfcn.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
+#include <unistd.h>
 
 typedef uint32_t SDL_JoystickID;
 typedef uint16_t SDL_JoystickValue;
@@ -20,8 +23,17 @@ typedef SDL_JoystickValue (*sdl_get_joystick_value_fn)(SDL_JoystickID instance_i
 typedef SDL_Joystick *(*sdl_open_joystick_fn)(SDL_JoystickID instance_id);
 typedef void (*sdl_close_joystick_fn)(SDL_Joystick *joystick);
 typedef void (*sdl_free_fn)(void *memory);
+typedef int (*sdl_poll_event_fn)(void *event);
 
 #define SDL_INIT_JOYSTICK 0x00000200u
+
+static uint64_t monotonic_milliseconds(void)
+{
+    struct timespec timestamp;
+    clock_gettime(CLOCK_MONOTONIC, &timestamp);
+    return (uint64_t)timestamp.tv_sec * 1000u +
+           (uint64_t)timestamp.tv_nsec / 1000000u;
+}
 
 static void *load_symbol(void *handle, const char *name)
 {
@@ -37,6 +49,8 @@ int main(int argc, char **argv)
     const char *library = argc > 1 ? argv[1] :
         "/opt/nova-steam/home/.local/share/Steam/steamrtarm64/libSDL3.so.0";
     const char *expected_name = argc > 2 ? argv[2] : "Nova Virtual Xbox Controller";
+    const int event_mode = argc > 3 && strcmp(argv[3], "event") == 0;
+    unsigned int event_timeout_ms = 10000;
     void *handle;
     sdl_init_fn sdl_init;
     sdl_quit_fn sdl_quit;
@@ -49,11 +63,27 @@ int main(int argc, char **argv)
     sdl_open_joystick_fn sdl_open_joystick;
     sdl_close_joystick_fn sdl_close_joystick;
     sdl_free_fn sdl_free;
+    sdl_poll_event_fn sdl_poll_event = NULL;
     SDL_JoystickID *ids;
     SDL_Joystick *virtual_joystick = NULL;
+    SDL_JoystickID virtual_id = 0;
     int count = 0;
     int found = 0;
+    int event_received = 0;
     int status = 1;
+
+    if (event_mode && argc > 4) {
+        char *end = NULL;
+        unsigned long value;
+        errno = 0;
+        value = strtoul(argv[4], &end, 10);
+        if (errno != 0 || end == argv[4] || *end != '\0' || value == 0 ||
+            value > 600000u) {
+            fprintf(stderr, "sdl3_error=invalid_event_timeout\n");
+            return 2;
+        }
+        event_timeout_ms = (unsigned int)value;
+    }
 
     printf("sdl3_probe_begin\n");
     printf("sdl3_library=%s\n", library);
@@ -80,11 +110,15 @@ int main(int argc, char **argv)
     sdl_open_joystick = (sdl_open_joystick_fn)load_symbol(handle, "SDL_OpenJoystick");
     sdl_close_joystick = (sdl_close_joystick_fn)load_symbol(handle, "SDL_CloseJoystick");
     sdl_free = (sdl_free_fn)load_symbol(handle, "SDL_free");
+    if (event_mode) {
+        sdl_poll_event = (sdl_poll_event_fn)load_symbol(handle, "SDL_PollEvent");
+    }
     if (sdl_init == NULL || sdl_quit == NULL || sdl_get_error == NULL ||
         sdl_get_joysticks == NULL || sdl_get_joystick_name == NULL ||
         sdl_get_joystick_path == NULL || sdl_get_joystick_vendor == NULL ||
         sdl_get_joystick_product == NULL || sdl_open_joystick == NULL ||
-        sdl_close_joystick == NULL || sdl_free == NULL) {
+        sdl_close_joystick == NULL || sdl_free == NULL ||
+        (event_mode && sdl_poll_event == NULL)) {
         goto cleanup;
     }
 
@@ -115,15 +149,56 @@ int main(int argc, char **argv)
                product);
         if (name != NULL && strcmp(name, expected_name) == 0) {
             found = 1;
+            virtual_id = id;
             virtual_joystick = sdl_open_joystick(id);
             if (virtual_joystick != NULL) {
                 printf("sdl3_virtual_open=pass\n");
+                printf("sdl3_virtual_id=%u\n", virtual_id);
             } else {
                 fprintf(stderr, "sdl3_error=open_virtual:%s\n", sdl_get_error());
             }
         }
     }
     sdl_free(ids);
+
+    if (event_mode) {
+        uint64_t event_storage[16];
+        uint64_t deadline;
+
+        /* Remove discovery events queued while the virtual joystick opened. */
+        while (sdl_poll_event(event_storage) != 0) {
+        }
+        printf("sdl3_event_ready=pass\n");
+        fflush(stdout);
+        deadline = monotonic_milliseconds() + event_timeout_ms;
+        while (monotonic_milliseconds() < deadline && !event_received) {
+            while (sdl_poll_event(event_storage) != 0) {
+                uint32_t type;
+                SDL_JoystickID which;
+                memcpy(&type, event_storage, sizeof(type));
+                memcpy(&which, (unsigned char *)event_storage + 16, sizeof(which));
+                if (type >= 0x605u && type <= 0x60fu) {
+                    if (which != virtual_id) {
+                        printf("sdl3_joystick_event_ignored type=0x%03x which=%u\n",
+                               type, which);
+                        continue;
+                    }
+                    printf("sdl3_joystick_event=pass type=0x%03x which=%u\n",
+                           type, which);
+                    event_received = 1;
+                    break;
+                }
+            }
+            if (!event_received) {
+                usleep(1000);
+            }
+        }
+        if (!event_received) {
+            fprintf(stderr, "sdl3_error=joystick_event_timeout\n");
+            goto cleanup;
+        }
+    }
+
     if (virtual_joystick != NULL) {
         sdl_close_joystick(virtual_joystick);
     }
@@ -138,6 +213,9 @@ int main(int argc, char **argv)
     }
     sdl_quit();
     printf("sdl3_virtual_joystick=pass\n");
+    if (event_mode) {
+        printf("sdl3_event_probe=pass\n");
+    }
     printf("sdl3_probe=pass\n");
     fflush(stdout);
     status = 0;
