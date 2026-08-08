@@ -120,6 +120,9 @@ The target should not be considered proven until all of these work on one device
   rooted bridge; see [doc 20](20-nova-physical-controller-dispatch.md). Steam
   device enumeration and UI navigation remain open. The lower-level Holo
   `libudev`/uid-501 prerequisite passes independently; see [doc 21](21-nova-input-udev-device-visibility.md).
+  The next bounded native-session check now finds the actual Steam ARM64
+  process holding an open FD for the virtual event node while the full
+  AHardwareBuffer smoke passes; see [doc 22](22-nova-steam-input-process-fd.md).
 - Can the Nova expose hardware GLX/CEF for Steam? The bounded `msm` probe keeps
   Gamescope's Turnip/AHardwareBuffer side alive but Steam exits before CEF with
   `SIGILL`; an explicit `freedreno` Gallium profile instead fails at `drisw`
