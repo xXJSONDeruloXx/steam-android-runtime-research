@@ -129,6 +129,10 @@ socket into the same rooted virtual device; [doc 19](19-nova-android-input-uinpu
   `KeyEvent`. [Doc 21](21-nova-input-udev-device-visibility.md) proves the
   virtual node is discoverable through Holo `libudev` and readable by uid 501;
   Steam enumeration and actual navigation are still required.
+  [Doc 23](23-nova-steam-controller-ui-input.md) now combines the live Steam FD
+  observation with an exact physical BTN_SOUTH event and a before/after
+  selector-region comparison. The relay and FD pass, but the selector remains
+  unchanged, so Steam Input/Gamepad UI consumption is still the next gate.
 
 ### Rootless stage 3: user-space Steam session supervision
 

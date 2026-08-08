@@ -38,6 +38,7 @@ The useful results are split across several projects:
 - [Nova physical controller dispatch](docs/20-nova-physical-controller-dispatch.md) records a rooted evdev event delivered to Android as a controller-class `KeyEvent` and forwarded through the rooted virtual gamepad bridge; Steam consumption is still the next gate.
 - [Nova virtual gamepad udev visibility](docs/21-nova-input-udev-device-visibility.md) records Holo `libudev` discovery and uid-501 access to the virtual event node; Steam's own HIDAPI acceptance is still open.
 - [Nova Steam input process FD probe](docs/22-nova-steam-input-process-fd.md) records the native Steam process holding an open FD for that virtual event node while the AHardwareBuffer smoke passes; UI navigation is still open.
+- [Nova controlled Steam Gamepad UI input](docs/23-nova-steam-controller-ui-input.md) combines that live FD observation with an exact physical BTN_SOUTH relay; the event reaches the virtual node, but the language-selector navigation region remains unchanged.
 
 ## Recommended direction
 
@@ -79,6 +80,7 @@ the gamescope frames on its own surface.
 - [Nova physical controller dispatch](docs/20-nova-physical-controller-dispatch.md)
 - [Nova virtual gamepad udev visibility](docs/21-nova-input-udev-device-visibility.md)
 - [Nova Steam input process FD probe](docs/22-nova-steam-input-process-fd.md)
+- [Nova controlled Steam Gamepad UI input](docs/23-nova-steam-controller-ui-input.md)
 - [Retroid Pocket Nova flashing kit](tools/retroid-pocket-nova/README.md)
 
 ## Evidence standard

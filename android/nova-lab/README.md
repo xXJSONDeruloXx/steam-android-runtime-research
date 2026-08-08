@@ -147,6 +147,14 @@ the direct Valve SDL3 check, add `NOVA_INPUT_SDL3_PROBE=1` (and usually
 the process-level Steam check, `deploy-native-steam-input-fd-probe.sh` runs the
 native gamepad smoke and observes the rooted process FD table for the exact
 virtual event node; see `docs/22-nova-steam-input-process-fd.md`. For
+the combined live-session event check, `deploy-native-steam-controller-ui-input-smoke-test.sh`
+injects one physical `BTN_SOUTH`, verifies the relay's exact event marker,
+and compares the Steam UI navigation region before and after; see
+`docs/23-nova-steam-controller-ui-input.md`. Its default long profile keeps
+the visible AHardwareBuffer UI alive long enough to distinguish the animated
+localized greeting from actual selector navigation. Set
+`NOVA_CONTROLLER_UI_EXPECT_NAVIGATION=1` for a future semantic-navigation
+assertion. For
 loader-only diagnostics,
 `NOVA_STEAM_EXECUTABLE` can point at another ARM64 entry point, such as
 `steamwebhelper`, and `NOVA_STEAM_CLIENT_FLAGS` supplies its bounded arguments.

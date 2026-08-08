@@ -518,16 +518,19 @@ int main(int argc, char **argv)
         printf("android_input_socket=%s\n", socket_path);
         printf("android_input_socket_connected=pass\n");
         fflush(stdout);
-    } else if (strcmp(mode, "none") != 0 && strcmp(mode, "relay") != 0) {
+    } else if (strcmp(mode, "none") != 0 && strcmp(mode, "relay") != 0 &&
+               strcmp(mode, "relay-once") != 0) {
         fprintf(stderr, "uinput_error=unknown_mode\n");
         goto cleanup;
     }
 
     printf("uinput_relay=begin\n");
     fflush(stdout);
+    const int relay_once = strcmp(mode, "relay-once") == 0;
     struct pollfd fds[3];
     unsigned int elapsed = 0;
     int forwarded = 0;
+    int control_event = 0;
     while (elapsed < timeout_ms) {
         int count = 0;
         int source_position = -1;
@@ -567,8 +570,16 @@ int main(int argc, char **argv)
                     if (event.type == EV_KEY || event.type == EV_ABS) {
                         forwarded = 1;
                     }
+                    if (relay_once && event.type == EV_KEY &&
+                        event.code == BTN_SOUTH && event.value == 1) {
+                        control_event = 1;
+                        break;
+                    }
                 }
             }
+        }
+        if (control_event) {
+            break;
         }
         if (socket_position >= 0 &&
             (fds[socket_position].revents & (POLLIN | POLLHUP)) != 0) {
@@ -596,6 +607,9 @@ int main(int argc, char **argv)
         printf("uinput_event_forwarded=pass\n");
     } else {
         printf("uinput_event_forwarded=none\n");
+    }
+    if (control_event) {
+        printf("uinput_control_event=BTN_SOUTH\n");
     }
     if (socket_fd >= 0) {
         printf("android_key_forwarded=%s\n",
