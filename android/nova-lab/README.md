@@ -210,6 +210,13 @@ continuous libei touch bridge; see `docs/32-nova-live-manual-input-diagnosis.md`
 For loader-only diagnostics,
 `NOVA_STEAM_EXECUTABLE` can point at another ARM64 entry point, such as
 `steamwebhelper`, and `NOVA_STEAM_CLIENT_FLAGS` supplies its bounded arguments.
+When a fresh manual run's Steam DOM advances but the Android screenshot remains
+on an older page, build `build-x11-capture.sh` and run the resulting helper
+inside the active rootfs with `DISPLAY=:0`. Its `--tree` output identifies the
+Xwayland windows and `--root-ppm`/`--window-ppm` capture the pixels before
+Gamescope. Keep those captures tied to the current run ID; this is a read-only
+presentation diagnostic, not a replacement for the Android surface capture.
+See `docs/38-nova-x11-presentation-capture.md`.
 
 `deploy-holo-probe.sh` returns the Vulkan probe status but always pulls its report,
 including expected failures. Set `VULKAN_LOADER_DEBUG=all` for loader diagnostics or

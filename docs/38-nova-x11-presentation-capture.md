@@ -1,0 +1,85 @@
+# Nova X11 presentation capture diagnostic
+
+Status: diagnostic helper added 2026-08-08; rootfs/device capture still open.
+
+## Why this exists
+
+The fresh manual session `legacy-20260808T215534Z-51786` established that the
+initial language page matched between the visible Steam CDP target and the
+Android screenshot. After one real Android A-button event, the CDP target
+advanced to `/routes/oobe/1/timezone`, while the Android capture continued to
+show the language page for more than twelve seconds. Its rotating welcome text
+continued changing, so the output was live but not synchronized with the
+current Steam route. AHardwareBuffer present/release markers remained passing.
+
+That result is not enough to identify whether the stale image begins at the
+CEF/Xwayland window, in Gamescope's composition, or in the Android
+SurfaceControl presentation. The existing Android screenshot is downstream of
+all three. The capture helper in this checkpoint provides an upstream sample
+at the X11 boundary without changing focus, input, or compositor state.
+
+## Build
+
+The helper is an ARM64 Holo/glibc binary and uses the same X11 package sysroot
+as the animated X11 probe:
+
+```sh
+./android/nova-lab/build-x11-capture.sh
+sha256sum android/nova-lab/build/nova-x11-capture
+```
+
+The build is a compile/provenance check only. It does not imply that the helper
+has run on the Nova. The selected Gamescope artifact and the capture's run ID
+must still be recorded for every device result.
+
+## Capture during a fresh manual run
+
+First follow the lifecycle gate in
+[`docs/34-nova-runtime-harness-lifecycle.md`](34-nova-runtime-harness-lifecycle.md),
+start a fresh manual session with one explicit profile, and record its run ID.
+While that session is live, push the helper into the active rootfs and invoke
+it as root:
+
+```sh
+ADB=/Users/kurt/.local/bin/adb
+ROOTFS=/data/local/tmp/nova-holo-rootfs
+$ADB push android/nova-lab/build/nova-x11-capture "$ROOTFS/tmp/nova-x11-capture"
+$ADB shell su -c "chmod 755 $ROOTFS/tmp/nova-x11-capture"
+$ADB shell su -c "mkdir -p $ROOTFS/tmp/nova-x11-capture-run"
+$ADB shell su -c \
+  "chroot $ROOTFS /usr/bin/env DISPLAY=:0 /tmp/nova-x11-capture \\
+   --tree --root-ppm /tmp/nova-x11-capture-run/root.ppm"
+$ADB pull "$ROOTFS/tmp/nova-x11-capture-run/root.ppm" \
+  android/nova-lab/build/nova-x11-root.ppm
+```
+
+Use the window ID reported for the visible Steam window to add a targeted
+capture in the same invocation:
+
+```sh
+$ADB shell su -c \
+  "chroot $ROOTFS /usr/bin/env DISPLAY=:0 /tmp/nova-x11-capture \\
+   --window-ppm 0xWINDOW_ID /tmp/nova-x11-capture-run/steam.ppm"
+$ADB pull "$ROOTFS/tmp/nova-x11-capture-run/steam.ppm" \
+  android/nova-lab/build/nova-x11-steam.ppm
+```
+
+The helper prints machine-readable `nova_x11_window`, `nova_x11_tree`, and
+`nova_x11_capture=pass` records. Capture the output alongside the CDP route,
+Android screenshot SHA-256, Gamescope log, and SurfaceFlinger layer snapshot;
+do not compare it with an artifact from another run.
+
+## Interpretation order
+
+1. If the visible Steam X11 window already shows the new route while Android
+   remains old, the divergence is after the Xwayland client, narrowing the next
+   inspection to Gamescope composition or Android buffer/latch identity.
+2. If the X11 window remains on the old route while CDP reports the new route,
+   the divergence is at the CEF/Xwayland window or its damage/repaint path.
+3. If both X11 and Android captures agree, the prior discrepancy was an
+   unsynchronized capture timing issue; repeat with a frame identity marker
+   before declaring the presentation path repaired.
+
+This helper deliberately does not modify `HeadlessBackend.cpp` or `ahbbridge.c`.
+Those changes should wait until a fresh, same-run X11-versus-Android comparison
+identifies the failing boundary.
