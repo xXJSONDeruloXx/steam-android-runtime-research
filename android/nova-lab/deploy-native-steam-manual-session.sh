@@ -41,11 +41,26 @@ cleanup_remote_runtime() {
     echo "native_steam_runtime_cleanup=pass"
 }
 
+clear_app_runtime_files() {
+    if "$ADB" shell "run-as $PACKAGE sh -c 'rm -f files/nova-input.sock files/nova-touch.sock files/nova-lab-ahb-double-buffer.sock.* files/dmabuf-double-buffer-report.txt files/android-input-bridge-report.txt files/android-touch-bridge-report.txt'" \
+        >/dev/null 2>&1; then
+        echo "native_steam_app_files_cleanup=pass"
+    else
+        echo "native_steam_app_files_cleanup=fail" >&2
+        return 1
+    fi
+}
+
 stop_remote_lab() {
     local cleanup_status=0
+    local app_files_status=0
     cleanup_remote_runtime || cleanup_status=$?
     "$ADB" shell am force-stop "$PACKAGE" >/dev/null 2>&1 || true
-    return "$cleanup_status"
+    clear_app_runtime_files || app_files_status=$?
+    if [ "$cleanup_status" -ne 0 ]; then
+        return "$cleanup_status"
+    fi
+    return "$app_files_status"
 }
 
 if [ "${1:-}" = "stop" ]; then

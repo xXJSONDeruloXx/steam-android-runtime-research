@@ -82,16 +82,39 @@ kill_runtime() {
     printf '%s\n' "$pids"
 }
 
-term_pids=$(kill_runtime TERM)
-/system/bin/sleep 1
-kill_pids=$(kill_runtime KILL)
-/system/bin/sleep 1
-remaining=$(all_runtime_pids)
+term_pids=
+kill_pids=
+remaining=
+attempts=0
+while [ "$attempts" -lt 3 ]; do
+    current_term=$(kill_runtime TERM)
+    current_kill=
+    if [ -n "$term_pids" ] && [ -n "$current_term" ]; then
+        term_pids="$term_pids
+$current_term"
+    elif [ -n "$current_term" ]; then
+        term_pids=$current_term
+    fi
+    /system/bin/sleep 1
+    current_kill=$(kill_runtime KILL)
+    if [ -n "$kill_pids" ] && [ -n "$current_kill" ]; then
+        kill_pids="$kill_pids
+$current_kill"
+    elif [ -n "$current_kill" ]; then
+        kill_pids=$current_kill
+    fi
+    /system/bin/sleep 1
+    remaining=$(all_runtime_pids)
+    attempts=$((attempts + 1))
+    if [ -z "$remaining" ]; then
+        break
+    fi
+done
 
 if [ -z "$remaining" ]; then
     status=pass
 else
     status=fail
 fi
-echo "nova_runtime_cleanup=$status root=$ROOT term_pids=$(printf '%s' "$term_pids" | tr '\n' ',') kill_pids=$(printf '%s' "$kill_pids" | tr '\n' ',') remaining=$(printf '%s' "$remaining" | tr '\n' ',')"
+echo "nova_runtime_cleanup=$status root=$ROOT attempts=$attempts term_pids=$(printf '%s' "$term_pids" | tr '\n' ',') kill_pids=$(printf '%s' "$kill_pids" | tr '\n' ',') remaining=$(printf '%s' "$remaining" | tr '\n' ',')"
 [ "$status" = pass ]

@@ -120,6 +120,16 @@ cleanup_remote_runtime() {
     echo "native_steam_runtime_cleanup=pass"
 }
 
+clear_app_runtime_files() {
+    if "$ADB" shell "run-as $PACKAGE sh -c 'rm -f files/nova-input.sock files/nova-touch.sock files/nova-lab-ahb-double-buffer.sock.* files/dmabuf-double-buffer-report.txt files/android-input-bridge-report.txt files/android-touch-bridge-report.txt'" \
+        >/dev/null 2>&1; then
+        echo "controller_ui_app_files_cleanup=pass"
+    else
+        echo "controller_ui_app_files_cleanup=fail" >&2
+        return 1
+    fi
+}
+
 if [ "$INPUT_MODE" = "android-keyevent" ]; then
     export NOVA_ANDROID_INPUT_BRIDGE=1
     export NOVA_ANDROID_INPUT_KEY_ONLY=${NOVA_CONTROLLER_UI_ANDROID_KEY_ONLY:-1}
@@ -258,10 +268,14 @@ stop_remote_lab() {
     if [ "$MANUAL_SESSION" != "1" ]; then
         return
     fi
-    local cleanup_status=0
+    local cleanup_status=0 app_files_status=0
     cleanup_remote_runtime || cleanup_status=$?
     "$ADB" shell am force-stop "$PACKAGE" >/dev/null 2>&1 || true
-    return "$cleanup_status"
+    clear_app_runtime_files || app_files_status=$?
+    if [ "$cleanup_status" -ne 0 ]; then
+        return "$cleanup_status"
+    fi
+    return "$app_files_status"
 }
 cleanup_session() {
     if [ -n "${run_pid:-}" ] && kill -0 "$run_pid" 2>/dev/null; then

@@ -79,6 +79,14 @@ stale input on the next run if it remained in app storage. The deploy path now
 pulls that report before teardown and then removes it, so the acceptance gate
 can require an empty app-owned runtime-file set after every exit.
 
+The first committed manual-session stop after the live input run returned
+`remaining=10553` while Gamescope was still exiting; an immediate exact helper
+rerun returned `nova_runtime_cleanup=pass` with no residual processes. The
+device helper now performs up to three TERM/KILL/recheck cycles in one stop,
+and manual/controller teardown reports app-file cleanup separately. A
+transient process-exit race therefore remains visible while no longer causing
+the next experiment to inherit a half-dead runtime.
+
 ## Evidence and regression check
 
 The original bad state was reproduced by a fresh app session with a gray
