@@ -150,6 +150,17 @@ Xbox node, and SDL3's Xbox 360 semantic layer. It still does not prove that
 Steam's current language-selector page activates on A; the strict live Steam
 probe above remains unchanged.
 
+The same parameterized SDL3 probe also passed the rest of the corrected ABXY
+matrix, with a down/up event for each semantic button on the exact `event9`
+node:
+
+| Android key | Linux event | SDL3 button | Result |
+| --- | --- | ---: | --- |
+| `KEYCODE_BUTTON_A` (96) | `BTN_SOUTH` (304) | 0 | pass |
+| `KEYCODE_BUTTON_B` (97) | `BTN_EAST` (305) | 1 | pass |
+| `KEYCODE_BUTTON_X` (99) | `BTN_NORTH` (307) | 2 | pass |
+| `KEYCODE_BUTTON_Y` (100) | `BTN_WEST` (308) | 3 | pass |
+
 ## Visual reassessment
 
 The earlier A run used only a panel hash difference and was recorded as

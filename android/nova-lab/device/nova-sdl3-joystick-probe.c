@@ -208,6 +208,32 @@ int main(int argc, char **argv)
         int joystick_count = 0;
         int gamepad_count = 0;
 
+        if (gamepad_event_mode && expected_path != NULL) {
+            uint64_t discovery_deadline = monotonic_milliseconds() + event_timeout_ms;
+            int target_seen = 0;
+            while (monotonic_milliseconds() < discovery_deadline && !target_seen) {
+                SDL_JoystickID *probe_ids = sdl_get_gamepads(&gamepad_count);
+                if (probe_ids != NULL) {
+                    for (int index = 0; index < gamepad_count; index++) {
+                        const char *path = sdl_get_gamepad_path(probe_ids[index]);
+                        if (path != NULL && strcmp(path, expected_path) == 0) {
+                            target_seen = 1;
+                            break;
+                        }
+                    }
+                    sdl_free(probe_ids);
+                }
+                if (!target_seen) {
+                    uint64_t event_storage[16];
+                    while (sdl_poll_event(event_storage) != 0) {
+                    }
+                    usleep(10000);
+                }
+            }
+            printf("sdl3_gamepad_target_wait=%s\n", target_seen ? "pass" : "timeout");
+            fflush(stdout);
+        }
+
         joystick_ids = sdl_get_joysticks(&joystick_count);
         if (joystick_ids == NULL) {
             fprintf(stderr, "sdl3_error=get_joysticks:%s\n", sdl_get_error());
