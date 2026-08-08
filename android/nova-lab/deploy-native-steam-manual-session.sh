@@ -51,16 +51,37 @@ clear_app_runtime_files() {
     fi
 }
 
+clear_ahb_trace_state() {
+    local status=0
+    "$ADB" shell setprop debug.nova.ahb_trace 0 >/dev/null 2>&1 || status=$?
+    if ! "$ADB" shell su -c \
+        "mkdir -p $DEVICE_ROOT/opt/nova-steam; printf '0\\n' > $DEVICE_ROOT/opt/nova-steam/ahb-trace" \
+        >/dev/null 2>&1; then
+        status=1
+    fi
+    if [ "$status" -eq 0 ]; then
+        echo "native_steam_ahb_trace_reset=pass"
+    else
+        echo "native_steam_ahb_trace_reset=fail" >&2
+    fi
+    return "$status"
+}
+
 stop_remote_lab() {
     local cleanup_status=0
     local app_files_status=0
+    local trace_status=0
     cleanup_remote_runtime || cleanup_status=$?
     "$ADB" shell am force-stop "$PACKAGE" >/dev/null 2>&1 || true
     clear_app_runtime_files || app_files_status=$?
+    clear_ahb_trace_state || trace_status=$?
     if [ "$cleanup_status" -ne 0 ]; then
         return "$cleanup_status"
     fi
-    return "$app_files_status"
+    if [ "$app_files_status" -ne 0 ]; then
+        return "$app_files_status"
+    fi
+    return "$trace_status"
 }
 
 if [ "${1:-}" = "stop" ]; then

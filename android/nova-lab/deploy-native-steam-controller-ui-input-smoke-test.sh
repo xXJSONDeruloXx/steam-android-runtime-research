@@ -28,6 +28,7 @@ EXPECT_NAVIGATION=${NOVA_CONTROLLER_UI_EXPECT_NAVIGATION:-0}
 AFTER_DELAY=${NOVA_CONTROLLER_UI_AFTER_DELAY:-20}
 REQUIRE_STEAM_SURFACE=${NOVA_CONTROLLER_UI_REQUIRE_STEAM_SURFACE:-1}
 MANUAL_SESSION=${NOVA_CONTROLLER_UI_MANUAL_SESSION:-0}
+export NOVA_AHB_TRACE=${NOVA_AHB_TRACE:-0}
 if [ "$MANUAL_SESSION" = "1" ]; then
     PHYSICAL_RELAY_MODE=relay
 else
@@ -259,6 +260,7 @@ EOF
 helper_pid=
 fd_pid=
 run_pid=
+overlay_guard_pid=
 cleanup_remote_helper() {
     if [ -n "${helper_pid:-}" ]; then
         stop_remote_helper
@@ -278,6 +280,11 @@ stop_remote_lab() {
     return "$app_files_status"
 }
 cleanup_session() {
+    if [ -n "${overlay_guard_pid:-}" ] && kill -0 "$overlay_guard_pid" 2>/dev/null; then
+        kill "$overlay_guard_pid" 2>/dev/null || true
+        wait "$overlay_guard_pid" 2>/dev/null || true
+    fi
+    overlay_guard_pid=
     if [ -n "${run_pid:-}" ] && kill -0 "$run_pid" 2>/dev/null; then
         kill "$run_pid" 2>/dev/null || true
     fi
@@ -307,6 +314,23 @@ dismiss_android_overlay() {
             sleep 1
         fi
         echo "controller_ui_dismissed_overlay=com.rp.settings"
+    fi
+}
+
+overlay_guard_loop() {
+    while :; do
+        if printf '%s\n' "$(focused_window)" | rg -q 'com\.rp\.settings'; then
+            dismiss_android_overlay
+        fi
+        sleep 1
+    done
+}
+
+start_overlay_guard() {
+    if [ "$MANUAL_SESSION" = "1" ]; then
+        overlay_guard_loop &
+        overlay_guard_pid=$!
+        echo "controller_ui_overlay_guard=started pid=$overlay_guard_pid"
     fi
 }
 
@@ -418,6 +442,7 @@ done
 echo "controller_ui_source_ready=$([ "$source_ready" -eq 0 ] && echo 1 || echo 0)"
 echo "controller_ui_input_mode=$INPUT_MODE"
 echo "controller_ui_relay_ready=$([ "$helper_ready" -eq 0 ] && echo 1 || echo 0)"
+echo "controller_ui_ahb_trace=$NOVA_AHB_TRACE"
 if [ -n "$app_pid" ]; then
     echo "controller_ui_ready=$([ "$ui_ready" -eq 0 ] && echo 1 || echo 0) app_pid=$app_pid"
 else
@@ -430,6 +455,7 @@ if [ "$MANUAL_SESSION" = "1" ]; then
         # bounded runs; otherwise Android's USB chooser can consume real
         # controls and make a healthy Steam session appear unresponsive.
         dismiss_android_overlay
+        start_overlay_guard
     fi
     echo "controller_ui_manual_session=$([ "$ui_ready" -eq 0 ] && echo ready || echo not_ready)"
     set +e

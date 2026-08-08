@@ -15,11 +15,36 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/socket.h>
+#include <sys/system_properties.h>
 #include <sys/time.h>
 #include <sys/un.h>
 #include <sys/uio.h>
 #include <time.h>
 #include <unistd.h>
+
+static int
+ahb_trace_enabled(void)
+{
+    static int enabled = -1;
+    if (enabled < 0) {
+        char value[PROP_VALUE_MAX] = {0};
+        int length = __system_property_get("debug.nova.ahb_trace", value);
+        enabled = length > 0 && value[0] == '1' ? 1 : 0;
+    }
+    return enabled;
+}
+
+static void
+ahb_trace(int frame, int buffer, const char *phase, ssize_t bytes, int fence_fd,
+          int status)
+{
+    if (!ahb_trace_enabled()) {
+        return;
+    }
+    __android_log_print(ANDROID_LOG_INFO, "NovaLab",
+                        "ahb_double_buffer_trace frame=%d buffer=%d phase=%s bytes=%zd fence=%d status=%d",
+                        frame, buffer, phase, bytes, fence_fd >= 0, status);
+}
 
 /* surface_control.h exposes its ARect parameters as C++ references even when
  * included from C. Declare the API's C ABI here so the NDK C build can use the
@@ -910,6 +935,7 @@ Java_com_xjsonderulo_steamandroid_novalab_MainActivity_nativeRunDmaBufDoubleBuff
         int index = frame % 3;
         char acknowledgement[256] = {0};
         int acquire_fence_fd = -1;
+        ahb_trace(frame, index, "wait_ack", -1, -1, 0);
         if (frame < 4 || (frame % 30) == 0) {
             __android_log_print(ANDROID_LOG_INFO, "NovaLab",
                                 "ahb_double_buffer_wait_ack frame=%d buffer=%d",
@@ -924,6 +950,8 @@ Java_com_xjsonderulo_steamandroid_novalab_MainActivity_nativeRunDmaBufDoubleBuff
                 "ahb_double_buffer_ack_result frame=%d buffer=%d bytes=%zd fence=%d",
                 frame, index, acknowledgement_bytes, acquire_fence_fd >= 0);
         }
+        ahb_trace(frame, index, "ack_received", acknowledgement_bytes,
+                  acquire_fence_fd, acknowledgement_bytes > 0 ? 0 : -1);
         append_line(report, sizeof(report), &used,
                     "ahb_double_buffer_frame=%d buffer=%d ack_bytes=%zd ack=%s",
                     frame, index, acknowledgement_bytes,
@@ -963,6 +991,8 @@ Java_com_xjsonderulo_steamandroid_novalab_MainActivity_nativeRunDmaBufDoubleBuff
                 "ahb_double_buffer_present_result frame=%d pass=%d previous_release=%d",
                 frame, frame_pass, previous_release_fence_fd >= 0);
         }
+        ahb_trace(frame, index, "surface_present", -1,
+                  previous_release_fence_fd, frame_pass ? 0 : -1);
         if (!frame_pass) {
             if (previous_release_fence_fd >= 0) {
                 close(previous_release_fence_fd);
@@ -989,6 +1019,8 @@ Java_com_xjsonderulo_steamandroid_novalab_MainActivity_nativeRunDmaBufDoubleBuff
                     "ahb_double_buffer_release_result frame=%d buffer=%d status=%d",
                     frame, previous_index, release_status);
             }
+            ahb_trace(frame, previous_index, "release_sent", -1, -1,
+                      release_status);
             append_line(report, sizeof(report), &used,
                         "ahb_double_buffer_release_%d=%s buffer=%d\n", frame,
                         release_status == 0 ? "sent" : "failed",

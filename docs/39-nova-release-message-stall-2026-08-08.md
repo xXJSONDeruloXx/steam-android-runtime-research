@@ -66,3 +66,12 @@ receipt, SurfaceControl previous-release FD, release-message send, and
 Gamescope release-message receive. Each record must include the fresh run ID.
 The next run should also batch root-side diagnostics and verify/dismiss the
 settings overlay before every controlled input event.
+
+The diagnostic checkpoint now implements that gate without changing buffer
+ownership: set `NOVA_AHB_TRACE=1` on a fresh run. The launcher records the flag
+in run metadata, configures `debug.nova.ahb_trace`, and emits per-frame phase
+records from both sides of the bridge. Gamescope records release wait,
+release-message receipt, fence completion, composition, and ACK send phases;
+the Android app records ACK wait/receipt, SurfaceControl present, and release
+send phases. Manual sessions also run an exact-scope focus guard that dismisses
+the settings USB chooser if it reappears.
