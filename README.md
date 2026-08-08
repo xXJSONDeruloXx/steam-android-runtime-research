@@ -7,7 +7,8 @@ Status: evidence gathered through 2026-08-08.
 ## Bottom line
 
 No previous Android-app attempt has reached the actual Steam login/library on Android. The Nova lab now
-reaches the pre-login Steam Gamepad UI welcome screen through Android presentation, while the current
+reaches the pre-login Steam Gamepad UI and the live Steam DOM reaches `/login`, but Android presentation
+still has an unresolved stale-frame synchronization gate; the current
 ARM handheld Linux ecosystem has moved further than the earlier experiments:
 Valve's ARM64 client and Steam runtime are directly reachable from live distribution endpoints, and
 Armada/PockNix document complete native-ARM64 Steam + gamescope sessions on supported Snapdragon

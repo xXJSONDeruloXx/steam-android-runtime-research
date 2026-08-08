@@ -130,3 +130,21 @@ the hidden prerequisite for the next one.
 If a future run reports gray output or stale Steam readiness, inspect the
 cleanup marker and the launch artifact identity before changing presentation,
 input, or Steam code.
+
+## Presentation-state evidence gate
+
+The manual run `legacy-20260808T214306Z-51077` established a second stale-
+evidence pattern that is distinct from stale processes and stale Steam logs.
+The current visible Steam DOM reached `/login` and reported `Waiting for
+network...`, while device captures from the same 1280x960 Android surface
+alternated between the current network OOBE page and an older timezone OOBE
+page. AHardwareBuffer present callbacks and release fences continued to pass,
+so a successful present callback alone does not prove that the displayed image
+is the frame associated with the current Steam state.
+
+For any future UI acceptance result, record the run ID in the source/log/DOM
+evidence and add an explicit frame-identity or visual-checksum correlation
+between Gamescope output, the `Nova double-buffer Linux image loop` layer, and
+the Android capture. Do not use a screenshot to claim login/input success when
+the DOM and screenshot disagree; stop, clean, and repeat with one presentation
+variable changed.

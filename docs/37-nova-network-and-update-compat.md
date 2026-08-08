@@ -128,3 +128,60 @@ now also awaits `SetOOBEStage2Complete()` because Nova does not implement the
 Deck-specific stage-2 hardware/audio screens. Login remains an open
 acceptance gate until a fresh run verifies this scoped stage-2 completion and
 reaches the login surface.
+
+## Fresh stage-2 and login-route observation
+
+The fresh manual session `legacy-20260808T214306Z-51077` started at
+`2026-08-08T21:43:06Z` with the same explicit Gamescope artifact and
+`1280x960`/libei/Android-key-event profile:
+
+```text
+gamescope_sha256=93f4807d55e4ad95e8cbd7c1622f97c3ccd7781952aec3b08cd44ee64a449e8f
+gamescope_source_commit=fb9f84ee247a1f02b1a132da60e94585db84bf61
+fullscreen_presentation=1
+force_gpu_composition=0
+```
+
+The fresh Steam webhelper log recorded the intended completion sequence:
+
+```text
+SteamUI: WARNING: SetOOBEComplete
+SteamUI: WARNING: OOBE Stage 2: completed
+SteamUI: WARNING: No restart requested
+SteamUI: INFO: Login: OnLoginStateChange  1 1 0 0
+```
+
+A DevTools query of the visible `Steam Big Picture Mode` target then returned
+the Steam root page with body text `Waiting for network...`; the shared login
+context was at `https://steamloopback.host/routes/login`. No new
+`/login blocked` record appeared. The input path remained independently
+confirmed: Android `KEYCODE_DPAD_DOWN` (`linux_code=545`, `BTN_DPAD_DOWN`) and
+`KEYCODE_BUTTON_A` (`linux_code=304`, `BTN_SOUTH`) reached the relay, and the
+Steam process FD probe still found `/dev/input/event9`.
+
+This run exposed a separate presentation-evidence failure. The Android
+capture did not stay synchronized with the visible Steam DOM: captures with
+the same 1280x960 surface alternated between the network OOBE page and an
+older timezone OOBE page. The observed SHA-256 values were:
+
+```text
+current-login-after-wait.png  5be83c0e596806961872be26c03de259cdea4266d38df714cf600b5cd23ca8e2  Choose your network
+current-login-latest.png      263e2dcfb4dddd7c24bd6c506f4067432c46bcecc8e6bf55cd4c436497dcdc4f  Choose your timezone
+current-login-sample-0.png    5be83c0e596806961872be26c03de259cdea4266d38df714cf600b5cd23ca8e2  Choose your network
+current-login-sample-1.png    263e2dcfb4dddd7c24bd6c506f4067432c46bcecc8e6bf55cd4c436497dcdc4f  Choose your timezone
+current-login-sample-2.png    263e2dcfb4dddd7c24bd6c506f4067432c46bcecc8e6bf55cd4c436497dcdc4f  Choose your timezone
+```
+
+This is not evidence that the network probe failed. SurfaceFlinger showed the
+Nova child layer at `1280x960` with device composition, and the app continuously
+reported `ahb_double_buffer_present_result ... pass=1 previous_release=1`
+through frame 4050. The session stopped with
+`nova_runtime_cleanup=pass`, `native_steam_runtime_cleanup=pass`, and
+`native_steam_app_files_cleanup=pass`.
+
+The next presentation experiment must therefore add a source-to-screen frame
+identity check (or a per-present visual checksum) and correlate it with the
+Gamescope output and the `Nova double-buffer Linux image loop` layer before
+claiming that the login controls are visible. Until that gate passes, the
+login route is logically reached but the Android screenshot is not a trusted
+representation of the active Steam page.
