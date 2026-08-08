@@ -113,13 +113,12 @@ The target should not be considered proven until all of these work on one device
   now has a repeatable `/dev/input/event7` to `/dev/uinput` relay that creates a
   readable virtual Xbox-style device and forwards a deterministic evdev event
   while the native Steam/AHardwareBuffer smoke passes; see [doc 18](18-nova-uinput-gamepad-smoke.md).
-  The next app-side seam now also passes: Android enumerates the attached Xbox
+  The app-side seam also passes: Android enumerates the attached Xbox
   controller, dispatches a deterministic key event through an abstract socket,
   and the rooted helper maps it into the virtual device; see [doc 19](19-nova-android-input-uinput-bridge.md).
-  Physical controller dispatch now also passes through the Android activity and
-  rooted bridge; see [doc 20](20-nova-physical-controller-dispatch.md). Steam
-  device enumeration and UI navigation remain open. The lower-level Holo
-  `libudev`/uid-501 prerequisite passes independently; see [doc 21](21-nova-input-udev-device-visibility.md).
+  Physical controller dispatch passes through the Android activity and rooted
+  bridge; see [doc 20](20-nova-physical-controller-dispatch.md). The lower-level
+  Holo `libudev`/uid-501 prerequisite passes independently; see [doc 21](21-nova-input-udev-device-visibility.md).
   The next bounded native-session check now finds the actual Steam ARM64
   process holding an open FD for the virtual event node while the full
   AHardwareBuffer smoke passes; see [doc 22](22-nova-steam-input-process-fd.md).
@@ -129,12 +128,10 @@ The target should not be considered proven until all of these work on one device
   animates through localized strings; see [doc 23](23-nova-steam-controller-ui-input.md).
   A follow-up with Linux `BTN_DPAD_DOWN` (code 545) reaches the same virtual
   node and Steam FD, but the selector remains unchanged under the explicit
-  navigation assertion; see [doc 24](24-nova-steam-dpad-input.md). This
-  rejects the narrow hypothesis that only the A-button mapping was wrong.
-  The app-side follow-up now drives the same `BTN_DPAD_DOWN` through
-  `Activity.dispatchKeyEvent` and an abstract socket, with key-only isolation;
-  the exact mapping, virtual node, Steam FD, and presentation all pass, but the
-  selector still remains unchanged. See [doc 25](25-nova-android-input-steam-ui.md).
+  navigation assertion; see [doc 24](24-nova-steam-dpad-input.md). The earlier
+  Android comparison in [doc 25](25-nova-android-input-steam-ui.md) has the same
+  historical status; both predate the exact-path and strict visual-gate
+  hardening.
   A direct check against Valve's shipped SDL3 now discovers and opens the
   virtual node and receives an event whose SDL instance ID matches that node;
   see [doc 26](26-nova-sdl3-event-input.md). The first name-based result was
@@ -144,8 +141,11 @@ The target should not be considered proven until all of these work on one device
   The exact-path live-session follow-up now also proves Steam's own consumer
   accepts physical `BTN_DPAD_DOWN` and changes the Gamepad UI navigation panel;
   see [doc 28](28-nova-steam-dpad-navigation.md). The Android app dispatch and
-  socket variant now also passes and changes the live panel; see [doc 29](29-nova-android-input-steam-ui-navigation.md).
-  Broader controls, login, and game launch remain open.
+  socket variant now also passes and changes the live panel under the strict
+  Steam-surface gate; see [doc 29](29-nova-android-input-steam-ui-navigation.md).
+  The corrected ABXY table and virtual-device feedback-loop filter are in [doc
+  30](30-nova-android-a-button-navigation.md); A-button UI activation,
+  broader controls, login, and game launch remain open.
 - Can the Nova expose hardware GLX/CEF for Steam? The bounded `msm` probe keeps
   Gamescope's Turnip/AHardwareBuffer side alive but Steam exits before CEF with
   `SIGILL`; an explicit `freedreno` Gallium profile instead fails at `drisw`

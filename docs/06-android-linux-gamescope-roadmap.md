@@ -127,22 +127,11 @@ socket into the same rooted virtual device; [doc 19](19-nova-android-input-uinpu
   records the accepted end-to-end bridge. [Doc 20](20-nova-physical-controller-dispatch.md)
   then proves a rooted evdev event is dispatched by Android as a controller-class
   `KeyEvent`. [Doc 21](21-nova-input-udev-device-visibility.md) proves the
-  virtual node is discoverable through Holo `libudev` and readable by uid 501;
-  Steam enumeration and actual navigation are now covered by the exact-path
-  live-session check in [Doc 28](28-nova-steam-dpad-navigation.md).
-  [Doc 23](23-nova-steam-controller-ui-input.md) now combines the live Steam FD
-  observation with an exact physical BTN_SOUTH event and a before/after
-  selector-region comparison. The relay and FD pass, but the selector remains
-  unchanged, so Steam Input/Gamepad UI consumption is still the next gate.
-  [Doc 24](24-nova-steam-dpad-input.md) repeats that session with
-  `BTN_DPAD_DOWN`; the event reaches the virtual node and the native Steam FD,
-  but the selector is still unchanged. The next investigation should therefore
-  move above uinput creation toward Steam's higher-level input path or an
-  alternative compositor/keyboard route.
-  [Doc 25](25-nova-android-input-steam-ui.md) moves the same semantic event
-  through the Android app's `dispatchKeyEvent` and abstract socket, with
-  generic-motion forwarding disabled. The app bridge and exact Linux mapping
-  pass in the live session, but SteamUI navigation remains unproven.
+  virtual node is discoverable through Holo `libudev` and readable by uid 501.
+  The earlier [Doc 23](23-nova-steam-controller-ui-input.md), [Doc
+  24](24-nova-steam-dpad-input.md), and [Doc 25](25-nova-android-input-steam-ui.md)
+  runs remain historical transport comparisons: their selector hashes were
+  unchanged or were captured before the exact-path and visual-gate hardening.
   [Doc 26](26-nova-sdl3-event-input.md) records the first Valve SDL3 joystick
   event experiment and the duplicate-node target-selection pitfall. [Doc
   27](27-nova-sdl3-gamepad-event.md) is the accepted follow-up: it passes the
@@ -152,8 +141,11 @@ socket into the same rooted virtual device; [doc 19](19-nova-android-input-uinpu
   `BTN_DPAD_DOWN` changes the live Gamepad UI navigation panel while Steam
   holds the matching event FD. [Doc 29](29-nova-android-input-steam-ui-navigation.md)
   repeats the same acceptance through `MainActivity.dispatchKeyEvent` and the
-  app socket. Broader button, axis, rumble, login, and game-launch checks
-  remain open.
+  app socket, with a strict Steam-surface visual gate. [Doc
+  30](30-nova-android-a-button-navigation.md) corrects the Android ABXY
+  mapping and closes the virtual-device feedback loop, but A-button UI
+  activation is still open. Broader button, axis, rumble, login, and
+  game-launch checks remain open.
 
 ### Rootless stage 3: user-space Steam session supervision
 
