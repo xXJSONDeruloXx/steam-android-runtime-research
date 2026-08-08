@@ -177,8 +177,8 @@ clear_app_runtime_files() {
 set_ahb_trace_state() {
     local value=$1 status=0
     "$ADB" shell setprop debug.nova.ahb_trace "$value" >/dev/null 2>&1 || status=$?
-    if ! "$ADB" shell su -c \
-        "mkdir -p $DEVICE_ROOT/opt/nova-steam; printf '%s\\n' '$value' > $DEVICE_ROOT/opt/nova-steam/ahb-trace" \
+    if ! "$ADB" shell \
+        "su -c 'mkdir -p $DEVICE_ROOT/opt/nova-steam; printf \"%s\\n\" \"$value\" > $DEVICE_ROOT/opt/nova-steam/ahb-trace'" \
         >/dev/null 2>&1; then
         status=1
     fi
@@ -201,8 +201,9 @@ trap cleanup_on_exit EXIT
     fi
     echo "gamescope_input_emulation=${NOVA_GAMESCOPE_INPUT_EMULATION:-unset}"
     echo "gamescope_source_tree=${GAMESCOPE_HEADLESS_SOURCE:-unset}"
-    if [ -n "${GAMESCOPE_HEADLESS_SOURCE:-}" ] && [ -d "$GAMESCOPE_HEADLESS_SOURCE/.git" ]; then
-    echo "gamescope_source_commit=$(git -C "$GAMESCOPE_HEADLESS_SOURCE" rev-parse HEAD)"
+    if [ -n "${GAMESCOPE_HEADLESS_SOURCE:-}" ] && \
+        git -C "$GAMESCOPE_HEADLESS_SOURCE" rev-parse --git-dir >/dev/null 2>&1; then
+        echo "gamescope_source_commit=$(git -C "$GAMESCOPE_HEADLESS_SOURCE" rev-parse HEAD)"
     else
         echo "gamescope_source_commit=unknown"
     fi
