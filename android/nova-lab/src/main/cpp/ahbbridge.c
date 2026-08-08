@@ -381,7 +381,7 @@ create_bridge_server(const char *socket_path)
     };
     strcpy(address.sun_path, socket_path);
     unlink(socket_path);
-    int server = socket(AF_UNIX, SOCK_STREAM, 0);
+    int server = socket(AF_UNIX, SOCK_SEQPACKET, 0);
     if (server < 0 || bind(server, (struct sockaddr *)&address,
                            sizeof(address)) != 0 || listen(server, 1) != 0) {
         if (server >= 0) {
@@ -567,7 +567,7 @@ Java_com_xjsonderulo_steamandroid_novalab_MainActivity_nativeRunDmaBufBridge(
     };
     strcpy(address.sun_path, socket_path);
     unlink(socket_path);
-    server = socket(AF_UNIX, SOCK_STREAM, 0);
+    server = socket(AF_UNIX, SOCK_SEQPACKET, 0);
     append_line(report, sizeof(report), &used, "socket_status=%d\n", server >= 0 ? 0 : -1);
     if (server < 0 || bind(server, (struct sockaddr *)&address, sizeof(address)) != 0) {
         append_line(report, sizeof(report), &used, "socket_bind_status=%d\n", server < 0 ? -1 : -2);

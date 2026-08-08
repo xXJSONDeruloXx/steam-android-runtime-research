@@ -210,9 +210,21 @@ trap cleanup_on_exit EXIT
     echo "gamescope_source_tree=${GAMESCOPE_HEADLESS_SOURCE:-unset}"
     if [ -n "${GAMESCOPE_HEADLESS_SOURCE:-}" ] && \
         git -C "$GAMESCOPE_HEADLESS_SOURCE" rev-parse --git-dir >/dev/null 2>&1; then
+        source_status=$(git -C "$GAMESCOPE_HEADLESS_SOURCE" \
+            status --porcelain=v1 --untracked-files=all)
+        source_submodules=$(git -C "$GAMESCOPE_HEADLESS_SOURCE" \
+            submodule status --recursive 2>/dev/null || true)
         echo "gamescope_source_commit=$(git -C "$GAMESCOPE_HEADLESS_SOURCE" rev-parse HEAD)"
+        echo "gamescope_source_dirty=$([ -n "$source_status" ] && echo 1 || echo 0)"
+        echo "gamescope_source_status_sha256=$(printf '%s' "$source_status" | shasum -a 256 | awk '{print $1}')"
+        echo "gamescope_source_diff_sha256=$(git -C "$GAMESCOPE_HEADLESS_SOURCE" diff --binary HEAD | shasum -a 256 | awk '{print $1}')"
+        echo "gamescope_source_submodules_sha256=$(printf '%s' "$source_submodules" | shasum -a 256 | awk '{print $1}')"
     else
         echo "gamescope_source_commit=unknown"
+        echo "gamescope_source_dirty=unknown"
+        echo "gamescope_source_status_sha256=unknown"
+        echo "gamescope_source_diff_sha256=unknown"
+        echo "gamescope_source_submodules_sha256=unknown"
     fi
     echo "fullscreen_presentation=${NOVA_FULLSCREEN_PRESENTATION:-0}"
     echo "force_gpu_composition=${NOVA_FORCE_GPU_COMPOSITION:-unset}"
@@ -225,7 +237,10 @@ if [ "${NOVA_REQUIRE_GAMESCOPE_PROVENANCE:-0}" = "1" ]; then
     if ! rg -q '^gamescope_binary_sha256=[0-9a-f]{64}$' "$METADATA" || \
         ! rg -q '^nova_apk_sha256=[0-9a-f]{64}$' "$METADATA" || \
         ! rg -q '^gamescope_source_tree=[^u].+' "$METADATA" || \
-        ! rg -q '^gamescope_source_commit=[0-9a-f]{40}$' "$METADATA"; then
+        ! rg -q '^gamescope_source_commit=[0-9a-f]{40}$' "$METADATA" || \
+        ! rg -q '^gamescope_source_status_sha256=[0-9a-f]{64}$' "$METADATA" || \
+        ! rg -q '^gamescope_source_diff_sha256=[0-9a-f]{64}$' "$METADATA" || \
+        ! rg -q '^gamescope_source_submodules_sha256=[0-9a-f]{64}$' "$METADATA"; then
         echo "missing required Gamescope provenance" >&2
         exit 1
     fi
