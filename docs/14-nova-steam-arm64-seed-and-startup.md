@@ -1,6 +1,6 @@
 # Nova native ARM64 Steam seed and startup
 
-Test date: 2026-08-07
+Test date: 2026-08-08
 Device: Retroid Pocket Nova, `kalama`, Snapdragon/Adreno 740
 ADB serial: `675a2365`
 
@@ -199,6 +199,70 @@ bootstrapper HTTP-client teardown and child-process launch rather than add
 another unverified library blindly. Login, persistent Gamepad UI, controller
 input, and a presented Steam frame remain open gates.
 
+## Non-root host and webhelper startup
+
+Running the completed tree as the Steam-style non-root account produced a
+different and more useful boundary than the root launch. The seed deployer can
+make this choice reproducible with `NOVA_STEAM_UID` and `NOVA_STEAM_GID`; the
+control reads the resulting `/opt/nova-steam/run-as-user` marker and drops from
+the root Holo launcher to that uid before starting Steam:
+
+```sh
+NOVA_STEAM_UID=501 NOVA_STEAM_GID=20 \
+  android/nova-lab/deploy-steam-arm64-seed.sh
+
+NOVA_AHB_FRAME_COUNT=5 \
+NOVA_STEAM_CLIENT_TIMEOUT=45 \
+NOVA_STEAM_GAMESCOPE_TIMEOUT=75 \
+  android/nova-lab/deploy-native-steam-smoke-test.sh
+```
+
+The accepted bounded run recorded:
+
+```text
+client_uid=501
+client_gid=20
+client_started=pass
+client_status=124
+client_timeout=expected
+client_installed=pass
+native_steam_smoke=pass
+```
+
+Unlike the earlier root run, the Steam parent stayed alive for the full client
+budget and generated the normal host/UI logs. The strongest startup evidence is
+in `steamui_html.txt`:
+
+```text
+Started webhelper process 16548
+CreateBrowser id:1820017951 type:12 ...
+CreateResponse: ... handle:65536
+BrowserReady: handle:65536
+```
+
+The same run produced a Chromium DevTools endpoint, a GPU report identifying
+Mesa `softpipe` under X11, and a live IPv4 connectivity test to Steam. This is
+the first proof that the native ARM64 Steam parent can launch its CEF helper and
+create a browser in the Android/Xwayland environment. It is still not a final
+Steam UI result: the SteamUI websocket could not connect back to the host, no
+presented Steam frame was observed, and the bounded timeout terminated the
+session.
+
+The remaining environmental errors are now concrete rather than speculative:
+
+```text
+XDG_RUNTIME_DIR ... is not owned by us (uid 501), but by uid 0
+Cannot spawn a message bus without a machine-id
+.../steamrtarm32/gldriverquery: No such file or directory
+.../steamrtarm32/vulkandriverquery: No such file or directory
+```
+
+The current run also still reports expected disposable-rootfs limitations such
+as no system SteamOS D-Bus service, `lspci`, `xwininfo`, or XRandR output
+backend. These do not prevent the helper from reaching `BrowserReady`. The
+large raw client and helper logs are pulled into ignored
+`android/nova-lab/build/` files for diagnosis and are not committed.
+
 ## Normal bootstrap/update boundary
 
 The `skip` smoke mode above is useful for fast ABI and compositor checks, but it
@@ -274,8 +338,10 @@ android/nova-lab/deploy-gamescope-headless-ahb-test.sh || true
 ```
 
 The diagnostic exits after the helper terminates because no hosted Steam window
-can produce the normal AHardwareBuffer frame markers; the client logs remain in
-`android/nova-lab/build/` after the run.
+can produce the normal AHardwareBuffer frame markers. For this direct helper
+case, pull the device logs explicitly if they are needed for diagnosis; the
+hosted native-client wrapper automatically collects its bounded client logs in
+`android/nova-lab/build/`.
 
 The direct executable smoke produced:
 
