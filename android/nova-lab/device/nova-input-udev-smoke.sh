@@ -9,7 +9,10 @@ SOURCE="${4:-/dev/input/event7}"
 RELAY_TIMEOUT="${5:-10000}"
 OUT="${6:-/data/local/tmp/nova-input-udev-report.txt}"
 WORK="${7:-/data/local/tmp/nova-input-udev-work}"
+UDEVD_MODE="${8:-disabled}"
 helper_pid=
+udevd_pid=
+udevd_started=0
 status=0
 
 mkdir -p "${OUT%/*}" "$WORK" "$ROOT/tmp"
@@ -18,6 +21,13 @@ cleanup() {
     if [ -n "$helper_pid" ]; then
         /system/bin/kill "$helper_pid" >/dev/null 2>&1 || true
         wait "$helper_pid" >/dev/null 2>&1 || true
+    fi
+    if [ "$udevd_started" -eq 1 ]; then
+        /system/bin/chroot "$ROOT" /usr/bin/udevadm control --exit >/dev/null 2>&1 || true
+    fi
+    if [ -n "$udevd_pid" ]; then
+        /system/bin/kill "$udevd_pid" >/dev/null 2>&1 || true
+        wait "$udevd_pid" >/dev/null 2>&1 || true
     fi
     /system/bin/umount -l "$ROOT/proc" >/dev/null 2>&1 || true
     /system/bin/umount -l "$ROOT/sys" >/dev/null 2>&1 || true
@@ -35,6 +45,24 @@ trap cleanup EXIT
 mount_one /dev "$ROOT/dev"
 mount_one /sys "$ROOT/sys"
 mount_one /proc "$ROOT/proc"
+
+UDEVD_LOG="$WORK/udevd.log"
+if [ "$UDEVD_MODE" = "enabled" ]; then
+    mkdir -p "$ROOT/run/udev"
+    /system/bin/chroot "$ROOT" /usr/lib/systemd/systemd-udevd \
+        --resolve-names=never >"$UDEVD_LOG" 2>&1 &
+    udevd_pid=$!
+    /system/bin/sleep 0.5
+    if /system/bin/kill -0 "$udevd_pid" >/dev/null 2>&1; then
+        udevd_started=1
+        udevd_status=pass
+    else
+        udevd_status=fail
+        status=1
+    fi
+else
+    udevd_status=disabled
+fi
 
 HELPER_LOG="$WORK/helper.log"
 PROBE_LOG="$WORK/probe.log"
@@ -63,6 +91,12 @@ else
     {
         echo "udev_smoke_source=$SOURCE"
         echo "udev_smoke_virtual_device=$virtual_path"
+        echo "udev_smoke_udevd=$udevd_status"
+        if [ "$udevd_status" != "disabled" ]; then
+            echo "udev_smoke_udevd_log_begin"
+            cat "$UDEVD_LOG" 2>/dev/null || true
+            echo "udev_smoke_udevd_log_end"
+        fi
         echo "udev_smoke_helper_begin"
         cat "$HELPER_LOG"
         echo "udev_smoke_helper_end"
@@ -71,7 +105,11 @@ else
         echo "udev_smoke_probe_end"
         echo "udev_smoke_probe_status=$probe_status"
     } >"$OUT"
-    status=$probe_status
+    if [ "$probe_status" -ne 0 ] || [ "$udevd_status" = "fail" ]; then
+        status=1
+    else
+        status=0
+    fi
 fi
 
 exit "$status"

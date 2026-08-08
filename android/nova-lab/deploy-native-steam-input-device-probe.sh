@@ -15,6 +15,7 @@ HELPER=${NOVA_UINPUT_GAMEPAD_RELAY:-$BUILD_DIR/nova-uinput-gamepad-relay}
 PROBE=${NOVA_INPUT_UDEV_PROBE:-$BUILD_DIR/nova-input-udev-probe}
 SOURCE_EVENT=${NOVA_STEAM_GAMEPAD_SOURCE:-/dev/input/event7}
 RELAY_TIMEOUT=${NOVA_INPUT_UDEV_RELAY_TIMEOUT:-10000}
+UDEVD_MODE=${NOVA_INPUT_UDEV_MODE:-disabled}
 REPORT="$BUILD_DIR/nova-input-udev-report.txt"
 
 if [ ! -x "$HELPER" ]; then
@@ -36,7 +37,7 @@ rm -f "$REPORT"
 "$ADB" shell su -c "chmod 755 $DEVICE_HELPER $DEVICE_PROBE $DEVICE_SCRIPT"
 
 set +e
-"$ADB" shell su -c "/system/bin/sh $DEVICE_SCRIPT $DEVICE_ROOT /opt/nova-kgsl-driver/nova-uinput-gamepad-relay /opt/nova-kgsl-driver/nova-input-udev-probe $SOURCE_EVENT $RELAY_TIMEOUT $DEVICE_REPORT" >/dev/null
+"$ADB" shell su -c "/system/bin/sh $DEVICE_SCRIPT $DEVICE_ROOT /opt/nova-kgsl-driver/nova-uinput-gamepad-relay /opt/nova-kgsl-driver/nova-input-udev-probe $SOURCE_EVENT $RELAY_TIMEOUT $DEVICE_REPORT /data/local/tmp/nova-input-udev-work $UDEVD_MODE" >/dev/null
 run_status=$?
 set -e
 "$ADB" pull "$DEVICE_REPORT" "$REPORT" >/dev/null 2>&1 || true
@@ -58,6 +59,16 @@ for marker in \
         exit 1
     fi
 done
+if [ "$UDEVD_MODE" = "enabled" ]; then
+    for marker in \
+        'udev_smoke_udevd=pass' \
+        'udev_virtual_id_input_joystick=1'; do
+        if ! rg -q -- "$marker" "$REPORT"; then
+            echo "missing enabled udev marker: $marker" >&2
+            exit 1
+        fi
+    done
+fi
 
 echo "report: $REPORT"
 echo "native_steam_input_device_probe=pass"

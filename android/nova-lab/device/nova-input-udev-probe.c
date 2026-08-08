@@ -107,6 +107,12 @@ int main(int argc, char **argv)
         const char *sysname;
         const char *devnode;
         const char *name;
+        const char *id_input_joystick;
+        const char *id_input_gamepad;
+        const char *id_vendor;
+        const char *id_model;
+        const char *sys_vendor;
+        const char *sys_product;
         struct udev_device *parent;
 
         if (syspath == NULL) {
@@ -124,12 +130,33 @@ int main(int argc, char **argv)
         parent = udev_device_get_parent(device);
         name = parent == NULL ? NULL : udev_device_get_sysattr_value(parent, "name");
         if (sysname != NULL && name != NULL && strcmp(name, expected_name) == 0) {
+            id_input_joystick = udev_device_get_property_value(device, "ID_INPUT_JOYSTICK");
+            id_input_gamepad = udev_device_get_property_value(device, "ID_INPUT_GAMEPAD");
+            id_vendor = udev_device_get_property_value(device, "ID_VENDOR_ID");
+            id_model = udev_device_get_property_value(device, "ID_MODEL_ID");
+            sys_vendor = parent == NULL ? NULL : udev_device_get_sysattr_value(parent, "id/vendor");
+            sys_product = parent == NULL ? NULL : udev_device_get_sysattr_value(parent, "id/product");
             snprintf(discovered_path, sizeof(discovered_path), "/dev/input/%s", sysname);
             discovered = 1;
             printf("udev_virtual_sysfs=pass\n");
             printf("udev_virtual_sysname=%s\n", sysname);
             printf("udev_virtual_devnode=%s\n", devnode != NULL ? devnode : "missing");
             printf("udev_virtual_name=%s\n", name);
+            printf("udev_virtual_id_input_joystick=%s\n",
+                   id_input_joystick != NULL ? id_input_joystick : "missing");
+            printf("udev_virtual_id_input_gamepad=%s\n",
+                   id_input_gamepad != NULL ? id_input_gamepad : "missing");
+            printf("udev_virtual_id_vendor_id=%s\n",
+                   id_vendor != NULL ? id_vendor : "missing");
+            printf("udev_virtual_id_model_id=%s\n",
+                   id_model != NULL ? id_model : "missing");
+            printf("udev_virtual_sysfs_vendor=%s\n",
+                   sys_vendor != NULL ? sys_vendor : "missing");
+            printf("udev_virtual_sysfs_product=%s\n",
+                   sys_product != NULL ? sys_product : "missing");
+            printf("udev_virtual_properties=%s\n",
+                   id_input_joystick != NULL || id_input_gamepad != NULL ||
+                           id_vendor != NULL || id_model != NULL ? "present" : "missing");
         }
         udev_device_unref(device);
     }

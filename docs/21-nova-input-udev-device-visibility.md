@@ -48,6 +48,28 @@ This proves that the rooted Linux session can create a virtual controller,
 discover it through the Holo `libudev`/sysfs path, and make it readable by the
 same non-root uid used by the native Steam launcher.
 
+The probe also records whether the udev database supplies `ID_INPUT_JOYSTICK`,
+`ID_INPUT_GAMEPAD`, vendor, and model properties. Those properties are
+diagnostic context, not part of the current pass condition: a node can be
+visible and readable while still lacking the metadata that HIDAPI expects.
+
+Set `NOVA_INPUT_UDEV_MODE=enabled` for the experimental comparison that starts
+Holo's `systemd-udevd` inside the same namespace before creating the virtual
+device. The default remains `disabled` so the baseline does not claim a udev
+service is required. The enabled comparison adds these observed markers:
+
+```text
+udev_smoke_udevd=pass
+udev_virtual_id_input_joystick=1
+udev_virtual_id_input_gamepad=missing
+udev_virtual_properties=present
+```
+
+The Holo rules therefore classify the node as a joystick once a udev daemon is
+running, but they do not supply the complete gamepad/vendor property set in
+this Android-backed session. That is a concrete follow-up for Steam HIDAPI,
+not a reason to claim Steam navigation yet.
+
 It does not yet prove that Steam's HIDAPI enumerator accepts the device, that
 Steam Input maps it, or that Gamepad UI navigation changes state. The probe is
 the next diagnostic boundary before adding udev rules or a udev daemon to the
