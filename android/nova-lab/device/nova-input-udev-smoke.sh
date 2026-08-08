@@ -10,6 +10,8 @@ RELAY_TIMEOUT="${5:-10000}"
 OUT="${6:-/data/local/tmp/nova-input-udev-report.txt}"
 WORK="${7:-/data/local/tmp/nova-input-udev-work}"
 UDEVD_MODE="${8:-disabled}"
+SDL_PROBE="${9:-}"
+SDL_LIBRARY="${10:-/opt/nova-steam/home/.local/share/Steam/steamrtarm64/libSDL3.so.0}"
 helper_pid=
 udevd_pid=
 udevd_started=0
@@ -85,6 +87,16 @@ if [ -z "$virtual_path" ] || [ ! -e "$ROOT$virtual_path" ]; then
     echo "udev_smoke_error=virtual_device_timeout" >"$OUT"
     status=1
 else
+    sdl_status=0
+    SDL_LOG="$WORK/sdl3.log"
+    if [ -n "$SDL_PROBE" ]; then
+        SDL_LIBRARY_DIR=${SDL_LIBRARY%/*}
+        LD_LIBRARY_PATH="$SDL_LIBRARY_DIR:/usr/lib"
+        /system/bin/chroot "$ROOT" /usr/bin/env -i PATH=/usr/bin:/bin HOME=/tmp \
+            LD_LIBRARY_PATH="$LD_LIBRARY_PATH" "$SDL_PROBE" "$SDL_LIBRARY" \
+            "Nova Virtual Xbox Controller" >"$SDL_LOG" 2>&1
+        sdl_status=$?
+    fi
     /system/bin/chroot "$ROOT" /usr/bin/env -i PATH=/usr/bin:/bin HOME=/tmp \
         "$PROBE" "Nova Virtual Xbox Controller" "$virtual_path" >"$PROBE_LOG" 2>&1
     probe_status=$?
@@ -97,6 +109,12 @@ else
             cat "$UDEVD_LOG" 2>/dev/null || true
             echo "udev_smoke_udevd_log_end"
         fi
+        if [ -n "$SDL_PROBE" ]; then
+            echo "udev_smoke_sdl3_probe=$sdl_status"
+            echo "udev_smoke_sdl3_log_begin"
+            cat "$SDL_LOG" 2>/dev/null || true
+            echo "udev_smoke_sdl3_log_end"
+        fi
         echo "udev_smoke_helper_begin"
         cat "$HELPER_LOG"
         echo "udev_smoke_helper_end"
@@ -105,7 +123,7 @@ else
         echo "udev_smoke_probe_end"
         echo "udev_smoke_probe_status=$probe_status"
     } >"$OUT"
-    if [ "$probe_status" -ne 0 ] || [ "$udevd_status" = "fail" ]; then
+    if [ "$probe_status" -ne 0 ] || [ "$udevd_status" = "fail" ] || [ "$sdl_status" -ne 0 ]; then
         status=1
     else
         status=0

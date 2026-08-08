@@ -70,6 +70,37 @@ running, but they do not supply the complete gamepad/vendor property set in
 this Android-backed session. That is a concrete follow-up for Steam HIDAPI,
 not a reason to claim Steam navigation yet.
 
+The direct SDL3 comparison uses the same deployed ARM64 Valve library that the
+native client loads:
+
+```sh
+NOVA_INPUT_UDEV_MODE=enabled \
+NOVA_INPUT_SDL3_PROBE=1 \
+android/nova-lab/deploy-native-steam-input-device-probe.sh
+```
+
+It calls SDL3's joystick enumeration and open APIs against the virtual device;
+its result is recorded as `sdl3_virtual_joystick=pass` only when SDL3 names and
+opens the `Nova Virtual Xbox Controller`. This is still an isolated library
+probe, not proof that Steam's higher-level Input/UI code consumes the device.
+
+The accepted Nova run produced this SDL3 excerpt:
+
+```text
+sdl3_dlopen=pass
+sdl3_init=pass
+sdl3_joystick_count=2
+sdl3_joystick id=1 name=Xbox Wireless Controller path=/dev/input/event7 vendor=0x2022 product=0x3002
+sdl3_joystick id=2 name=Nova Virtual Xbox Controller path=/dev/input/event10 vendor=0x2022 product=0x3001
+sdl3_virtual_open=pass
+sdl3_virtual_joystick=pass
+sdl3_probe=pass
+```
+
+This closes the direct SDL3 discovery/open boundary for the virtual node. The
+remaining question is whether Steam's own HIDAPI and Steam Input layers accept
+that same node and turn its events into Gamepad UI navigation.
+
 It does not yet prove that Steam's HIDAPI enumerator accepts the device, that
 Steam Input maps it, or that Gamepad UI navigation changes state. The probe is
 the next diagnostic boundary before adding udev rules or a udev daemon to the

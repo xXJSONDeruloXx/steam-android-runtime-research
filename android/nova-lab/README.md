@@ -104,6 +104,7 @@ android/nova-lab/deploy-native-steam-gamepad-input-smoke-test.sh
 android/nova-lab/deploy-native-steam-android-input-bridge-smoke-test.sh
 android/nova-lab/deploy-native-steam-input-device-probe.sh
 android/nova-lab/build-input-udev-probe.sh
+android/nova-lab/build-sdl3-joystick-probe.sh
 android/nova-lab/fetch-steam-arm64-seed.sh --all
 NOVA_STEAM_UID=1000 NOVA_STEAM_GID=1000 android/nova-lab/deploy-steam-arm64-seed.sh
 android/nova-lab/build-posix-sync-probe.sh
@@ -140,6 +141,8 @@ Steam device consumption, navigation, axes, and rumble are still open. For
 the lower-level discovery prerequisite, `deploy-native-steam-input-device-probe.sh`
 creates the same virtual node, enumerates it through Holo `libudev`, and opens it
 as uid 501; see `docs/21-nova-input-udev-device-visibility.md`. For
+the direct Valve SDL3 check, add `NOVA_INPUT_SDL3_PROBE=1` (and usually
+`NOVA_INPUT_UDEV_MODE=enabled`) to the same command. For
 loader-only diagnostics,
 `NOVA_STEAM_EXECUTABLE` can point at another ARM64 entry point, such as
 `steamwebhelper`, and `NOVA_STEAM_CLIENT_FLAGS` supplies its bounded arguments.
