@@ -94,3 +94,7 @@ Next work, in order:
    a fresh run identity and no source edits during the live run.
 
 No protocol or ownership code was changed in this checkpoint.
+
+The follow-up harness fix now records `nova_apk` and
+`nova_apk_sha256` in every AHB run metadata file and makes the provenance gate
+require the APK hash alongside the Gamescope identity.

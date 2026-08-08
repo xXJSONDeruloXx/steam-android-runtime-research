@@ -12,6 +12,7 @@ BUFFER_WIDTH=${NOVA_AHB_WIDTH:-64}
 BUFFER_HEIGHT=${NOVA_AHB_HEIGHT:-64}
 AHB_TRACE=${NOVA_AHB_TRACE:-0}
 BINARY=${NOVA_GAMESCOPE_HEADLESS:-$BUILD_DIR/gamescope-headless-build/src/gamescope}
+APK="$BUILD_DIR/nova-lab-debug.apk"
 CLIENT=${NOVA_WAYLAND_SHM_CONTROL:-$BUILD_DIR/wayland-shm-control}
 CONTROL=${NOVA_GAMESCOPE_AHB_CONTROL:-$SCRIPT_DIR/device/gamescope-headless-ahb-control.sh}
 NETWORK_COMPAT=${NOVA_STEAM_NETWORK_API_COMPAT_HELPER:-$SCRIPT_DIR/device/nova-steam-network-api-compat.sh}
@@ -71,7 +72,11 @@ fi
 
 "$SCRIPT_DIR/build.sh" >/dev/null
 "$ADB" wait-for-device
-"$ADB" install -r -d "$BUILD_DIR/nova-lab-debug.apk" >/dev/null
+if [ ! -f "$APK" ]; then
+    echo "missing built APK: $APK" >&2
+    exit 1
+fi
+"$ADB" install -r -d "$APK" >/dev/null
 
 if [ "${INSTALL_HOLO_GAMESCOPE:-1}" = "1" ]; then
     "$SCRIPT_DIR/install-holo-gamescope.sh" >/dev/null
@@ -200,6 +205,8 @@ trap cleanup_on_exit EXIT
         echo "gamescope_libei_build=unknown"
     fi
     echo "gamescope_input_emulation=${NOVA_GAMESCOPE_INPUT_EMULATION:-unset}"
+    echo "nova_apk=$APK"
+    echo "nova_apk_sha256=$(shasum -a 256 "$APK" | awk '{print $1}')"
     echo "gamescope_source_tree=${GAMESCOPE_HEADLESS_SOURCE:-unset}"
     if [ -n "${GAMESCOPE_HEADLESS_SOURCE:-}" ] && \
         git -C "$GAMESCOPE_HEADLESS_SOURCE" rev-parse --git-dir >/dev/null 2>&1; then
@@ -216,6 +223,7 @@ cat "$METADATA"
 
 if [ "${NOVA_REQUIRE_GAMESCOPE_PROVENANCE:-0}" = "1" ]; then
     if ! rg -q '^gamescope_binary_sha256=[0-9a-f]{64}$' "$METADATA" || \
+        ! rg -q '^nova_apk_sha256=[0-9a-f]{64}$' "$METADATA" || \
         ! rg -q '^gamescope_source_tree=[^u].+' "$METADATA" || \
         ! rg -q '^gamescope_source_commit=[0-9a-f]{40}$' "$METADATA"; then
         echo "missing required Gamescope provenance" >&2
