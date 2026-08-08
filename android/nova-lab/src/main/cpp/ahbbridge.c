@@ -132,6 +132,26 @@ ahb_socket_poll_trace(const char *operation, int frame, int buffer, int fd,
         ahb_socket_type(fd), result, (unsigned int)revents, error_number);
 }
 
+static void
+ahb_socket_wait_probe(int frame, int buffer, int fd)
+{
+    if (!ahb_socket_trace_enabled()) {
+        return;
+    }
+    struct pollfd socket_poll = {
+        .fd = fd,
+        .events = POLLIN | POLLERR | POLLHUP | POLLNVAL,
+    };
+    errno = 0;
+    int poll_status;
+    do {
+        poll_status = poll(&socket_poll, 1, 0);
+    } while (poll_status < 0 && errno == EINTR);
+    int error_number = poll_status < 0 ? errno : 0;
+    ahb_socket_poll_trace("ack_wait_probe", frame, buffer, fd, poll_status,
+                          socket_poll.revents, error_number);
+}
+
 /* surface_control.h exposes its ARect parameters as C++ references even when
  * included from C. Declare the API's C ABI here so the NDK C build can use the
  * API-29 surface transaction path without compiling this file as C++. */
@@ -496,6 +516,9 @@ receive_bridge_acknowledgement(int client, char *acknowledgement,
         .msg_control = control,
         .msg_controllen = sizeof(control),
     };
+    ahb_socket_trace("ack_wait_begin", frame, buffer, client, 0, 0, NULL, -1,
+                     "blocking_recvmsg=begin");
+    ahb_socket_wait_probe(frame, buffer, client);
     errno = 0;
     ssize_t bytes = recvmsg(client, &message, 0);
     int error_number = bytes < 0 ? errno : 0;
@@ -522,6 +545,9 @@ receive_bridge_acknowledgement(int client, char *acknowledgement,
             }
         }
     }
+    ahb_socket_trace("ack_wait_end", frame, buffer, client, bytes,
+                     error_number, &message, *acquire_fence_fd,
+                     acknowledgement);
     ahb_socket_trace("ack_recv", frame, buffer, client, bytes, error_number,
                      &message, *acquire_fence_fd, acknowledgement);
     return bytes;
