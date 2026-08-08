@@ -36,6 +36,7 @@ The useful results are split across several projects:
 - [Nova rooted uinput gamepad smoke](docs/18-nova-uinput-gamepad-smoke.md) records the real Xbox evdev-to-virtual-gamepad relay while native Steam and Android presentation remain alive; Steam navigation is still the next gate.
 - [Nova Android input to rooted uinput bridge](docs/19-nova-android-input-uinput-bridge.md) records Android controller enumeration and deterministic key dispatch through an abstract socket into the rooted virtual gamepad; Steam navigation is still the next gate.
 - [Nova physical controller dispatch](docs/20-nova-physical-controller-dispatch.md) records a rooted evdev event delivered to Android as a controller-class `KeyEvent` and forwarded through the rooted virtual gamepad bridge; Steam consumption is still the next gate.
+- [Nova virtual gamepad udev visibility](docs/21-nova-input-udev-device-visibility.md) records Holo `libudev` discovery and uid-501 access to the virtual event node; Steam's own HIDAPI acceptance is still open.
 
 ## Recommended direction
 
@@ -75,6 +76,7 @@ the gamescope frames on its own surface.
 - [Nova rooted uinput gamepad smoke](docs/18-nova-uinput-gamepad-smoke.md)
 - [Nova Android input to rooted uinput bridge](docs/19-nova-android-input-uinput-bridge.md)
 - [Nova physical controller dispatch](docs/20-nova-physical-controller-dispatch.md)
+- [Nova virtual gamepad udev visibility](docs/21-nova-input-udev-device-visibility.md)
 - [Retroid Pocket Nova flashing kit](tools/retroid-pocket-nova/README.md)
 
 ## Evidence standard

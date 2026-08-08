@@ -126,7 +126,9 @@ controller and forwards a deterministic key event through an abstract Unix
 socket into the same rooted virtual device; [doc 19](19-nova-android-input-uinput-bridge.md)
   records the accepted end-to-end bridge. [Doc 20](20-nova-physical-controller-dispatch.md)
   then proves a rooted evdev event is dispatched by Android as a controller-class
-  `KeyEvent`. Steam enumeration and actual navigation are still required.
+  `KeyEvent`. [Doc 21](21-nova-input-udev-device-visibility.md) proves the
+  virtual node is discoverable through Holo `libudev` and readable by uid 501;
+  Steam enumeration and actual navigation are still required.
 
 ### Rootless stage 3: user-space Steam session supervision
 

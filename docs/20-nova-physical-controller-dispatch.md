@@ -105,5 +105,7 @@ evdev BTN_EAST
 
 It does not yet prove that Steam uid 501 opens the virtual device, that Steam
 Input maps it, that the Gamepad UI changes state, or that rumble returns through
-the helper. The accepted run does not inject axes, and it does not replace a
-real human-button test. Those are the next input/session gates.
+the helper. The lower-level Holo `libudev`/uid-501 prerequisite is covered
+separately in [doc 21](21-nova-input-udev-device-visibility.md). The accepted
+run does not inject axes, and it does not replace a real human-button test.
+Those are the next input/session gates.

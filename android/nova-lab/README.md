@@ -102,6 +102,8 @@ android/nova-lab/deploy-native-steam-hardware-probe.sh
 android/nova-lab/build-uinput-gamepad-relay.sh
 android/nova-lab/deploy-native-steam-gamepad-input-smoke-test.sh
 android/nova-lab/deploy-native-steam-android-input-bridge-smoke-test.sh
+android/nova-lab/deploy-native-steam-input-device-probe.sh
+android/nova-lab/build-input-udev-probe.sh
 android/nova-lab/fetch-steam-arm64-seed.sh --all
 NOVA_STEAM_UID=1000 NOVA_STEAM_GID=1000 android/nova-lab/deploy-steam-arm64-seed.sh
 android/nova-lab/build-posix-sync-probe.sh
@@ -135,6 +137,9 @@ device. The accepted evidence is documented in
 event and assert that Android dispatches it as a controller-class `KeyEvent`;
 that checkpoint is documented in `docs/20-nova-physical-controller-dispatch.md`.
 Steam device consumption, navigation, axes, and rumble are still open. For
+the lower-level discovery prerequisite, `deploy-native-steam-input-device-probe.sh`
+creates the same virtual node, enumerates it through Holo `libudev`, and opens it
+as uid 501; see `docs/21-nova-input-udev-device-visibility.md`. For
 loader-only diagnostics,
 `NOVA_STEAM_EXECUTABLE` can point at another ARM64 entry point, such as
 `steamwebhelper`, and `NOVA_STEAM_CLIENT_FLAGS` supplies its bounded arguments.
