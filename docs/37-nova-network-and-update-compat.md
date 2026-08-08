@@ -28,3 +28,25 @@ The next fresh session must verify that the shim invocation is logged and that
 the UI advances past the network/update page to the login screen. If it does
 not, inspect the new updater invocation and Steam UI logs before changing the
 network API compatibility patch.
+
+## Latest shim run
+
+On the first fresh session with the helper installed, the device logged:
+
+```text
+nova_steamos_update_compat=pass
+nova_steamos_update_args=--supports-duplicate-detection
+nova_steamos_update_compat=pass
+nova_steamos_update_args=--enable-duplicate-detection
+SteamUI: WARNING: SetOOBEComplete
+SteamUI: WARNING: Restarting PC
+```
+
+The previous updater error did not recur, but the visible Steam surface stayed
+in a blank update/restart state (`MENU`, `BACK`) and did not yet expose the
+login route. The session was then stopped with
+`nova_runtime_cleanup=pass attempts=1` and
+`native_steam_app_files_cleanup=pass`. This proves the missing-helper repair;
+it does not yet prove the login gate. The next experiment is a fresh launch
+against the persisted OOBE state, with the same run identity and process
+cleanup discipline.
