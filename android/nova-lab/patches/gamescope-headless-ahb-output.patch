@@ -1,19 +1,21 @@
 --- a/src/Backends/HeadlessBackend.cpp
 +++ b/src/Backends/HeadlessBackend.cpp
-@@ -3,6 +3,12 @@
+@@ -3,6 +3,14 @@
  #include "wlserver.hpp"
  #include "refresh_rate.h"
  
 +#include <cstdlib>
++#include <cerrno>
 +#include <poll.h>
 +#include <sys/socket.h>
++#include <sys/stat.h>
 +#include <sys/un.h>
 +#include <unistd.h>
 +
  extern int g_nPreferredOutputWidth;
  extern int g_nPreferredOutputHeight;
  
-@@ -10,16 +16,292 @@
+@@ -10,16 +18,382 @@
  {
      static LogScope headless_log( "headless" );
  
@@ -50,6 +52,71 @@
 +                (unsigned long long)frame, index, submitted ? 1 : 0, phase );
 +    }
 +
++    static bool android_socket_trace_enabled()
++    {
++        const char *value = getenv( "NOVA_AHB_SOCKET_TRACE" );
++        return value != nullptr && value[0] == '1';
++    }
++
++    static unsigned long long android_socket_inode( int fd )
++    {
++        struct stat information = {};
++        return fd >= 0 && fstat( fd, &information ) == 0
++            ? (unsigned long long)information.st_ino : 0;
++    }
++
++    static int android_socket_type( int fd )
++    {
++        int type = -1;
++        socklen_t length = sizeof( type );
++        if ( fd >= 0 && getsockopt( fd, SOL_SOCKET, SO_TYPE, &type, &length ) == 0 )
++            return type;
++        return -1;
++    }
++
++    static int android_socket_rights_count( const msghdr *message )
++    {
++        int count = 0;
++        if ( message == nullptr )
++            return 0;
++        for ( cmsghdr *header = CMSG_FIRSTHDR( message ); header != nullptr;
++              header = CMSG_NXTHDR( const_cast<msghdr *>( message ), header ) )
++        {
++            if ( header->cmsg_level == SOL_SOCKET && header->cmsg_type == SCM_RIGHTS &&
++                 header->cmsg_len >= CMSG_LEN( 0 ) )
++                count += ( header->cmsg_len - CMSG_LEN( 0 ) ) / sizeof( int );
++        }
++        return count;
++    }
++
++    static void android_socket_trace( const char *operation, uint64_t frame,
++        int index, int fd, ssize_t result, int errorNumber,
++        const msghdr *message, int fenceFd, const char *payload )
++    {
++        if ( !android_socket_trace_enabled() )
++            return;
++        headless_log.infof(
++            "android_ahb_socket_trace op=%s frame=%llu index=%d fd=%d inode=%llu type=%d result=%zd errno=%d msg_flags=0x%x rights=%d fence_fd=%d payload=%s",
++            operation, (unsigned long long)frame, index, fd,
++            android_socket_inode( fd ), android_socket_type( fd ), result,
++            errorNumber, message != nullptr ? message->msg_flags : 0,
++            android_socket_rights_count( message ), fenceFd,
++            payload != nullptr ? payload : "" );
++    }
++
++    static void android_socket_poll_trace( const char *operation,
++        uint64_t frame, int index, int fd, int result, short revents,
++        int errorNumber )
++    {
++        if ( !android_socket_trace_enabled() )
++            return;
++        headless_log.infof(
++            "android_ahb_socket_poll op=%s frame=%llu index=%d fd=%d inode=%llu type=%d result=%d revents=0x%x errno=%d",
++            operation, (unsigned long long)frame, index, fd,
++            android_socket_inode( fd ), android_socket_type( fd ), result,
++            (unsigned int)revents, errorNumber );
++    }
++
 +    static int connect_android_socket( const char *path )
 +    {
 +        if ( path == nullptr || strlen( path ) >= sizeof( ( (sockaddr_un *)nullptr )->sun_path ) )
@@ -63,9 +130,12 @@
 +        int lastErrno = ENOENT;
 +        for ( int attempt = 0; attempt < 150; attempt++ )
 +        {
-+            int fd = socket( AF_UNIX, SOCK_SEQPACKET | SOCK_CLOEXEC, 0 );
++            int fd = socket( AF_UNIX, SOCK_STREAM | SOCK_CLOEXEC, 0 );
 +            if ( fd >= 0 && connect( fd, reinterpret_cast<sockaddr *>( &address ), sizeof( address ) ) == 0 )
++            {
++                android_socket_trace( "connect", 0, -1, fd, 0, 0, nullptr, -1, path );
 +                return fd;
++            }
 +
 +            lastErrno = errno;
 +            if ( fd >= 0 )
@@ -96,7 +166,9 @@
 +            .msg_controllen = sizeof( control ),
 +        };
 +
++        errno = 0;
 +        ssize_t received = recvmsg( connection, &message, 0 );
++        int errorNumber = received < 0 ? errno : 0;
 +        if ( received < 0 )
 +        {
 +            headless_log.errorf_errno( "recv Android output handle failed" );
@@ -120,6 +192,8 @@
 +            }
 +        }
 +
++        android_socket_trace( "handle_recv", 0, -1, connection, received,
++            errorNumber, &message, receivedFd, nullptr );
 +        if ( received <= 0 || receivedFd < 0 )
 +        {
 +            if ( receivedFd >= 0 )
@@ -131,7 +205,8 @@
 +        return receivedFd;
 +    }
 +
-+    static bool send_android_ack( int connection, int acquireFenceFd )
++    static bool send_android_ack( int connection, int acquireFenceFd,
++        uint64_t frame, int index )
 +    {
 +        static constexpr char acknowledgement[] =
 +            "linux_import=pass linux_gpu_write=pass linux_image_write=pass linux_acquire_fence=pass linux_loop=pass\n";
@@ -152,7 +227,11 @@
 +        header->cmsg_len = CMSG_LEN( sizeof( acquireFenceFd ) );
 +        memcpy( CMSG_DATA( header ), &acquireFenceFd, sizeof( acquireFenceFd ) );
 +
++        errno = 0;
 +        ssize_t sent = sendmsg( connection, &message, MSG_NOSIGNAL );
++        int errorNumber = sent < 0 ? errno : 0;
++        android_socket_trace( "ack_send", frame, index, connection, sent,
++            errorNumber, &message, acquireFenceFd, acknowledgement );
 +        close( acquireFenceFd );
 +        return sent == static_cast<ssize_t>( sizeof( acknowledgement ) - 1 );
 +    }
@@ -165,10 +244,14 @@
 +            .events = POLLIN,
 +        };
 +        int pollResult;
++        errno = 0;
 +        do
 +        {
 +            pollResult = poll( &socketPoll, 1, 5000 );
 +        } while ( pollResult < 0 && errno == EINTR );
++        int pollError = pollResult < 0 ? errno : 0;
++        android_socket_poll_trace( "release_wait", frame, expectedBuffer,
++            connection, pollResult, socketPoll.revents, pollError );
 +        if ( pollResult <= 0 || ( socketPoll.revents & ( POLLIN | POLLERR | POLLHUP ) ) == 0 )
 +        {
 +            headless_log.errorf( "Android release message wait failed buffer %d poll=%d revents=0x%x errno=%d",
@@ -188,7 +271,9 @@
 +            .msg_control = control,
 +            .msg_controllen = sizeof( control ),
 +        };
++        errno = 0;
 +        ssize_t received = recvmsg( connection, &message, 0 );
++        int receiveError = received < 0 ? errno : 0;
 +        int releaseFenceFd = -1;
 +        for ( cmsghdr *header = CMSG_FIRSTHDR( &message ); header != nullptr; header = CMSG_NXTHDR( &message, header ) )
 +        {
@@ -205,6 +290,9 @@
 +                    close( descriptors[i] );
 +            }
 +        }
++        android_socket_trace( "release_recv", frame, expectedBuffer,
++            connection, received, receiveError, &message, releaseFenceFd,
++            payload );
 +
 +        char expectedMessage[32];
 +        snprintf( expectedMessage, sizeof( expectedMessage ), "release_buffer=%d", expectedBuffer );
@@ -225,10 +313,14 @@
 +            .fd = releaseFenceFd,
 +            .events = POLLIN,
 +        };
++        errno = 0;
 +        do
 +        {
 +            pollResult = poll( &fencePoll, 1, 5000 );
 +        } while ( pollResult < 0 && errno == EINTR );
++        pollError = pollResult < 0 ? errno : 0;
++        android_socket_poll_trace( "release_fence", frame, expectedBuffer,
++            releaseFenceFd, pollResult, fencePoll.revents, pollError );
 +        close( releaseFenceFd );
 +        if ( pollResult <= 0 || ( fencePoll.revents & ( POLLIN | POLLERR | POLLHUP ) ) == 0 )
 +        {
@@ -309,14 +401,14 @@
          virtual gamescope::GamescopeScreenType GetScreenType() const override
          {
              return GAMESCOPE_SCREEN_TYPE_INTERNAL;
-@@ -89,6 +371,60 @@
+@@ -89,6 +463,60 @@
  
  		virtual int Present( const FrameInfo_t *pFrameInfo, bool bAsync ) override
  		{
 +			if ( m_androidOutput )
 +			{
 +				int targetFrameCount = android_output_frame_limit();
-+				if ( targetFrameCount > 0 && m_androidFrameCount >= targetFrameCount )
++				if ( targetFrameCount > 0 && m_androidFrameCount >= static_cast<uint64_t>( targetFrameCount ) )
 +				{
 +					if ( !m_androidTargetReached )
 +					{
@@ -350,7 +442,7 @@
 +				vulkan_wait( *oSequence, true );
 +				android_output_trace( "ack_send", m_androidFrameCount, index, m_androidSubmitted[index] );
 +				int acquireFenceFd = vulkan_export_signaled_fence();
-+				if ( acquireFenceFd < 0 || !send_android_ack( m_androidConnections[index], acquireFenceFd ) )
++				if ( acquireFenceFd < 0 || !send_android_ack( m_androidConnections[index], acquireFenceFd, m_androidFrameCount, index ) )
 +				{
 +					headless_log.errorf( "Android output acquire fence handoff failed for buffer %d", index );
 +					return -1;
@@ -370,7 +462,7 @@
  			static uint64_t s_ulCompositeFrames = 0;
  
  			std::optional<uint64_t> oSequence = vulkan_composite(
-@@ -114,6 +450,12 @@
+@@ -114,6 +542,12 @@
  
      private:
          BackendConnectorHDRInfo m_HDRInfo{};
@@ -383,7 +475,7 @@
      };
  
  	class CHeadlessBackend final : public CBaseBackend
-@@ -152,6 +494,12 @@
+@@ -152,6 +586,12 @@
  				return false;
  			}
  
@@ -396,7 +488,7 @@
  			if ( !wlsession_init() )
  			{
  				fprintf( stderr, "Failed to initialize Wayland session\n" );
-@@ -298,4 +646,4 @@
+@@ -298,4 +738,4 @@
  		return Set( new CHeadlessBackend{} );
  	}
  

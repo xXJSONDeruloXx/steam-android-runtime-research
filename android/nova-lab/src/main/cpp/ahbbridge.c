@@ -7,6 +7,7 @@
 
 #include <jni.h>
 
+#include <errno.h>
 #include <poll.h>
 #include <pthread.h>
 #include <stdarg.h>
@@ -15,6 +16,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/socket.h>
+#include <sys/stat.h>
 #include <sys/system_properties.h>
 #include <sys/time.h>
 #include <sys/un.h>
@@ -44,6 +46,90 @@ ahb_trace(int frame, int buffer, const char *phase, ssize_t bytes, int fence_fd,
     __android_log_print(ANDROID_LOG_INFO, "NovaLab",
                         "ahb_double_buffer_trace frame=%d buffer=%d phase=%s bytes=%zd fence=%d status=%d",
                         frame, buffer, phase, bytes, fence_fd >= 0, status);
+}
+
+static int
+ahb_socket_trace_enabled(void)
+{
+    static int enabled = -1;
+    if (enabled < 0) {
+        char value[PROP_VALUE_MAX] = {0};
+        int length = __system_property_get("debug.nova.ahb_socket_trace",
+                                           value);
+        enabled = length > 0 && value[0] == '1' ? 1 : 0;
+    }
+    return enabled;
+}
+
+static unsigned long long
+ahb_socket_inode(int fd)
+{
+    struct stat information;
+    return fd >= 0 && fstat(fd, &information) == 0
+               ? (unsigned long long)information.st_ino
+               : 0;
+}
+
+static int
+ahb_socket_type(int fd)
+{
+    int type = -1;
+    socklen_t length = sizeof(type);
+    if (fd >= 0 && getsockopt(fd, SOL_SOCKET, SO_TYPE, &type, &length) == 0) {
+        return type;
+    }
+    return -1;
+}
+
+static int
+ahb_socket_rights_count(const struct msghdr *message)
+{
+    int count = 0;
+    if (message == NULL) {
+        return 0;
+    }
+    for (struct cmsghdr *header = CMSG_FIRSTHDR(message); header != NULL;
+         header = CMSG_NXTHDR((struct msghdr *)message, header)) {
+        if (header->cmsg_level == SOL_SOCKET &&
+            header->cmsg_type == SCM_RIGHTS &&
+            header->cmsg_len >= CMSG_LEN(0)) {
+            count += (int)((header->cmsg_len - CMSG_LEN(0)) / sizeof(int));
+        }
+    }
+    return count;
+}
+
+static void
+ahb_socket_trace(const char *operation, int frame, int buffer, int fd,
+                 ssize_t result, int error_number,
+                 const struct msghdr *message, int fence_fd,
+                 const char *payload)
+{
+    if (!ahb_socket_trace_enabled()) {
+        return;
+    }
+    __android_log_print(
+        ANDROID_LOG_INFO, "NovaLab",
+        "ahb_socket_trace op=%s frame=%d buffer=%d fd=%d inode=%llu type=%d result=%zd errno=%d msg_flags=0x%x rights=%d fence_fd=%d payload=%s",
+        operation, frame, buffer, fd, ahb_socket_inode(fd),
+        ahb_socket_type(fd), result, error_number,
+        message != NULL ? message->msg_flags : 0,
+        ahb_socket_rights_count(message), fence_fd,
+        payload != NULL ? payload : "");
+}
+
+static void
+ahb_socket_poll_trace(const char *operation, int frame, int buffer, int fd,
+                      int result, short revents, int error_number)
+{
+    if (!ahb_socket_trace_enabled()) {
+        return;
+    }
+    __android_log_print(
+        ANDROID_LOG_INFO, "NovaLab",
+        "ahb_socket_poll op=%s frame=%d buffer=%d fd=%d inode=%llu type=%d result=%d revents=0x%x errno=%d",
+        operation, frame, buffer, fd, ahb_socket_inode(fd),
+        ahb_socket_type(fd), result, (unsigned int)revents, error_number);
 }
 
 /* surface_control.h exposes its ARect parameters as C++ references even when
@@ -381,7 +467,7 @@ create_bridge_server(const char *socket_path)
     };
     strcpy(address.sun_path, socket_path);
     unlink(socket_path);
-    int server = socket(AF_UNIX, SOCK_SEQPACKET, 0);
+    int server = socket(AF_UNIX, SOCK_STREAM, 0);
     if (server < 0 || bind(server, (struct sockaddr *)&address,
                            sizeof(address)) != 0 || listen(server, 1) != 0) {
         if (server >= 0) {
@@ -395,7 +481,8 @@ create_bridge_server(const char *socket_path)
 
 static ssize_t
 receive_bridge_acknowledgement(int client, char *acknowledgement,
-                               size_t capacity, int *acquire_fence_fd)
+                               size_t capacity, int *acquire_fence_fd,
+                               int frame, int buffer)
 {
     *acquire_fence_fd = -1;
     char control[CMSG_SPACE(sizeof(int) * 4)] = {0};
@@ -409,7 +496,9 @@ receive_bridge_acknowledgement(int client, char *acknowledgement,
         .msg_control = control,
         .msg_controllen = sizeof(control),
     };
+    errno = 0;
     ssize_t bytes = recvmsg(client, &message, 0);
+    int error_number = bytes < 0 ? errno : 0;
     if (bytes > 0) {
         acknowledgement[bytes < (ssize_t)capacity ? bytes : capacity - 1] =
             '\0';
@@ -433,11 +522,13 @@ receive_bridge_acknowledgement(int client, char *acknowledgement,
             }
         }
     }
+    ahb_socket_trace("ack_recv", frame, buffer, client, bytes, error_number,
+                     &message, *acquire_fence_fd, acknowledgement);
     return bytes;
 }
 
 static int
-send_release_fence(int client, int buffer_index, int release_fence_fd)
+send_release_fence(int client, int frame, int buffer_index, int release_fence_fd)
 {
     char release_message[64];
     int message_length = snprintf(release_message, sizeof(release_message),
@@ -460,7 +551,12 @@ send_release_fence(int client, int buffer_index, int release_fence_fd)
         header->cmsg_len = CMSG_LEN(sizeof(int));
         memcpy(CMSG_DATA(header), &release_fence_fd, sizeof(release_fence_fd));
     }
+    errno = 0;
     ssize_t sent = sendmsg(client, &message, MSG_NOSIGNAL);
+    int error_number = sent < 0 ? errno : 0;
+    ahb_socket_trace("release_send", frame, buffer_index, client, sent,
+                     error_number, &message, release_fence_fd,
+                     release_message);
     if (release_fence_fd >= 0) {
         close(release_fence_fd);
     }
@@ -567,7 +663,7 @@ Java_com_xjsonderulo_steamandroid_novalab_MainActivity_nativeRunDmaBufBridge(
     };
     strcpy(address.sun_path, socket_path);
     unlink(socket_path);
-    server = socket(AF_UNIX, SOCK_SEQPACKET, 0);
+    server = socket(AF_UNIX, SOCK_STREAM, 0);
     append_line(report, sizeof(report), &used, "socket_status=%d\n", server >= 0 ? 0 : -1);
     if (server < 0 || bind(server, (struct sockaddr *)&address, sizeof(address)) != 0) {
         append_line(report, sizeof(report), &used, "socket_bind_status=%d\n", server < 0 ? -1 : -2);
@@ -845,6 +941,10 @@ Java_com_xjsonderulo_steamandroid_novalab_MainActivity_nativeRunDmaBufDoubleBuff
             goto double_buffer_done;
         }
         servers[index] = create_bridge_server(socket_paths[index]);
+        int server_error = servers[index] < 0 ? errno : 0;
+        ahb_socket_trace("listen", -1, index, servers[index],
+                         servers[index] >= 0 ? 0 : -1,
+                         server_error, NULL, -1, socket_paths[index]);
         append_line(report, sizeof(report), &used,
                     "ahb_double_buffer_server_%d=%s\n", index,
                     servers[index] >= 0 ? "listening" : "failed");
@@ -854,7 +954,12 @@ Java_com_xjsonderulo_steamandroid_novalab_MainActivity_nativeRunDmaBufDoubleBuff
     }
 
     for (int index = 0; index < 3; ++index) {
+        errno = 0;
         clients[index] = accept(servers[index], NULL, NULL);
+        int accept_error = clients[index] < 0 ? errno : 0;
+        ahb_socket_trace("accept", -1, index, clients[index],
+                         clients[index] >= 0 ? 0 : -1, accept_error, NULL,
+                         -1, NULL);
         append_line(report, sizeof(report), &used,
                     "ahb_double_buffer_accept_%d=%s\n", index,
                     clients[index] >= 0 ? "pass" : "fail");
@@ -869,6 +974,8 @@ Java_com_xjsonderulo_steamandroid_novalab_MainActivity_nativeRunDmaBufDoubleBuff
                    sizeof(timeout));
         status = AHardwareBuffer_sendHandleToUnixSocket(buffers[index],
                                                         clients[index]);
+        ahb_socket_trace("handle_send", -1, index, clients[index], status,
+                         status == 0 ? 0 : errno, NULL, -1, NULL);
         append_line(report, sizeof(report), &used,
                     "ahb_double_buffer_send_handle_%d=%s\n", index,
                     status == 0 ? "pass" : "fail");
@@ -943,7 +1050,7 @@ Java_com_xjsonderulo_steamandroid_novalab_MainActivity_nativeRunDmaBufDoubleBuff
         }
         ssize_t acknowledgement_bytes = receive_bridge_acknowledgement(
             clients[index], acknowledgement, sizeof(acknowledgement),
-            &acquire_fence_fd);
+            &acquire_fence_fd, frame, index);
         if (frame < 4 || (frame % 30) == 0 || acknowledgement_bytes <= 0) {
             __android_log_print(
                 ANDROID_LOG_INFO, "NovaLab",
@@ -1010,7 +1117,7 @@ Java_com_xjsonderulo_steamandroid_novalab_MainActivity_nativeRunDmaBufDoubleBuff
         if (previous_release_fence_fd >= 0) {
             int previous_index = (index + 2) % 3;
             int release_status = send_release_fence(
-                clients[previous_index], previous_index,
+                clients[previous_index], frame, previous_index,
                 previous_release_fence_fd);
             previous_release_fence_fd = -1;
             if (frame < 4 || (frame % 30) == 0 || release_status != 0) {

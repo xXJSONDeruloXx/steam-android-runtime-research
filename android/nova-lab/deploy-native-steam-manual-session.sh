@@ -54,8 +54,9 @@ clear_app_runtime_files() {
 clear_ahb_trace_state() {
     local status=0
     "$ADB" shell setprop debug.nova.ahb_trace 0 >/dev/null 2>&1 || status=$?
+    "$ADB" shell setprop debug.nova.ahb_socket_trace 0 >/dev/null 2>&1 || status=$?
     if ! "$ADB" shell \
-        "su -c 'mkdir -p $DEVICE_ROOT/opt/nova-steam; printf \"0\\n\" > $DEVICE_ROOT/opt/nova-steam/ahb-trace'" \
+        "su -c 'mkdir -p $DEVICE_ROOT/opt/nova-steam; printf \"0\\n\" > $DEVICE_ROOT/opt/nova-steam/ahb-trace; printf \"0\\n\" > $DEVICE_ROOT/opt/nova-steam/ahb-socket-trace'" \
         >/dev/null 2>&1; then
         status=1
     fi

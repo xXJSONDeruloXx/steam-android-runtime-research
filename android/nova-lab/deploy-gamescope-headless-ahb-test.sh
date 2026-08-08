@@ -11,6 +11,7 @@ FRAME_COUNT=${NOVA_AHB_FRAME_COUNT:-60}
 BUFFER_WIDTH=${NOVA_AHB_WIDTH:-64}
 BUFFER_HEIGHT=${NOVA_AHB_HEIGHT:-64}
 AHB_TRACE=${NOVA_AHB_TRACE:-0}
+AHB_SOCKET_TRACE=${NOVA_AHB_SOCKET_TRACE:-0}
 BINARY=${NOVA_GAMESCOPE_HEADLESS:-$BUILD_DIR/gamescope-headless-build/src/gamescope}
 APK="$BUILD_DIR/nova-lab-debug.apk"
 CLIENT=${NOVA_WAYLAND_SHM_CONTROL:-$BUILD_DIR/wayland-shm-control}
@@ -45,6 +46,15 @@ case "$AHB_TRACE" in
         ;;
     *)
         echo "NOVA_AHB_TRACE must be 0 or 1" >&2
+        exit 2
+        ;;
+esac
+
+case "$AHB_SOCKET_TRACE" in
+    0|1)
+        ;;
+    *)
+        echo "NOVA_AHB_SOCKET_TRACE must be 0 or 1" >&2
         exit 2
         ;;
 esac
@@ -150,7 +160,7 @@ residual_runtime_check() {
     echo "headless_ahb_residual_processes=pass"
 }
 cleanup_on_exit() {
-    local original_status=$? cleanup_status residual_status app_files_status trace_status
+    local original_status=$? cleanup_status residual_status app_files_status trace_status socket_trace_status
     trap - EXIT
     set +e
     cleanup_runtime
@@ -161,11 +171,14 @@ cleanup_on_exit() {
     app_files_status=$?
     set_ahb_trace_state 0
     trace_status=$?
+    set_ahb_socket_trace_state 0
+    socket_trace_status=$?
     if [ "$original_status" -ne 0 ]; then
         exit "$original_status"
     fi
     if [ "$cleanup_status" -ne 0 ] || [ "$residual_status" -ne 0 ] || \
-        [ "$app_files_status" -ne 0 ] || [ "$trace_status" -ne 0 ]; then
+        [ "$app_files_status" -ne 0 ] || [ "$trace_status" -ne 0 ] || \
+        [ "$socket_trace_status" -ne 0 ]; then
         exit 1
     fi
     exit 0
@@ -184,6 +197,16 @@ set_ahb_trace_state() {
     "$ADB" shell setprop debug.nova.ahb_trace "$value" >/dev/null 2>&1 || status=$?
     if ! "$ADB" shell \
         "su -c 'mkdir -p $DEVICE_ROOT/opt/nova-steam; printf \"%s\\n\" \"$value\" > $DEVICE_ROOT/opt/nova-steam/ahb-trace'" \
+        >/dev/null 2>&1; then
+        status=1
+    fi
+    return "$status"
+}
+set_ahb_socket_trace_state() {
+    local value=$1 status=0
+    "$ADB" shell setprop debug.nova.ahb_socket_trace "$value" >/dev/null 2>&1 || status=$?
+    if ! "$ADB" shell \
+        "su -c 'mkdir -p $DEVICE_ROOT/opt/nova-steam; printf \"%s\\n\" \"$value\" > $DEVICE_ROOT/opt/nova-steam/ahb-socket-trace'" \
         >/dev/null 2>&1; then
         status=1
     fi
@@ -229,6 +252,7 @@ trap cleanup_on_exit EXIT
     echo "fullscreen_presentation=${NOVA_FULLSCREEN_PRESENTATION:-0}"
     echo "force_gpu_composition=${NOVA_FORCE_GPU_COMPOSITION:-unset}"
     echo "nova_ahb_trace=$AHB_TRACE"
+    echo "nova_ahb_socket_trace=$AHB_SOCKET_TRACE"
     echo "steamos_update_compat=installed"
 } >"$METADATA"
 cat "$METADATA"
@@ -259,6 +283,10 @@ cleanup_runtime
 clear_app_runtime_files
 if ! set_ahb_trace_state "$AHB_TRACE"; then
     echo "failed to configure Nova AHB trace state" >&2
+    exit 1
+fi
+if ! set_ahb_socket_trace_state "$AHB_SOCKET_TRACE"; then
+    echo "failed to configure Nova AHB socket trace state" >&2
     exit 1
 fi
 activity_args=(

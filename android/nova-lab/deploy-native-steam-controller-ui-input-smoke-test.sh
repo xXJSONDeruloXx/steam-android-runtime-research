@@ -29,6 +29,7 @@ AFTER_DELAY=${NOVA_CONTROLLER_UI_AFTER_DELAY:-20}
 REQUIRE_STEAM_SURFACE=${NOVA_CONTROLLER_UI_REQUIRE_STEAM_SURFACE:-1}
 MANUAL_SESSION=${NOVA_CONTROLLER_UI_MANUAL_SESSION:-0}
 export NOVA_AHB_TRACE=${NOVA_AHB_TRACE:-0}
+export NOVA_AHB_SOCKET_TRACE=${NOVA_AHB_SOCKET_TRACE:-0}
 if [ "$MANUAL_SESSION" = "1" ]; then
     PHYSICAL_RELAY_MODE=relay
 else
@@ -443,6 +444,7 @@ echo "controller_ui_source_ready=$([ "$source_ready" -eq 0 ] && echo 1 || echo 0
 echo "controller_ui_input_mode=$INPUT_MODE"
 echo "controller_ui_relay_ready=$([ "$helper_ready" -eq 0 ] && echo 1 || echo 0)"
 echo "controller_ui_ahb_trace=$NOVA_AHB_TRACE"
+echo "controller_ui_ahb_socket_trace=$NOVA_AHB_SOCKET_TRACE"
 if [ -n "$app_pid" ]; then
     echo "controller_ui_ready=$([ "$ui_ready" -eq 0 ] && echo 1 || echo 0) app_pid=$app_pid"
 else
