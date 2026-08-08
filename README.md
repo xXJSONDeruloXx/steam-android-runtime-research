@@ -64,6 +64,7 @@ The useful results are split across several projects:
 - [Nova AHB seqpacket result](docs/45-nova-ahb-seqpacket-result-2026-08-08.md) records the negative device result and the next socket-instrumentation gate.
 - [Parent session process-audit follow-up 3](docs/46-parent-session-process-audit-followup-2026-08-08.md) records Luna's newest two-hour audit and the remaining preflight/capture/phase risks.
 - [Nova AHB socket-trace experiment](docs/47-nova-ahb-socket-trace-experiment-2026-08-08.md) predeclares syscall, ancillary-FD, inode, and poll evidence for the original stream baseline.
+- [Nova mandatory preflight manifest](docs/48-nova-preflight-manifest-2026-08-08.md) records and enforces the cleanup, reset, run-identity, and provenance gate repaired after the latest Luna audit.
 
 ## Recommended direction
 
@@ -130,6 +131,7 @@ the gamescope frames on its own surface.
 - [Nova AHB seqpacket result](docs/45-nova-ahb-seqpacket-result-2026-08-08.md)
 - [Parent session process-audit follow-up 3](docs/46-parent-session-process-audit-followup-2026-08-08.md)
 - [Nova AHB socket-trace experiment](docs/47-nova-ahb-socket-trace-experiment-2026-08-08.md)
+- [Nova mandatory preflight manifest](docs/48-nova-preflight-manifest-2026-08-08.md)
 - [Retroid Pocket Nova flashing kit](tools/retroid-pocket-nova/README.md)
 
 ## Evidence standard

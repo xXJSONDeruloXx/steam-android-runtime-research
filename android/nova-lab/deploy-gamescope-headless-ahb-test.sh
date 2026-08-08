@@ -36,7 +36,10 @@ LOGCAT="$BUILD_DIR/device-gamescope-headless-ahb-logcat.txt"
 APP_REPORT="$BUILD_DIR/device-gamescope-headless-ahb-app-report.txt"
 SCREENSHOT="$BUILD_DIR/device-gamescope-headless-ahb-screenshot.png"
 METADATA="$BUILD_DIR/device-gamescope-headless-ahb-metadata.txt"
+PREFLIGHT="$BUILD_DIR/device-gamescope-headless-ahb-preflight.txt"
 REQUIRE_TARGET=${NOVA_GAMESCOPE_AHB_REQUIRE_TARGET:-1}
+REQUIRE_RUN_MANIFEST=${NOVA_REQUIRE_RUN_MANIFEST:-0}
+RUN_PROFILE=${NOVA_RUN_PROFILE:-unclassified}
 RUN_ID=${NOVA_RUN_ID:-legacy-$(date -u +%Y%m%dT%H%M%SZ)-$$}
 RUN_DIR=${NOVA_RUN_DIR:-}
 RUN_STARTED_UTC=${NOVA_RUN_STARTED_UTC:-$(date -u +%Y-%m-%dT%H:%M:%SZ)}
@@ -59,6 +62,24 @@ case "$AHB_SOCKET_TRACE" in
         ;;
 esac
 
+case "$REQUIRE_RUN_MANIFEST" in
+    0|1)
+        ;;
+    *)
+        echo "NOVA_REQUIRE_RUN_MANIFEST must be 0 or 1" >&2
+        exit 2
+        ;;
+esac
+
+if [[ ! "$RUN_ID" =~ ^[A-Za-z0-9_.-]+$ ]]; then
+    echo "invalid Nova run id: $RUN_ID" >&2
+    exit 2
+fi
+if [ "$REQUIRE_RUN_MANIFEST" = "1" ] && [ -z "$RUN_DIR" ]; then
+    echo "NOVA_REQUIRE_RUN_MANIFEST=1 requires NOVA_RUN_DIR" >&2
+    exit 2
+fi
+
 if [ -n "$RUN_DIR" ]; then
     mkdir -p "$RUN_DIR"
     REPORT="$RUN_DIR/device-gamescope-headless-ahb-report.txt"
@@ -66,6 +87,15 @@ if [ -n "$RUN_DIR" ]; then
     APP_REPORT="$RUN_DIR/device-gamescope-headless-ahb-app-report.txt"
     SCREENSHOT="$RUN_DIR/device-gamescope-headless-ahb-screenshot.png"
     METADATA="$RUN_DIR/device-gamescope-headless-ahb-metadata.txt"
+    PREFLIGHT="$RUN_DIR/device-gamescope-headless-ahb-preflight.txt"
+    if [ "$REQUIRE_RUN_MANIFEST" = "1" ]; then
+        for run_artifact in "$REPORT" "$LOGCAT" "$APP_REPORT" "$SCREENSHOT" "$METADATA" "$PREFLIGHT"; do
+            if [ -e "$run_artifact" ]; then
+                echo "Nova run artifact already exists; use a fresh run id: $run_artifact" >&2
+                exit 2
+            fi
+        done
+    fi
 fi
 
 for required in "$BINARY" "$CLIENT" "$CONTROL" "$RUNTIME_CLEANUP" "$STEAMOS_UPDATE_COMPAT"; do
@@ -212,11 +242,131 @@ set_ahb_socket_trace_state() {
     fi
     return "$status"
 }
+run_preflight_gate() {
+    local gate_status=0
+    local force_stop_status=0
+    local cleanup_status=0
+    local residual_status=0
+    local app_files_status=0
+    local trace_status=0
+    local socket_trace_status=0
+    local cleanup_output residual_output app_files_output
+    local trace_prop trace_file socket_trace_prop socket_trace_file
+    local attempt
+
+    {
+        echo "preflight_manifest=begin"
+        echo "preflight_run_id=$RUN_ID"
+        echo "preflight_profile=$RUN_PROFILE"
+        echo "preflight_run_dir=${RUN_DIR:-unset}"
+        echo "preflight_remote_force_stop=adb shell am force-stop $PACKAGE"
+        echo "preflight_remote_cleanup=adb shell su -c '/system/bin/sh $DEVICE_RUNTIME_CLEANUP $DEVICE_ROOT'"
+        echo "preflight_remote_process_check=adb shell su -c '/system/bin/ps -A -o PID,PPID,ARGS'"
+        echo "preflight_remote_app_file_cleanup=adb shell run-as $PACKAGE sh -c 'rm -f files/nova-input.sock files/nova-touch.sock files/nova-lab-ahb-double-buffer.sock.* files/dmabuf-double-buffer-report.txt files/android-input-bridge-report.txt files/android-touch-bridge-report.txt'"
+        echo "preflight_remote_ahb_trace_reset=adb shell setprop debug.nova.ahb_trace 0; adb shell su -c 'printf 0 > $DEVICE_ROOT/opt/nova-steam/ahb-trace'"
+        echo "preflight_remote_socket_trace_reset=adb shell setprop debug.nova.ahb_socket_trace 0; adb shell su -c 'printf 0 > $DEVICE_ROOT/opt/nova-steam/ahb-socket-trace'"
+        echo "preflight_expected_artifact=$BINARY"
+        echo "preflight_expected_artifact=$APK"
+        echo "preflight_metadata=$METADATA"
+        echo "preflight_manifest_path=$PREFLIGHT"
+        cat "$METADATA"
+    } >"$PREFLIGHT"
+
+    if "$ADB" shell am force-stop "$PACKAGE" >/dev/null 2>&1; then
+        force_stop_status=0
+        echo "preflight_force_stop=pass" >>"$PREFLIGHT"
+    else
+        force_stop_status=$?
+        gate_status=1
+        echo "preflight_force_stop=fail status=$force_stop_status" >>"$PREFLIGHT"
+    fi
+
+    for attempt in 1 2; do
+        echo "preflight_cleanup_attempt=$attempt" >>"$PREFLIGHT"
+
+        if cleanup_output=$(cleanup_runtime 2>&1); then
+            cleanup_status=0
+        else
+            cleanup_status=$?
+        fi
+        cleanup_output=$(printf '%s\n' "$cleanup_output" | tr -d '\r')
+        printf '%s\n' "$cleanup_output" >>"$PREFLIGHT"
+        if [ "$cleanup_status" -ne 0 ] || \
+            ! printf '%s\n' "$cleanup_output" | rg -q '^nova_runtime_cleanup=pass '; then
+            gate_status=1
+            echo "preflight_cleanup=fail attempt=$attempt status=$cleanup_status" >>"$PREFLIGHT"
+        else
+            echo "preflight_cleanup=pass attempt=$attempt" >>"$PREFLIGHT"
+        fi
+
+        if residual_output=$(residual_runtime_check 2>&1); then
+            residual_status=0
+        else
+            residual_status=$?
+        fi
+        residual_output=$(printf '%s\n' "$residual_output" | tr -d '\r')
+        printf '%s\n' "$residual_output" >>"$PREFLIGHT"
+        if [ "$residual_status" -ne 0 ] || \
+            ! printf '%s\n' "$residual_output" | rg -q '^headless_ahb_residual_processes=pass$'; then
+            gate_status=1
+            echo "preflight_residual_processes=fail attempt=$attempt status=$residual_status" >>"$PREFLIGHT"
+        else
+            echo "preflight_residual_processes=pass attempt=$attempt" >>"$PREFLIGHT"
+        fi
+
+        if app_files_output=$(clear_app_runtime_files 2>&1); then
+            app_files_status=0
+        else
+            app_files_status=$?
+        fi
+        app_files_output=$(printf '%s\n' "$app_files_output" | tr -d '\r')
+        printf '%s\n' "$app_files_output" >>"$PREFLIGHT"
+        if [ "$app_files_status" -ne 0 ] || \
+            ! printf '%s\n' "$app_files_output" | rg -q '^nova_app_runtime_files_cleanup=pass$'; then
+            gate_status=1
+            echo "preflight_app_files=fail attempt=$attempt status=$app_files_status" >>"$PREFLIGHT"
+        else
+            echo "preflight_app_files=pass attempt=$attempt" >>"$PREFLIGHT"
+        fi
+
+        trace_status=0
+        set_ahb_trace_state 0 || trace_status=$?
+        socket_trace_status=0
+        set_ahb_socket_trace_state 0 || socket_trace_status=$?
+        trace_prop=$({ "$ADB" shell getprop debug.nova.ahb_trace || true; } | tr -d '\r' | tail -n 1)
+        trace_file=$({ "$ADB" shell su -c "cat $DEVICE_ROOT/opt/nova-steam/ahb-trace" || true; } | tr -d '\r' | tail -n 1)
+        socket_trace_prop=$({ "$ADB" shell getprop debug.nova.ahb_socket_trace || true; } | tr -d '\r' | tail -n 1)
+        socket_trace_file=$({ "$ADB" shell su -c "cat $DEVICE_ROOT/opt/nova-steam/ahb-socket-trace" || true; } | tr -d '\r' | tail -n 1)
+        echo "preflight_ahb_trace_reset_status=$trace_status prop=$trace_prop file=$trace_file" >>"$PREFLIGHT"
+        echo "preflight_socket_trace_reset_status=$socket_trace_status prop=$socket_trace_prop file=$socket_trace_file" >>"$PREFLIGHT"
+        if [ "$trace_status" -ne 0 ] || [ "$trace_prop" != "0" ] || [ "$trace_file" != "0" ]; then
+            gate_status=1
+            echo "preflight_ahb_trace_reset=fail attempt=$attempt" >>"$PREFLIGHT"
+        else
+            echo "preflight_ahb_trace_reset=pass attempt=$attempt" >>"$PREFLIGHT"
+        fi
+        if [ "$socket_trace_status" -ne 0 ] || [ "$socket_trace_prop" != "0" ] || [ "$socket_trace_file" != "0" ]; then
+            gate_status=1
+            echo "preflight_socket_trace_reset=fail attempt=$attempt" >>"$PREFLIGHT"
+        else
+            echo "preflight_socket_trace_reset=pass attempt=$attempt" >>"$PREFLIGHT"
+        fi
+    done
+
+    if [ "$force_stop_status" -ne 0 ] || [ "$gate_status" -ne 0 ]; then
+        echo "preflight_manifest=fail run_id=$RUN_ID" >>"$PREFLIGHT"
+        echo "Nova preflight failed; inspect $PREFLIGHT" >&2
+        return 1
+    fi
+    echo "preflight_manifest=pass run_id=$RUN_ID" >>"$PREFLIGHT"
+    echo "nova_preflight=pass manifest=$PREFLIGHT"
+}
 trap cleanup_on_exit EXIT
 
 {
     libei_build_marker=$(strings "$BINARY" | rg -m1 -i 'successfully initialized libei|built without libei' || true)
     echo "nova_run_id=$RUN_ID"
+    echo "nova_run_profile=$RUN_PROFILE"
     echo "run_started_utc=$RUN_STARTED_UTC"
     echo "gamescope_binary=$BINARY"
     echo "gamescope_binary_sha256=$(shasum -a 256 "$BINARY" | awk '{print $1}')"
@@ -253,6 +403,8 @@ trap cleanup_on_exit EXIT
     echo "force_gpu_composition=${NOVA_FORCE_GPU_COMPOSITION:-unset}"
     echo "nova_ahb_trace=$AHB_TRACE"
     echo "nova_ahb_socket_trace=$AHB_SOCKET_TRACE"
+    echo "steam_client_timeout=${NOVA_STEAM_CLIENT_TIMEOUT:-unset}"
+    echo "steam_gamescope_timeout=${NOVA_STEAM_GAMESCOPE_TIMEOUT:-unset}"
     echo "steamos_update_compat=installed"
 } >"$METADATA"
 cat "$METADATA"
@@ -274,6 +426,8 @@ if [ "${NOVA_REQUIRE_GAMESCOPE_LIBEI:-0}" = "1" ] && \
     echo "Gamescope binary is not libei-enabled" >&2
     exit 1
 fi
+
+run_preflight_gate
 
 rm -f "$REPORT" "$LOGCAT" "$APP_REPORT" "$SCREENSHOT"
 
