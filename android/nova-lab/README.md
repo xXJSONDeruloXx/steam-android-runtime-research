@@ -108,7 +108,9 @@ The Steam seed and SteamRT archives are downloaded only into the ignored
 reproducible `UID:GID` marker so the bounded client runs with `setpriv` under a
 non-root user. The seed/bootstrap and current ABI boundary are documented in
 `docs/14-nova-steam-arm64-seed-and-startup.md`; the current checkpoint reaches
-the native update UI but not login or Gamepad UI.
+the native update UI but not login or Gamepad UI. For loader-only diagnostics,
+`NOVA_STEAM_EXECUTABLE` can point at another ARM64 entry point, such as
+`steamwebhelper`, and `NOVA_STEAM_CLIENT_FLAGS` supplies its bounded arguments.
 
 `deploy-holo-probe.sh` returns the Vulkan probe status but always pulls its report,
 including expected failures. Set `VULKAN_LOADER_DEBUG=all` for loader diagnostics or

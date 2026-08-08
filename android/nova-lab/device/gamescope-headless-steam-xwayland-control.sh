@@ -16,6 +16,10 @@ fi
 STEAM_HOME=/opt/nova-steam/home
 STEAM_ROOT="$STEAM_HOME/.local/share/Steam"
 STEAM_CLIENT="$STEAM_ROOT/steamrtarm64/steam"
+STEAM_EXECUTABLE=${NOVA_STEAM_EXECUTABLE:-$STEAM_CLIENT}
+if [ -r /opt/nova-steam/executable ]; then
+    STEAM_EXECUTABLE=$(cat /opt/nova-steam/executable)
+fi
 STEAM_UID=0
 STEAM_GID=0
 if [ -r /opt/nova-steam/run-as-user ]; then
@@ -79,6 +83,7 @@ if [ "${1:-}" = "--client" ]; then
     echo "client_output=${OUTPUT_WIDTH}x${OUTPUT_HEIGHT}" >> "$client_log"
     echo "client_home=$STEAM_HOME" >> "$client_log"
     echo "client_root=$STEAM_ROOT" >> "$client_log"
+    echo "client_executable=$STEAM_EXECUTABLE" >> "$client_log"
     echo "client_bootstrap_mode=$bootstrap_mode" >> "$client_log"
     echo "client_flags=$client_flags" >> "$client_log"
     echo "client_uid=$STEAM_UID" >> "$client_log"
@@ -242,9 +247,9 @@ if [ "${1:-}" = "--client" ]; then
         echo "client_xhost_target=$xhost_target" >> "$client_log"
         echo "client_xhost_local_log=$xhost_log" >> "$client_log"
     fi
-    if [ ! -x "$STEAM_CLIENT" ]; then
+    if [ ! -x "$STEAM_EXECUTABLE" ]; then
         echo "client_started=fail" >> "$client_log"
-        echo "client_error=missing_or_nonexecutable_steam" >> "$client_log"
+        echo "client_error=missing_or_nonexecutable_executable" >> "$client_log"
         exit 1
     fi
     if [ -x /usr/bin/dbus-launch ]; then
@@ -252,7 +257,7 @@ if [ "${1:-}" = "--client" ]; then
     fi
 
     set -- $client_flags ${NOVA_STEAM_EXTRA_ARGS:-}
-    run_as_steam /usr/bin/timeout "$CLIENT_TIMEOUT" "$STEAM_CLIENT" "$@" \
+    run_as_steam /usr/bin/timeout "$CLIENT_TIMEOUT" "$STEAM_EXECUTABLE" "$@" \
         >"$client_stdout" 2>"$client_stderr" &
     client_pid=$!
     echo "client_pid=$client_pid" >> "$client_log"

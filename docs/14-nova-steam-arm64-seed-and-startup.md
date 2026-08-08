@@ -234,6 +234,62 @@ timeout is now propagated through the probe and stored in the disposable rootfs
 so the next run can reuse the downloaded package with a longer installation
 window.
 
+The promoted client was then launched with the updater bypassed. It reported
+the new build and reproduced the same early lifecycle failure across the Deck,
+desktop, `-vgui`, `-console`, and `-inhibitbootstrap` profiles:
+
+```text
+Startup - updater built Aug  7 2026 20:15:47
+Init: Installing breakpad exception handler for appid(steam)/version(1786141909)
+Using update UI: glx
+src/common/framefunction.cpp (238) : Assertion Failed:
+CFrameFunctionMgr::~CFrameFunctionMgr: non static FrameFunction[Bootstrapper HTTP Client] still registered
+client_status=1
+```
+
+This isolates the current failure from the initial Valve download, from the
+Steam Deck flags, and from the old seed binary. The updated native client still
+creates the GLX update window and crosses the five-frame Xwayland to Android
+buffer run, but it does not launch `steamwebhelper` before shutting down.
+
+## Direct steamwebhelper loader smoke
+
+The control now accepts `NOVA_STEAM_EXECUTABLE` for a bounded diagnostic. This
+allows the shipped helper to be run under the same Holo loader, Xwayland, and
+preload environment without pretending that a helper with no Steam host IPC is
+a full UI session:
+
+```sh
+NOVA_STEAM_EXECUTABLE=/opt/nova-steam/home/.local/share/Steam/steamrtarm64/steamwebhelper \
+NOVA_STEAM_CLIENT_FLAGS='--version' \
+NOVA_STEAM_BOOTSTRAP_MODE=skip \
+NOVA_STEAM_CLIENT_TIMEOUT=30 \
+NOVA_STEAM_GAMESCOPE_TIMEOUT=60 \
+NOVA_AHB_FRAME_COUNT=5 \
+NOVA_GAMESCOPE_AHB_SKIP_WAYLAND=1 \
+NOVA_GAMESCOPE_AHB_SKIP_WAYLAND_SHM=1 \
+NOVA_GAMESCOPE_AHB_XWAYLAND=1 \
+NOVA_GAMESCOPE_AHB_CONTROL=android/nova-lab/device/gamescope-headless-steam-xwayland-control.sh \
+android/nova-lab/deploy-gamescope-headless-ahb-test.sh || true
+```
+
+The diagnostic exits after the helper terminates because no hosted Steam window
+can produce the normal AHardwareBuffer frame markers; the client logs remain in
+`android/nova-lab/build/` after the run.
+
+The direct executable smoke produced:
+
+```text
+client_executable=/opt/nova-steam/home/.local/share/Steam/steamrtarm64/steamwebhelper
+client_status=0
+Chromium 126.0.6478.183
+```
+
+`ldd` also resolves the helper's GTK2, NSS/NSPR, CEF, X11, GL, and media
+dependencies in the Holo rootfs. The helper's version path exits before creating
+a Steam-hosted window, so the missing persistent frame remains a Steam parent
+bootstrap/IPC problem rather than proof that the final CEF UI works.
+
 ## Runtime experiments that did not become defaults
 
 The Holo Mesa stack must stay ahead of SteamRT's Mesa libraries. Reversing that
