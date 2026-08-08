@@ -47,6 +47,12 @@ The useful results are split across several projects:
 - [Nova Android input bridge Steam UI navigation acceptance](docs/29-nova-android-input-steam-ui-navigation.md) proves the Android app dispatch/socket path changes the live Steam Gamepad UI navigation panel under a strict Steam-surface visual gate.
 - [Nova Android A-button mapping and feedback-loop checkpoint](docs/30-nova-android-a-button-navigation.md) corrects the Nova ABXY semantic table, filters the virtual-device feedback loop, and proves Android `KEYCODE_BUTTON_A` reaches SDL3 as Xbox button 0 / Linux `BTN_SOUTH`; A-button UI activation remains open.
 - [Nova Android touch → Gamescope libei and fullscreen presentation checkpoint](docs/31-nova-android-touch-libei-fullscreen.md) proves the app touch socket, ARM64 libei helper, Gamescope touch events, and native Steam Gamepad UI visible on the fullscreen AHardwareBuffer presentation path; hardware CEF remains open.
+- [Nova live manual input diagnosis](docs/32-nova-live-manual-input-diagnosis.md) records the persistent-session workflow, Android overlay focus issue, and live D-pad/touch observations.
+- [Nova Steam font coverage open question](docs/33-nova-steam-font-coverage-open-question.md) records the missing-glyph symptom without making it a blocker for the input/network loop.
+- [Nova runtime harness lifecycle](docs/34-nova-runtime-harness-lifecycle.md) defines fresh run identity, exact cleanup, artifact provenance, and stale-evidence guardrails.
+- [Parent session process audit](docs/35-parent-session-process-audit-2026-08-08.md) records Luna's last-two-hours audit of repeated process mistakes and the resulting harness repairs.
+- [Nova bounded acceptance profile](docs/36-nova-bounded-acceptance-profile.md) defines the reproducible 1280×960 AHB/libei acceptance profile and clean-run evidence.
+- [Nova network and update compatibility boundary](docs/37-nova-network-and-update-compat.md) records Android-host network reachability, the research-only updater boundary, and the OOBE restart-branch isolation.
 
 ## Recommended direction
 
@@ -97,6 +103,12 @@ the gamescope frames on its own surface.
 - [Nova Android input bridge Steam UI navigation acceptance](docs/29-nova-android-input-steam-ui-navigation.md)
 - [Nova Android A-button mapping and feedback-loop checkpoint](docs/30-nova-android-a-button-navigation.md)
 - [Nova Android touch → Gamescope libei and fullscreen presentation checkpoint](docs/31-nova-android-touch-libei-fullscreen.md)
+- [Nova live manual input diagnosis](docs/32-nova-live-manual-input-diagnosis.md)
+- [Nova Steam font coverage open question](docs/33-nova-steam-font-coverage-open-question.md)
+- [Nova runtime harness lifecycle](docs/34-nova-runtime-harness-lifecycle.md)
+- [Parent session process audit](docs/35-parent-session-process-audit-2026-08-08.md)
+- [Nova bounded acceptance profile](docs/36-nova-bounded-acceptance-profile.md)
+- [Nova network and update compatibility boundary](docs/37-nova-network-and-update-compat.md)
 - [Retroid Pocket Nova flashing kit](tools/retroid-pocket-nova/README.md)
 
 ## Evidence standard

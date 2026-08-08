@@ -151,7 +151,7 @@ for file in $(find "$STEAMUI_ROOT" -type f -name '*.js' -exec grep -l 'SteamClie
         matched=1
         patch_file "$file" \
             'const n={};o.oy.IsDeckFactoryImage()||i==Em.ej?n.bRequireReboot=!0:n.bRequireSteamRestart=!0,console.assert(n.bRequireReboot||n.bRequireSteamRestart),t(n)' \
-            'const n={};t(n)' \
+            't(void 0)' \
             oobe_no_restart || status=1
     fi
     if grep -Fq '0==l.length&&(0,i.jsx)(wm.e.Button,{rightIcons:s&&(0,i.jsx)(Tt.Spinner,{}),children:(0,ye.we)("#Login_NoNetworksFound")})' "$file"; then
@@ -168,7 +168,7 @@ if [ "$matched" -eq 0 ]; then
         if grep -Fq 'SteamClient.System.Network?.RegisterForDeviceChanges?.(this.OnNetworkDevicesChanged)' "$file" && \
             grep -Fq 'StartScanningForNetworks(){const e=SteamClient.System.Network?.StartScanningForNetworks?.();e?.then?.(u.rA)}' "$file" && \
             grep -Fq 'SteamClient.System.Network?.GetProxyInfo?.()?.then?.(e=>this.m_proxyInfo=e)' "$file" && \
-            grep -Fq 'const n={};t(n)' "$file" && \
+            grep -Fq 't(void 0)' "$file" && \
             grep -Fq 'children:"Continue with Android host network"' "$file"; then
             echo "steam_network_compat=already-patched file=$file"
             matched=1
