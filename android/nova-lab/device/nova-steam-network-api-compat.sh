@@ -9,6 +9,8 @@ set -u
 STEAM_ROOT=${1:-/opt/nova-steam/home/.local/share/Steam}
 STEAMUI_ROOT="$STEAM_ROOT/steamui"
 TMP_SUFFIX=".nova-network-compat.$$"
+OOBE_NO_RESTART_OLD='function Gm(e){const{onContinue:t,onBack:r}=e,n=p.useCallback((e,i)=>{if(e!=ve.R)return void(r&&r());const n={};t(n)},[t,r])'
+OOBE_NO_RESTART_NEW='function Gm(e){const{onContinue:t,onBack:r}=e,n=p.useCallback((e,i)=>{if(e!=ve.R)return void(r&&r());t(void 0)},[t,r])'
 
 patch_file() {
     file=$1
@@ -157,11 +159,11 @@ for file in $(find "$STEAMUI_ROOT" -type f -name '*.js' -exec grep -l 'SteamClie
             'await nl.op.SetOOBEComplete(),t(e,r)' \
             oobe_completion_order || status=1
     fi
-    if grep -Fq 'const n={};o.oy.IsDeckFactoryImage()||i==Em.ej?n.bRequireReboot=!0:n.bRequireSteamRestart=!0,console.assert(n.bRequireReboot||n.bRequireSteamRestart),t(n)' "$file"; then
+    if grep -Fq "$OOBE_NO_RESTART_OLD" "$file"; then
         matched=1
         patch_file "$file" \
-            'const n={};o.oy.IsDeckFactoryImage()||i==Em.ej?n.bRequireReboot=!0:n.bRequireSteamRestart=!0,console.assert(n.bRequireReboot||n.bRequireSteamRestart),t(n)' \
-            't(void 0)' \
+            "$OOBE_NO_RESTART_OLD" \
+            "$OOBE_NO_RESTART_NEW" \
             oobe_no_restart || status=1
     fi
     if grep -Fq '0==l.length&&(0,i.jsx)(wm.e.Button,{rightIcons:s&&(0,i.jsx)(Tt.Spinner,{}),children:(0,ye.we)("#Login_NoNetworksFound")})' "$file"; then
@@ -179,7 +181,7 @@ if [ "$matched" -eq 0 ]; then
             grep -Fq 'StartScanningForNetworks(){const e=SteamClient.System.Network?.StartScanningForNetworks?.();e?.then?.(u.rA)}' "$file" && \
             grep -Fq 'SteamClient.System.Network?.GetProxyInfo?.()?.then?.(e=>this.m_proxyInfo=e)' "$file" && \
             grep -Fq 'await nl.op.SetOOBEComplete(),t(e,r)' "$file" && \
-            grep -Fq 't(void 0)' "$file" && \
+            grep -Fq "$OOBE_NO_RESTART_NEW" "$file" && \
             grep -Fq 'children:"Continue with Android host network"' "$file"; then
             echo "steam_network_compat=already-patched file=$file"
             matched=1

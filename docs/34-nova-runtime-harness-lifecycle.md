@@ -102,6 +102,13 @@ this patcher's stale temp suffix after an interruption. A future bundle-size or
 patch latency regression should be treated as a harness failure, not allowed to
 look like a Steam readiness timeout.
 
+The next manual run exposed a separate false-positive in the patcher's
+idempotence gate. The bundle still contained the exact update callback
+`function Gm(...){...const n={};t(n)}`, but a generic search for `t(void 0)`
+matched unrelated minified code and reported the file as already patched. The
+no-restart patch now matches the complete `Gm` callback before declaring either
+the old or new form, so an unrelated occurrence cannot mask a missed rewrite.
+
 ## Evidence and regression check
 
 The original bad state was reproduced by a fresh app session with a gray

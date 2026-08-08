@@ -109,5 +109,16 @@ so the login route could race the asynchronous settings write and be rejected
 before the completion state was observable. The compatibility helper now also
 changes that callback to `await nl.op.SetOOBEComplete(),t(e,r)`. This remains an
 OOBE-only ordering repair; it does not disable parental controls or bypass a
-real lock. A fresh run must verify both the awaited completion and the login
-surface.
+real lock. A fresh manual run `legacy-20260808T212224Z-49780` used the explicit
+1280x960 Gamescope artifact (`93f4807d55e4ad95e8cbd7c1622f97c3ccd7781952aec3b08cd44ee64a449e8f`, libei enabled, force GPU composition 0,
+Android key-event input). Live React-fiber inspection confirmed the awaited
+stage-1 callback, and Android touch plus D-pad/A input advanced language ->
+timezone -> network. The run then logged `No restart requested` followed by
+`/login blocked by parental controls feature 0`; the screen remained on the
+update state. Source inspection showed that the minified update component's
+separate `Gm` no-restart callback was still `const n={};t(n)`. A broad
+`t(void 0)` fallback had falsely called the bundle already patched because
+other code contained that substring. The patcher now requires the complete
+`Gm` callback marker before reporting success. Login remains an open
+acceptance gate until a fresh run verifies the corrected update callback and
+the OOBE stage-2 state transition.
