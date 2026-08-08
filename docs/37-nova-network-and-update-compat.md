@@ -50,3 +50,12 @@ login route. The session was then stopped with
 it does not yet prove the login gate. The next experiment is a fresh launch
 against the persisted OOBE state, with the same run identity and process
 cleanup discipline.
+
+Inspection of the shipped UI bundle identified why: successful OOBE completion
+sets bRequireSteamRestart, and the parent route calls
+SteamClient.User.StartRestart(!1). That client restart does not return to the
+login route in the Holo rootfs. The network compatibility helper now also
+replaces that OOBE-only restart request with an empty completion result, which
+lets Steam's existing route controller call GamepadUI.Login() without
+pretending the SteamOS host was rebooted. The patch is intentionally limited to
+the known OOBE callback and is verified by a fresh bundle marker.
