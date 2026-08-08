@@ -1,6 +1,8 @@
 # Nova X11 presentation capture diagnostic
 
-Status: diagnostic helper added 2026-08-08; rootfs/device capture still open.
+Status: diagnostic helper added 2026-08-08; first confirmed downstream
+release-message stall recorded in
+[`docs/39-nova-release-message-stall-2026-08-08.md`](39-nova-release-message-stall-2026-08-08.md).
 
 ## Why this exists
 
@@ -87,10 +89,15 @@ do not compare it with an artifact from another run.
 This checkpoint deliberately does not modify `HeadlessBackend.cpp` or the
 AHardwareBuffer ownership algorithm in `ahbbridge.c`; the app-side markers are
 diagnostic only. Ownership changes should wait until a fresh, same-run
-X11-versus-Android comparison identifies the failing boundary. The 2026-08-08 run then identified a concrete
-downstream stall: run `legacy-20260808T220739Z-52938` reached the network route
-in CDP and X11 while Android remained on the timezone page; Gamescope logged
-repeated `Android release message wait failed buffer 1` errors after its frame
-180 marker. A one-shot `debug_force_repaint` command did not advance the
-Android layer. The next app build adds Android-side wait/ack/release markers so
-the release-message loss can be located before ownership logic is changed.
+X11-versus-Android comparison identifies the failing boundary. The 2026-08-08
+runs then identified a concrete downstream stall. Run
+`legacy-20260808T220739Z-52938` reached the network route in CDP and X11 while
+Android remained on the timezone page; Gamescope logged repeated
+`Android release message wait failed buffer 1` errors after its frame 180
+marker. The fresh instrumented run `legacy-20260808T222115Z-53956` reproduced
+the same boundary with buffer 0 after the timezone-to-network transition. A
+one-shot `debug_force_repaint` command did not advance the Android layer. The
+Android-side wait/ack/release markers now prove that the app stops producing
+new frame markers after the release wait fails; the detailed run evidence and
+next tracing gate are in
+[`docs/39-nova-release-message-stall-2026-08-08.md`](39-nova-release-message-stall-2026-08-08.md).

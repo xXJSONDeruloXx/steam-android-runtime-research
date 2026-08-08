@@ -92,6 +92,14 @@ focus check at readiness, not only around bounded screenshots. This closes the
 observed case where `com.rp.settings` owned the USB chooser and consumed the
 operator's real D-pad/touch input before Steam received it.
 
+The 2026-08-08 X11 diagnostic run found the same overlay can reappear after a
+root-side `adb shell su -c` diagnostic command, even after readiness passed.
+Therefore a diagnostic harness must batch root-side probes where possible and
+must recheck the focused window immediately before every controlled input
+event. If `com.rp.settings` owns focus, dismiss it and record that fact before
+sampling input; a screenshot alone is not sufficient because the Steam layer
+can remain visible underneath the chooser.
+
 The OOBE compatibility patcher was then observed spending minutes in toybox
 `awk` while rewriting a single 14 MB minified Steam bundle. Its substring-based
 rewrite was effectively quadratic for Android's one-line input. The patcher now
