@@ -52,6 +52,7 @@ public final class MainActivity extends Activity implements SurfaceHolder.Callba
     private TextView androidVulkanStatus;
     private TextView bridgeStatus;
     private boolean doubleBufferPresentationMode;
+    private File doubleBufferReportFile;
     private boolean androidInputKeyOnly;
     private volatile boolean androidInputBridgeRunning;
     private Thread androidInputBridgeThread;
@@ -201,6 +202,12 @@ public final class MainActivity extends Activity implements SurfaceHolder.Callba
 
         if (doubleBufferPresentationMode) {
             surfaceStatus.setText("Surface: Linux presentation mode");
+            doubleBufferReportFile = new File(getFilesDir(),
+                    "dmabuf-double-buffer-report.txt");
+            if (doubleBufferReportFile.exists() && !doubleBufferReportFile.delete()) {
+                Log.w(TAG, "double_buffer_report_delete_failed path="
+                        + doubleBufferReportFile.getAbsolutePath());
+            }
         }
 
         if (getIntent().getBooleanExtra("run_android_input_bridge", false)) {
@@ -693,6 +700,7 @@ public final class MainActivity extends Activity implements SurfaceHolder.Callba
                     result = "native_exception=" + error;
                 }
                 final String report = result;
+                writeDoubleBufferReport(report);
                 Log.i(TAG, "dma_buf_double_buffer_bridge\n" + report);
                 Log.i(TAG, "dma_buf_double_buffer_summary "
                         + extractReportLine(report, "ahb_double_buffer_frames=")
@@ -705,6 +713,19 @@ public final class MainActivity extends Activity implements SurfaceHolder.Callba
                 });
             }
         });
+    }
+
+    private void writeDoubleBufferReport(String report) {
+        if (doubleBufferReportFile == null) {
+            return;
+        }
+        try {
+            FileOutputStream output = new FileOutputStream(doubleBufferReportFile, false);
+            output.write(report.getBytes(StandardCharsets.UTF_8));
+            output.close();
+        } catch (IOException error) {
+            Log.w(TAG, "double_buffer_report_write_failed", error);
+        }
     }
 
     private File installProbeAsset() throws IOException {

@@ -22,6 +22,7 @@ DEVICE_CLIENT="$DEVICE_DRIVER_DIR/wayland-shm-control"
 DEVICE_CONTROL="$DEVICE_DRIVER_DIR/gamescope-headless-ahb-control.sh"
 REPORT="$BUILD_DIR/device-gamescope-headless-ahb-report.txt"
 LOGCAT="$BUILD_DIR/device-gamescope-headless-ahb-logcat.txt"
+APP_REPORT="$BUILD_DIR/device-gamescope-headless-ahb-app-report.txt"
 SCREENSHOT="$BUILD_DIR/device-gamescope-headless-ahb-screenshot.png"
 
 for required in "$BINARY" "$CLIENT" "$CONTROL"; do
@@ -60,6 +61,8 @@ fi
 APP_DATA_DIR=$("$ADB" shell run-as "$PACKAGE" pwd | tr -d '\r')
 SOCKET_HOST_DIR="$APP_DATA_DIR/files"
 
+rm -f "$REPORT" "$LOGCAT" "$APP_REPORT" "$SCREENSHOT"
+
 "$ADB" logcat -c
 "$ADB" shell am force-stop "$PACKAGE"
 activity_args=(
@@ -95,10 +98,13 @@ set -e
 cp "$BUILD_DIR/holo-glibc-report.txt" "$REPORT"
 "$ADB" shell sleep 1
 "$ADB" logcat -d -v threadtime NovaLab:I '*:S' > "$LOGCAT"
+"$ADB" shell run-as "$PACKAGE" cat files/dmabuf-double-buffer-report.txt \
+    > "$APP_REPORT" 2>/dev/null || true
 "$ADB" exec-out screencap -p > "$SCREENSHOT"
 
 echo "report:     $REPORT"
 echo "app logcat: $LOGCAT"
+echo "app report: $APP_REPORT"
 echo "screenshot: $SCREENSHOT"
 if [ "$probe_status" -ne 0 ]; then
     echo "headless gamescope AHardwareBuffer probe failed; inspect $REPORT and $LOGCAT" >&2
@@ -145,7 +151,7 @@ logcat_markers=(
     'linux_acquire_fence=pass'
 )
 for marker in "${logcat_markers[@]}"; do
-    if ! rg -q -- "$marker" "$LOGCAT"; then
+    if ! rg -q -- "$marker" "$LOGCAT" "$APP_REPORT"; then
         echo "missing app marker: $marker" >&2
         exit 1
     fi

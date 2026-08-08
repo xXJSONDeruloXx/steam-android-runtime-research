@@ -172,9 +172,11 @@ there as a target-selection pitfall. For the accepted semantic Gamepad API
 check, set `NOVA_SDL3_GAMEPAD_EVENT_PROBE=1`; the harness passes the exact
 relay-created event path, expects the Xbox 360 mapping, and requires SDL3
 button-down and button-up events for D-pad down. See
-`docs/27-nova-sdl3-gamepad-event.md`. Both checks remain below Steam's own
-SDL3 Gamepad/Input consumer and the SteamUI navigation assertion. For
-loader-only diagnostics,
+`docs/27-nova-sdl3-gamepad-event.md`. The follow-up live Steam UI wrapper now
+passes an exact physical `BTN_DPAD_DOWN` through the same relay and observes a
+changed Steam navigation panel; see `docs/28-nova-steam-dpad-navigation.md`.
+The Android-keyevent variant and additional button/axis mappings remain open.
+For loader-only diagnostics,
 `NOVA_STEAM_EXECUTABLE` can point at another ARM64 entry point, such as
 `steamwebhelper`, and `NOVA_STEAM_CLIENT_FLAGS` supplies its bounded arguments.
 

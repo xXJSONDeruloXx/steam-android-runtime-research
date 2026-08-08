@@ -93,37 +93,51 @@ NOVA_HOLO_NAMESERVER='$NOVA_HOLO_NAMESERVER'
 VULKAN_AHB_HANDLE_SOCKET=''
 status=0
 
+unmount_target() {
+    unmount_path="\$1"
+    unmount_attempt=0
+    while [ "\$unmount_attempt" -lt 16 ]; do
+        /system/bin/umount -l "\$unmount_path" >/dev/null 2>&1 || break
+        unmount_attempt=\$((unmount_attempt + 1))
+    done
+}
+
 cleanup() {
-    /system/bin/umount -l "\$ROOT/run/nova-lab-app" >/dev/null 2>&1 || true
-    /system/bin/umount -l "\$ROOT/linkerconfig" >/dev/null 2>&1 || true
-    /system/bin/umount -l "\$ROOT/apex" >/dev/null 2>&1 || true
-    /system/bin/umount -l "\$ROOT/system" >/dev/null 2>&1 || true
-    /system/bin/umount -l "\$ROOT/vendor" >/dev/null 2>&1 || true
-    /system/bin/umount -l "\$ROOT/sys" >/dev/null 2>&1 || true
-    /system/bin/umount -l "\$ROOT/proc" >/dev/null 2>&1 || true
-    /system/bin/umount -l "\$ROOT/dev/shm" >/dev/null 2>&1 || true
-    /system/bin/umount -l "\$ROOT/dev" >/dev/null 2>&1 || true
+    unmount_target "\$ROOT/run/nova-lab-app"
+    unmount_target "\$ROOT/linkerconfig"
+    unmount_target "\$ROOT/apex"
+    unmount_target "\$ROOT/system"
+    unmount_target "\$ROOT/vendor"
+    unmount_target "\$ROOT/sys"
+    unmount_target "\$ROOT/proc"
+    unmount_target "\$ROOT/dev/shm"
+    unmount_target "\$ROOT/dev"
 }
 
 mount_one() {
-    source="\$1"
-    target="\$2"
-    mkdir -p "\$target"
-    if /system/bin/mount -o bind "\$source" "\$target"; then
-        echo "mount.\$target=pass"
+    mount_source="\$1"
+    mount_target="\$2"
+    if [ "\$mount_target" = "\$ROOT/dev" ]; then
+        unmount_target "\$ROOT/dev/shm"
+    fi
+    unmount_target "\$mount_target"
+    mkdir -p "\$mount_target"
+    if /system/bin/mount -o bind "\$mount_source" "\$mount_target"; then
+        echo "mount.\$mount_target=pass"
     else
-        echo "mount.\$target=fail"
+        echo "mount.\$mount_target=fail"
         status=1
     fi
 }
 
 mount_shm() {
-    target="\$ROOT/dev/shm"
-    mkdir -p "\$target"
-    if /system/bin/mount -t tmpfs -o mode=1777 tmpfs "\$target"; then
-        echo "mount.\$target=pass"
+    mount_target="\$ROOT/dev/shm"
+    unmount_target "\$mount_target"
+    mkdir -p "\$mount_target"
+    if /system/bin/mount -t tmpfs -o mode=1777 tmpfs "\$mount_target"; then
+        echo "mount.\$mount_target=pass"
     else
-        echo "mount.\$target=fail"
+        echo "mount.\$mount_target=fail"
         status=1
     fi
 }

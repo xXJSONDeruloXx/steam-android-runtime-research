@@ -6,6 +6,8 @@ ROOT="${1:-/data/local/tmp/nova-holo-rootfs}"
 OUT="${2:-/data/local/tmp/nova-steam-input-fd-report.txt}"
 TIMEOUT="${3:-90}"
 TARGET_NAME="${4:-Nova Virtual Xbox Controller}"
+TARGET_VENDOR="${5:-045e}"
+TARGET_PRODUCT="${6:-028e}"
 status=1
 attempt=0
 
@@ -14,6 +16,8 @@ mkdir -p "${OUT%/*}"
     echo "steam_input_fd_probe_begin"
     echo "steam_input_fd_root=$ROOT"
     echo "steam_input_fd_target_name=$TARGET_NAME"
+    echo "steam_input_fd_target_vendor=$TARGET_VENDOR"
+    echo "steam_input_fd_target_product=$TARGET_PRODUCT"
     echo "steam_input_fd_timeout=$TIMEOUT"
 
     while [ "$attempt" -lt "$TIMEOUT" ]; do
@@ -23,6 +27,10 @@ mkdir -p "${OUT%/*}"
             [ "$name" = "$TARGET_NAME" ] || continue
             event_dir=${name_path%/device/name}
             event_name=${event_dir##*/}
+            vendor=$(cat "$event_dir/device/id/vendor" 2>/dev/null || true)
+            product=$(cat "$event_dir/device/id/product" 2>/dev/null || true)
+            [ "$vendor" = "$TARGET_VENDOR" ] || continue
+            [ "$product" = "$TARGET_PRODUCT" ] || continue
             target="$ROOT/dev/input/$event_name"
             echo "steam_input_fd_target=$target"
             for pid in $(pidof steam steamwebhelper 2>/dev/null); do

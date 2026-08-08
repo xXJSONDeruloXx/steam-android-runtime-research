@@ -52,16 +52,30 @@ cleanup() {
         /system/bin/kill "$udevd_pid" >/dev/null 2>&1 || true
         wait "$udevd_pid" >/dev/null 2>&1 || true
     fi
-    /system/bin/umount -l "$ROOT/proc" >/dev/null 2>&1 || true
-    /system/bin/umount -l "$ROOT/sys" >/dev/null 2>&1 || true
-    /system/bin/umount -l "$ROOT/dev" >/dev/null 2>&1 || true
+    unmount_target "$ROOT/dev/shm"
+    unmount_target "$ROOT/proc"
+    unmount_target "$ROOT/sys"
+    unmount_target "$ROOT/dev"
+}
+
+unmount_target() {
+    unmount_path="$1"
+    unmount_attempt=0
+    while [ "$unmount_attempt" -lt 16 ]; do
+        /system/bin/umount -l "$unmount_path" >/dev/null 2>&1 || break
+        unmount_attempt=$((unmount_attempt + 1))
+    done
 }
 
 mount_one() {
-    source="$1"
-    target="$2"
-    mkdir -p "$target"
-    /system/bin/mount -o bind "$source" "$target" >/dev/null 2>&1 || true
+    mount_source="$1"
+    mount_target="$2"
+    if [ "$mount_target" = "$ROOT/dev" ]; then
+        unmount_target "$ROOT/dev/shm"
+    fi
+    unmount_target "$mount_target"
+    mkdir -p "$mount_target"
+    /system/bin/mount -o bind "$mount_source" "$mount_target" >/dev/null 2>&1 || true
 }
 
 trap cleanup EXIT

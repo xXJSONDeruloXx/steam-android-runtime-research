@@ -128,7 +128,8 @@ socket into the same rooted virtual device; [doc 19](19-nova-android-input-uinpu
   then proves a rooted evdev event is dispatched by Android as a controller-class
   `KeyEvent`. [Doc 21](21-nova-input-udev-device-visibility.md) proves the
   virtual node is discoverable through Holo `libudev` and readable by uid 501;
-  Steam enumeration and actual navigation are still required.
+  Steam enumeration and actual navigation are now covered by the exact-path
+  live-session check in [Doc 28](28-nova-steam-dpad-navigation.md).
   [Doc 23](23-nova-steam-controller-ui-input.md) now combines the live Steam FD
   observation with an exact physical BTN_SOUTH event and a before/after
   selector-region comparison. The relay and FD pass, but the selector remains
@@ -146,8 +147,11 @@ socket into the same rooted virtual device; [doc 19](19-nova-android-input-uinpu
   event experiment and the duplicate-node target-selection pitfall. [Doc
   27](27-nova-sdl3-gamepad-event.md) is the accepted follow-up: it passes the
   exact relay-created event path through Valve's SDL3 Gamepad mapping and
-  observes D-pad-down press/release transitions. Steam's own SDL3/Gamepad
-  consumer and UI navigation remain the next input boundary.
+  observes D-pad-down press/release transitions. [Doc 28](28-nova-steam-dpad-navigation.md)
+  then crosses Steam's own consumer boundary: the same exact physical
+  `BTN_DPAD_DOWN` changes the live Gamepad UI navigation panel while Steam
+  holds the matching event FD. The Android-keyevent route and broader button,
+  axis, rumble, login, and game-launch checks remain open.
 
 ### Rootless stage 3: user-space Steam session supervision
 
