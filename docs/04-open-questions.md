@@ -150,10 +150,10 @@ The target should not be considered proven until all of these work on one device
   the app's fullscreen presentation? The Nova touch path now passes end to end: an
   Android `MotionEvent` reaches the app's abstract socket, the ARM64 libei helper,
   Gamescope's virtual touch device, and the compositor's received-event log. A
-  synthetic fullscreen Gamescope frame is also visible edge to edge. The native Steam
-  fullscreen run reaches SteamUI readiness but produces a uniform dark screenshot
-  (`YAVG=57`, `YMAX=57`), so the strict Steam-surface gate remains open; see
-  [doc 31](31-nova-android-touch-libei-fullscreen.md).
+  synthetic fullscreen Gamescope frame is also visible edge to edge. With a 120-frame
+  compositor run and a 30-second settle, the native Steam fullscreen run reaches
+  SteamUI readiness and shows the language selector/welcome screen edge to edge under
+  the strict Steam-surface gate; see [doc 31](31-nova-android-touch-libei-fullscreen.md).
 - Can the Nova expose hardware GLX/CEF for Steam? The bounded `msm` probe keeps
   Gamescope's Turnip/AHardwareBuffer side alive but Steam exits before CEF with
   `SIGILL`; an explicit `freedreno` Gallium profile instead fails at `drisw`

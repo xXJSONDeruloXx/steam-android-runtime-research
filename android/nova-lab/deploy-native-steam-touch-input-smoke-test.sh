@@ -29,7 +29,7 @@ export NOVA_EIS_TOUCH_HELPER="$HELPER"
 export NOVA_EIS_TOUCH_APP_SOCKET="@/data/user/0/$PACKAGE/files/nova-touch.sock"
 export NOVA_EIS_TOUCH_TIMEOUT=${NOVA_EIS_TOUCH_TIMEOUT:-60000}
 export NOVA_ANDROID_TOUCH_BRIDGE=1
-export NOVA_FULLSCREEN_PRESENTATION=1
+export NOVA_FULLSCREEN_PRESENTATION=${NOVA_FULLSCREEN_PRESENTATION:-1}
 export NOVA_AHB_FRAME_COUNT=${NOVA_AHB_FRAME_COUNT:-120}
 export NOVA_AHB_WIDTH=${NOVA_AHB_WIDTH:-960}
 export NOVA_AHB_HEIGHT=${NOVA_AHB_HEIGHT:-540}
@@ -87,6 +87,7 @@ while [ "$elapsed" -lt "$WAIT_TIMEOUT" ]; do
         >"$EIS_LOG" 2>/dev/null || true
     if rg -q -- 'android_touch_socket=connected' "$APP_REPORT" && \
         rg -q -- 'libei_touch_device_resumed=pass' "$EIS_LOG" && \
+        "$ADB" shell "dumpsys window | grep 'mCurrentFocus=.*$PACKAGE/.*MainActivity' >/dev/null" && \
         "$ADB" shell "su -c 'ps -A -o ARGS | grep -q steamwebhelper && tail -n +$((steamui_html_lines + 1)) $DEVICE_ROOT/opt/nova-steam/home/.local/share/Steam/logs/steamui_html.txt | grep -q \"Started webhelper process\" && tail -n +$((webhelper_js_lines + 1)) $DEVICE_ROOT/opt/nova-steam/home/.local/share/Steam/logs/webhelper_js.txt | grep -q \"CWebSocketConnection (steamUI): connection ready\" && tail -n +$((webhelper_js_lines + 1)) $DEVICE_ROOT/opt/nova-steam/home/.local/share/Steam/logs/webhelper_js.txt | grep -q \"OOBE Store: keyboards\"'" \
         >/dev/null 2>&1; then
         touch_ready=0
@@ -137,9 +138,16 @@ echo "touch_before_sha256=$(sha256sum "$BEFORE_SCREENSHOT" | cut -c1-64)"
 echo "touch_after_sha256=$(sha256sum "$AFTER_SCREENSHOT" | cut -c1-64)"
 echo "touch_screen_changed=$(cmp -s "$BEFORE_SCREENSHOT" "$AFTER_SCREENSHOT" && echo fail || echo pass)"
 
+if [ "${NOVA_FULLSCREEN_PRESENTATION:-1}" = "1" ]; then
+    touch_panel_crop=265:60:982:50
+    touch_panel_min_yavg=180
+else
+    touch_panel_crop=265:30:970:185
+    touch_panel_min_yavg=100
+fi
 touch_panel="$BEFORE_SCREENSHOT.steam-panel.png"
 ffmpeg -y -hide_banner -loglevel error -i "$BEFORE_SCREENSHOT" \
-    -vf "crop=250:600:1000:20" "$touch_panel" >/dev/null 2>&1
+    -vf "crop=$touch_panel_crop" "$touch_panel" >/dev/null 2>&1
 touch_panel_stats=$(ffmpeg -hide_banner -i "$touch_panel" \
     -vf "signalstats,metadata=print:file=-" -f null - 2>&1 | awk -F= '
         /lavfi.signalstats.YAVG=/{yavg=$2}
@@ -153,7 +161,7 @@ case "$touch_panel_yavg" in ''|*[!0-9]*) touch_panel_yavg=0 ;; esac
 case "$touch_panel_ymax" in ''|*[!0-9]*) touch_panel_ymax=0 ;; esac
 echo "touch_steam_panel_yavg=$touch_panel_yavg"
 echo "touch_steam_panel_ymax=$touch_panel_ymax"
-if [ "$touch_panel_ymax" -ge 220 ] && [ "$touch_panel_yavg" -ge 20 ]; then
+if [ "$touch_panel_ymax" -ge 220 ] && [ "$touch_panel_yavg" -ge "$touch_panel_min_yavg" ]; then
     echo "touch_steam_surface=pass"
 else
     echo "touch_steam_surface=fail" >&2

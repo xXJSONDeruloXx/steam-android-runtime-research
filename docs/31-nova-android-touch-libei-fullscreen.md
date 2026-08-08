@@ -2,7 +2,7 @@
 
 Date: 2026-08-08
 Device: Retroid Pocket Nova, Snapdragon `kalama`, Adreno 740, rooted Android 15 lab image
-Status: touch transport passes; fullscreen synthetic presentation passes; fullscreen native Steam visual gate remains open
+Status: touch transport and fullscreen native Steam presentation pass; hardware CEF remains open
 
 ## Why this checkpoint exists
 
@@ -110,41 +110,46 @@ and a visible edge-to-edge synthetic pattern in the pulled screenshot. This prov
 the fullscreen Android `SurfaceView`/SurfaceControl stack and display-size destination
 geometry can present a live Gamescope buffer.
 
-The corresponding native Steam run passed process and protocol readiness, including the
-SteamUI WebSocket and `OOBE Store: keyboards` markers, but its fullscreen screenshots
-were uniformly dark gray:
-
-```text
-touch_before_sha256=5f59504e38b600b446955d3fff7a03152522ac997a40c82ecd9215a9af0afa88
-touch_after_sha256=5f59504e38b600b446955d3fff7a03152522ac997a40c82ecd9215a9af0afa88
-touch_screen_changed=fail
-touch_steam_panel_yavg=57
-touch_steam_panel_ymax=57
-touch_steam_surface=fail
-```
-
-Therefore the strict form currently fails as expected:
+The final native Steam acceptance uses a longer compositor run and a 30-second settle
+after the SteamUI readiness markers. The visual assertion samples the white Steam
+language-panel header rather than generic bright pixels from the Android report UI:
 
 ```sh
+NOVA_FULLSCREEN_PRESENTATION=1 \
+NOVA_AHB_FRAME_COUNT=120 \
+NOVA_TOUCH_WAIT_TIMEOUT=120 \
+NOVA_TOUCH_SETTLE_DELAY=30 \
+NOVA_TOUCH_AFTER_DELAY=8 \
+NOVA_STEAM_CLIENT_TIMEOUT=60 \
+NOVA_STEAM_GAMESCOPE_TIMEOUT=75 \
 NOVA_TOUCH_REQUIRE_STEAM_SURFACE=1 \
   android/nova-lab/deploy-native-steam-touch-input-smoke-test.sh
 ```
 
-This is not recorded as a fullscreen Steam presentation pass. The already-proven normal
-bench presentation still visibly shows the native Steam pre-login Gamepad UI, and the
-synthetic fullscreen test is visible. The remaining defect is narrowed to the interaction
-between native Steam's output and this fullscreen presentation configuration, not to the
-basic Android surface or Gamescope touch path.
+That run passed with stable fullscreen Steam screenshots:
+
+```text
+touch_before_sha256=be028464136e03d87c58e8c46169a6351103ac22a54dd35f380008365a162796
+touch_after_sha256=be028464136e03d87c58e8c46169a6351103ac22a54dd35f380008365a162796
+touch_screen_changed=fail
+touch_steam_panel_yavg=230
+touch_steam_panel_ymax=235
+touch_steam_surface=pass
+native_steam_touch_input_smoke=pass
+```
+
+Earlier 30-frame or shorter-settle captures were black because the native Steam surface
+had not latched its first visible CEF frame yet. The longer run removes that timing race;
+the fullscreen screenshot visibly contains the Steam language selector and localized
+welcome text edge to edge. The normal bench presentation remains a useful control.
 
 The live root report also records Xwayland glamor falling back to software because GBM
 Wayland interfaces are unavailable. Hardware CEF rendering remains a separate unresolved
 graphics gate.
 
-## Next experiment
+## Remaining graphics boundary
 
-Compare the normal visible Steam surface with fullscreen using the same 960x540 logical
-Gamescope buffer while Android scales the app-owned surface to the display. The current
-fullscreen mode requests a display-sized buffer (`1280x960`), whereas the normal Steam
-path uses a fixed `960x540` SurfaceView. If that comparison does not restore visible
-Steam pixels, inspect Steam/Xwayland window geometry and Gamescope output selection before
-changing the input protocol again.
+The live root report still records Xwayland glamor falling back to software because GBM
+Wayland interfaces are unavailable. Hardware CEF rendering remains a separate unresolved
+graphics gate, and login, broader controls, game launch, audio, and lifecycle cleanup
+remain open.

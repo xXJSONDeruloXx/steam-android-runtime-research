@@ -146,10 +146,9 @@ socket into the same rooted virtual device; [doc 19](19-nova-android-input-uinpu
   mapping and closes the virtual-device feedback loop, but A-button UI
   activation is still open. Broader button, axis, rumble, login, and
   game-launch checks remain open. [Doc 31](31-nova-android-touch-libei-fullscreen.md)
-  now proves the Android touch → libei → Gamescope event path and synthetic fullscreen
-  output. Native Steam reaches readiness in fullscreen but remains visually dark, so
-  the next presentation experiment must compare the normal fixed 960x540 Steam surface
-  with the display-sized fullscreen surface.
+  now proves the Android touch → libei → Gamescope event path and native Steam Gamepad
+  UI visible on the fullscreen AHardwareBuffer output after a bounded settle. Hardware
+  CEF, broader controls, login, audio, game launch, and lifecycle cleanup remain open.
 
 ### Rootless stage 3: user-space Steam session supervision
 

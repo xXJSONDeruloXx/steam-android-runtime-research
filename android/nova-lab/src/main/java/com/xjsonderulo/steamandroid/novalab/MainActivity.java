@@ -125,8 +125,18 @@ public final class MainActivity extends Activity implements SurfaceHolder.Callba
         surface.getHolder().setFormat(PixelFormat.RGBA_8888);
         surface.setKeepScreenOn(true);
         if (fullscreenPresentationMode) {
-            presentationWidth = getResources().getDisplayMetrics().widthPixels;
-            presentationHeight = getResources().getDisplayMetrics().heightPixels;
+            int displayWidth = getResources().getDisplayMetrics().widthPixels;
+            int displayHeight = getResources().getDisplayMetrics().heightPixels;
+            presentationWidth = getIntent().getIntExtra(
+                    "fullscreen_width", displayWidth);
+            presentationHeight = getIntent().getIntExtra(
+                    "fullscreen_height", displayHeight);
+            if (presentationWidth <= 0) {
+                presentationWidth = displayWidth;
+            }
+            if (presentationHeight <= 0) {
+                presentationHeight = displayHeight;
+            }
             surface.getHolder().setFixedSize(presentationWidth, presentationHeight);
             surface.setLayoutParams(new ViewGroup.LayoutParams(-1, -1));
         } else {

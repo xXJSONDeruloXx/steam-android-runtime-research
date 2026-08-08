@@ -196,8 +196,9 @@ For the touch bridge checkpoint, build the ARM64 helper with
 Android abstract touch socket, libei seat/device readiness, touch down/up delivery,
 Gamescope receipt, and the existing native Steam/AHB smoke. Add
 `NOVA_TOUCH_REQUIRE_STEAM_SURFACE=1` to make the fullscreen Steam screenshot a strict
-gate; as of 2026-08-08 that gate is intentionally failing with a uniform dark Steam
-surface while the synthetic fullscreen Gamescope test passes. See
+gate. Use at least 120 compositor frames and a 30-second settle for the native Steam
+surface to latch; the strict gate passes with the fullscreen Steam language selector
+visible. See
 `docs/31-nova-android-touch-libei-fullscreen.md`.
 For loader-only diagnostics,
 `NOVA_STEAM_EXECUTABLE` can point at another ARM64 entry point, such as

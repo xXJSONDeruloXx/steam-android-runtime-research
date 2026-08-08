@@ -94,6 +94,12 @@ if [ "${NOVA_ANDROID_TOUCH_BRIDGE:-0}" = "1" ]; then
 fi
 if [ "${NOVA_FULLSCREEN_PRESENTATION:-0}" = "1" ]; then
     activity_args+=(--ez fullscreen_presentation true)
+    if [ -n "${NOVA_FULLSCREEN_WIDTH:-}" ]; then
+        activity_args+=(--ei fullscreen_width "$NOVA_FULLSCREEN_WIDTH")
+    fi
+    if [ -n "${NOVA_FULLSCREEN_HEIGHT:-}" ]; then
+        activity_args+=(--ei fullscreen_height "$NOVA_FULLSCREEN_HEIGHT")
+    fi
 fi
 "$ADB" shell am start -W -n "$PACKAGE/.MainActivity" \
     "${activity_args[@]}" >/dev/null
