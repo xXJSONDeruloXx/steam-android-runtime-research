@@ -6,12 +6,15 @@
 #include <linux/input.h>
 #include <linux/uinput.h>
 #include <poll.h>
+#include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/socket.h>
 #include <sys/ioctl.h>
 #include <sys/stat.h>
 #include <sys/time.h>
+#include <sys/un.h>
 #include <unistd.h>
 
 #define NOVA_GAMEPAD_NAME "Nova Virtual Xbox Controller"
@@ -208,16 +211,220 @@ static int forward_source_event(int uinput_fd, const struct input_event *event)
     }
 }
 
+static int map_android_key(int android_keycode)
+{
+    switch (android_keycode) {
+    case 96:  /* KEYCODE_BUTTON_A: this Nova controller reports BTN_EAST. */
+        return BTN_EAST;
+    case 97:  /* KEYCODE_BUTTON_B */
+        return BTN_C;
+    case 98:  /* KEYCODE_BUTTON_C */
+        return BTN_Z;
+    case 99:  /* KEYCODE_BUTTON_X */
+        return BTN_NORTH;
+    case 100: /* KEYCODE_BUTTON_Y */
+        return BTN_WEST;
+    case 102: /* KEYCODE_BUTTON_L1 */
+        return BTN_TL;
+    case 103: /* KEYCODE_BUTTON_R1 */
+        return BTN_TR;
+    case 104: /* KEYCODE_BUTTON_L2 */
+        return BTN_TL2;
+    case 105: /* KEYCODE_BUTTON_R2 */
+        return BTN_TR2;
+    case 106: /* KEYCODE_BUTTON_THUMBL */
+        return BTN_THUMBL;
+    case 107: /* KEYCODE_BUTTON_THUMBR */
+        return BTN_THUMBR;
+    case 108: /* KEYCODE_BUTTON_START */
+        return BTN_START;
+    case 109: /* KEYCODE_BUTTON_SELECT */
+        return BTN_SELECT;
+    case 110: /* KEYCODE_BUTTON_MODE */
+        return BTN_MODE;
+    case 19:  /* KEYCODE_DPAD_UP */
+        return BTN_DPAD_UP;
+    case 20:  /* KEYCODE_DPAD_DOWN */
+        return BTN_DPAD_DOWN;
+    case 21:  /* KEYCODE_DPAD_LEFT */
+        return BTN_DPAD_LEFT;
+    case 22:  /* KEYCODE_DPAD_RIGHT */
+        return BTN_DPAD_RIGHT;
+    default:
+        return -1;
+    }
+}
+
+static int map_android_axis(int android_axis)
+{
+    switch (android_axis) {
+    case 0:  /* AXIS_X */
+        return ABS_X;
+    case 1:  /* AXIS_Y */
+        return ABS_Y;
+    case 11: /* AXIS_Z */
+        return ABS_Z;
+    case 14: /* AXIS_RZ */
+        return ABS_RZ;
+    case 17: /* AXIS_LTRIGGER */
+        return ABS_GAS;
+    case 18: /* AXIS_RTRIGGER */
+        return ABS_BRAKE;
+    case 15: /* AXIS_HAT_X */
+        return ABS_HAT0X;
+    case 16: /* AXIS_HAT_Y */
+        return ABS_HAT0Y;
+    default:
+        return -1;
+    }
+}
+
+static int map_android_axis_value(int android_axis, float value)
+{
+    if (value > 1.0f) {
+        value = 1.0f;
+    } else if (value < -1.0f) {
+        value = -1.0f;
+    }
+    if (android_axis == 17 || android_axis == 18) {
+        if (value < 0.0f) {
+            value = 0.0f;
+        }
+        return (int)(value * 32767.0f);
+    }
+    return (int)(value * 32767.0f);
+}
+
+static int connect_input_socket(const char *path)
+{
+    struct sockaddr_un address;
+    const int abstract = path[0] == '@';
+    const char *socket_name = abstract ? path + 1 : path;
+    size_t path_length = strlen(socket_name);
+    socklen_t address_length;
+    int fd;
+
+    if (path_length >= sizeof(address.sun_path) - (abstract ? 1u : 0u)) {
+        errno = ENAMETOOLONG;
+        return -1;
+    }
+    fd = socket(AF_UNIX, SOCK_STREAM | SOCK_CLOEXEC, 0);
+    if (fd < 0) {
+        return -1;
+    }
+    memset(&address, 0, sizeof(address));
+    address.sun_family = AF_UNIX;
+    if (abstract) {
+        memcpy(address.sun_path + 1, socket_name, path_length);
+        address_length = (socklen_t)(offsetof(struct sockaddr_un, sun_path)
+                                     + 1u + path_length);
+    } else {
+        memcpy(address.sun_path, socket_name, path_length + 1);
+        address_length = sizeof(address);
+    }
+    if (connect(fd, (struct sockaddr *)&address, address_length) != 0) {
+        close(fd);
+        return -1;
+    }
+    return fd;
+}
+
+static int forward_android_line(int uinput_fd, char *line,
+                                int *key_forwarded, int *axis_forwarded)
+{
+    int code;
+    int action;
+    int android_axis;
+    float axis_value;
+
+    if (sscanf(line, "K %d %d", &code, &action) == 2) {
+        int linux_code = map_android_key(code);
+        if (linux_code < 0 || action < 0 || action > 2) {
+            return 0;
+        }
+        if (emit_key(uinput_fd, (unsigned short)linux_code, action) != 0) {
+            return -1;
+        }
+        *key_forwarded = 1;
+        return 0;
+    }
+    if (sscanf(line, "A %d %f", &android_axis, &axis_value) == 2) {
+        int linux_axis = map_android_axis(android_axis);
+        if (linux_axis < 0) {
+            return 0;
+        }
+        if (emit_event(uinput_fd, EV_ABS, (unsigned short)linux_axis,
+                       map_android_axis_value(android_axis, axis_value)) != 0 ||
+            emit_event(uinput_fd, EV_SYN, SYN_REPORT, 0) != 0) {
+            return -1;
+        }
+        *axis_forwarded = 1;
+    }
+    return 0;
+}
+
+static int read_android_socket(int socket_fd, int uinput_fd, char *buffer,
+                               size_t *used, size_t capacity,
+                               int *key_forwarded, int *axis_forwarded,
+                               int *closed)
+{
+    char incoming[512];
+    ssize_t count = read(socket_fd, incoming, sizeof(incoming));
+
+    *closed = 0;
+    if (count == 0) {
+        *closed = 1;
+        return 0;
+    }
+    if (count < 0) {
+        if (errno == EAGAIN || errno == EWOULDBLOCK || errno == EINTR) {
+            return 0;
+        }
+        return -1;
+    }
+    if ((size_t)count >= capacity - *used) {
+        errno = EMSGSIZE;
+        return -1;
+    }
+    memcpy(buffer + *used, incoming, (size_t)count);
+    *used += (size_t)count;
+    buffer[*used] = '\0';
+
+    char *line_start = buffer;
+    char *newline;
+    while ((newline = strchr(line_start, '\n')) != NULL) {
+        size_t line_length = (size_t)(newline - line_start);
+        *newline = '\0';
+        if (forward_android_line(uinput_fd, line_start,
+                                  key_forwarded, axis_forwarded) != 0) {
+            return -1;
+        }
+        line_start = newline + 1;
+        *used -= line_length + 1;
+    }
+    if (line_start != buffer) {
+        memmove(buffer, line_start, *used);
+        buffer[*used] = '\0';
+    }
+    return 0;
+}
+
 int main(int argc, char **argv)
 {
     const char *source_path = argc > 1 ? argv[1] : "/dev/input/event7";
     const char *mode = argc > 3 ? argv[3] : "self-test";
+    const char *socket_path = argc > 4 ? argv[4] : getenv("NOVA_INPUT_SOCKET");
     unsigned int timeout_ms = 5000;
     char source_name[256];
     char virtual_path[64];
+    char socket_buffer[4096];
+    size_t socket_used = 0;
     int source_fd = -1;
     int uinput_fd = -1;
     int virtual_fd = -1;
+    int socket_fd = -1;
+    int socket_key_forwarded = 0;
+    int socket_axis_forwarded = 0;
     int status = 1;
 
     if (argc > 2 && parse_timeout(argv[2], &timeout_ms) != 0) {
@@ -298,6 +505,19 @@ int main(int argc, char **argv)
             printf("uinput_self_test=pass\n");
         }
         fflush(stdout);
+    } else if (strcmp(mode, "socket") == 0) {
+        if (socket_path == NULL || *socket_path == '\0') {
+            fprintf(stderr, "uinput_error=missing_socket_path\n");
+            goto cleanup;
+        }
+        socket_fd = connect_input_socket(socket_path);
+        if (socket_fd < 0) {
+            fprintf(stderr, "uinput_error=connect_input_socket errno=%d\n", errno);
+            goto cleanup;
+        }
+        printf("android_input_socket=%s\n", socket_path);
+        printf("android_input_socket_connected=pass\n");
+        fflush(stdout);
     } else if (strcmp(mode, "none") != 0 && strcmp(mode, "relay") != 0) {
         fprintf(stderr, "uinput_error=unknown_mode\n");
         goto cleanup;
@@ -305,14 +525,23 @@ int main(int argc, char **argv)
 
     printf("uinput_relay=begin\n");
     fflush(stdout);
-    struct pollfd fds[2];
+    struct pollfd fds[3];
     unsigned int elapsed = 0;
     int forwarded = 0;
     while (elapsed < timeout_ms) {
         int count = 0;
-        if (source_fd >= 0) {
+        int source_position = -1;
+        int socket_position = -1;
+        int virtual_position = -1;
+        if (source_fd >= 0 && strcmp(mode, "socket") != 0) {
+            source_position = count;
             fds[count++] = (struct pollfd){.fd = source_fd, .events = POLLIN};
         }
+        if (socket_fd >= 0) {
+            socket_position = count;
+            fds[count++] = (struct pollfd){.fd = socket_fd, .events = POLLIN};
+        }
+        virtual_position = count;
         fds[count++] = (struct pollfd){.fd = virtual_fd, .events = POLLIN};
         int wait_ms = (int)(timeout_ms - elapsed);
         if (wait_ms > 100) {
@@ -326,9 +555,8 @@ int main(int argc, char **argv)
             fprintf(stderr, "uinput_error=poll errno=%d\n", errno);
             goto cleanup;
         }
-        int position = 0;
-        if (source_fd >= 0) {
-            if ((fds[position].revents & POLLIN) != 0) {
+        if (source_position >= 0) {
+            if ((fds[source_position].revents & POLLIN) != 0) {
                 struct input_event event;
                 ssize_t bytes;
                 while ((bytes = read(source_fd, &event, sizeof(event))) == (ssize_t)sizeof(event)) {
@@ -341,9 +569,23 @@ int main(int argc, char **argv)
                     }
                 }
             }
-            position++;
         }
-        if ((fds[position].revents & POLLIN) != 0) {
+        if (socket_position >= 0 &&
+            (fds[socket_position].revents & (POLLIN | POLLHUP)) != 0) {
+            int socket_closed = 0;
+            if (read_android_socket(socket_fd, uinput_fd, socket_buffer,
+                                    &socket_used, sizeof(socket_buffer),
+                                    &socket_key_forwarded,
+                                    &socket_axis_forwarded,
+                                    &socket_closed) != 0) {
+                fprintf(stderr, "uinput_error=read_android_socket errno=%d\n", errno);
+                goto cleanup;
+            }
+            if (socket_closed) {
+                break;
+            }
+        }
+        if ((fds[virtual_position].revents & POLLIN) != 0) {
             int ignored_down = 0;
             int ignored_up = 0;
             drain_virtual(virtual_fd, BTN_SOUTH, &ignored_down, &ignored_up);
@@ -355,12 +597,23 @@ int main(int argc, char **argv)
     } else {
         printf("uinput_event_forwarded=none\n");
     }
+    if (socket_fd >= 0) {
+        printf("android_key_forwarded=%s\n",
+               socket_key_forwarded ? "pass" : "none");
+        printf("android_axis_forwarded=%s\n",
+               socket_axis_forwarded ? "pass" : "none");
+        printf("android_input_forwarded=%s\n",
+               socket_key_forwarded || socket_axis_forwarded ? "pass" : "none");
+    }
     printf("uinput_relay=end\n");
     printf("uinput_probe=pass\n");
     fflush(stdout);
     status = 0;
 
 cleanup:
+    if (socket_fd >= 0) {
+        close(socket_fd);
+    }
     if (virtual_fd >= 0) {
         close(virtual_fd);
     }

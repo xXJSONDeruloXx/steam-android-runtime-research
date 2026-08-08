@@ -101,6 +101,7 @@ android/nova-lab/deploy-native-steam-input-smoke-test.sh
 android/nova-lab/deploy-native-steam-hardware-probe.sh
 android/nova-lab/build-uinput-gamepad-relay.sh
 android/nova-lab/deploy-native-steam-gamepad-input-smoke-test.sh
+android/nova-lab/deploy-native-steam-android-input-bridge-smoke-test.sh
 android/nova-lab/fetch-steam-arm64-seed.sh --all
 NOVA_STEAM_UID=1000 NOVA_STEAM_GID=1000 android/nova-lab/deploy-steam-arm64-seed.sh
 android/nova-lab/build-posix-sync-probe.sh
@@ -124,8 +125,13 @@ games, and hardware CEF rendering remain open. The separate hardware wrapper in
 `docs/17-nova-steam-hardware-glx-probe.md` records the current negative result:
 the native `msm` path reaches neither CEF nor a hosted frame before its GLX/SVE
 boundary fails. The uinput relay in `docs/18-nova-uinput-gamepad-smoke.md` now
-creates a Linux-visible virtual gamepad from the Nova's attached Xbox evdev node;
-it still needs Android event mapping and a Steam navigation assertion. For
+creates a Linux-visible virtual gamepad from the Nova's attached Xbox evdev node.
+`deploy-native-steam-android-input-bridge-smoke-test.sh` adds the next seam:
+the app enumerates Android controller devices, accepts a key event over an
+abstract Unix socket, and the rooted ARM64 helper maps it into that virtual
+device. The accepted evidence is documented in
+`docs/19-nova-android-input-uinput-bridge.md`; physical controller dispatch
+and a Steam navigation assertion are still open. For
 loader-only diagnostics,
 `NOVA_STEAM_EXECUTABLE` can point at another ARM64 entry point, such as
 `steamwebhelper`, and `NOVA_STEAM_CLIENT_FLAGS` supplies its bounded arguments.

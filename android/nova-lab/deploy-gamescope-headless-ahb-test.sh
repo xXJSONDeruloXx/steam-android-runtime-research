@@ -62,11 +62,17 @@ SOCKET_HOST_DIR="$APP_DATA_DIR/files"
 
 "$ADB" logcat -c
 "$ADB" shell am force-stop "$PACKAGE"
+activity_args=(
+    --ez run_dmabuf_double_buffer true
+    --ei dmabuf_double_buffer_frames "$FRAME_COUNT"
+    --ei dmabuf_double_buffer_width "$BUFFER_WIDTH"
+    --ei dmabuf_double_buffer_height "$BUFFER_HEIGHT"
+)
+if [ "${NOVA_ANDROID_INPUT_BRIDGE:-0}" = "1" ]; then
+    activity_args+=(--ez run_android_input_bridge true)
+fi
 "$ADB" shell am start -W -n "$PACKAGE/.MainActivity" \
-    --ez run_dmabuf_double_buffer true \
-    --ei dmabuf_double_buffer_frames "$FRAME_COUNT" \
-    --ei dmabuf_double_buffer_width "$BUFFER_WIDTH" \
-    --ei dmabuf_double_buffer_height "$BUFFER_HEIGHT" >/dev/null
+    "${activity_args[@]}" >/dev/null
 
 set +e
 VULKAN_ICD_FILE=/opt/nova-kgsl-driver/freedreno-kgsl.icd.json \

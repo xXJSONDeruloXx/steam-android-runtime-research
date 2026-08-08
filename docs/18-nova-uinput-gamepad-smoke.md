@@ -80,10 +80,10 @@ the run and was given mode `0666` so Steam uid 501 is not blocked by Android's
 The physical-to-uinput seam is now a repeatable rooted diagnostic. The
 `sendevent` injection is deliberately not an Android app input bridge and the
 run does not claim Steam navigation; it only proves that a Linux-compatible
-gamepad device can be created and fed while the Steam session is alive.
+gamepad device can be created and fed while the Steam session is alive. The
+app-side Android key/socket extension is recorded separately in
+[doc 19](19-nova-android-input-uinput-bridge.md).
 
-Next, add an Android `InputDevice`/touch capture path to the app supervisor,
-map Android keycodes and motion axes to the virtual device, keep the relay
-alive for the session lifetime, and capture a before/after Gamepad UI action.
-Then test whether Steam uid 501 actually enumerates this virtual device and
+Next, capture a physical Nova controller event through the app supervisor,
+then test whether Steam uid 501 actually enumerates the virtual device and
 whether rumble can return through the same root helper.

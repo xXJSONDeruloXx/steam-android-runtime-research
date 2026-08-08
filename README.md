@@ -34,6 +34,7 @@ The useful results are split across several projects:
 - [Nova Gamescope libei input seam](docs/16-nova-libei-input-smoke.md) records the first live keyboard-event round trip through Gamescope's EIS socket while native Steam and Android presentation remain active; gamepad navigation is still open.
 - [Nova native Steam hardware GLX probe](docs/17-nova-steam-hardware-glx-probe.md) records the bounded negative result for the Holo `msm` path: Steam reaches neither CEF nor a hosted frame before the Nova's Mesa/SVE and GLX boundaries fire.
 - [Nova rooted uinput gamepad smoke](docs/18-nova-uinput-gamepad-smoke.md) records the real Xbox evdev-to-virtual-gamepad relay while native Steam and Android presentation remain alive; Steam navigation is still the next gate.
+- [Nova Android input to rooted uinput bridge](docs/19-nova-android-input-uinput-bridge.md) records Android controller enumeration and deterministic key dispatch through an abstract socket into the rooted virtual gamepad; Steam navigation is still the next gate.
 
 ## Recommended direction
 
@@ -71,6 +72,7 @@ the gamescope frames on its own surface.
 - [Nova Gamescope libei input seam](docs/16-nova-libei-input-smoke.md)
 - [Nova native Steam hardware GLX probe](docs/17-nova-steam-hardware-glx-probe.md)
 - [Nova rooted uinput gamepad smoke](docs/18-nova-uinput-gamepad-smoke.md)
+- [Nova Android input to rooted uinput bridge](docs/19-nova-android-input-uinput-bridge.md)
 - [Retroid Pocket Nova flashing kit](tools/retroid-pocket-nova/README.md)
 
 ## Evidence standard

@@ -121,7 +121,10 @@ still an open graphics gate, independent of the already-proven Vulkan output.
 The rooted input side now also creates a virtual Xbox-style uinput device from
 the Nova's attached controller and forwards an evdev event while the same
 Steam/presentation smoke passes; [doc 18](18-nova-uinput-gamepad-smoke.md)
-records the kernel-side result. Android `InputDevice` mapping, Steam
+records the kernel-side result. The Android app now enumerates the attached
+controller and forwards a deterministic key event through an abstract Unix
+socket into the same rooted virtual device; [doc 19](19-nova-android-input-uinput-bridge.md)
+records the accepted end-to-end bridge. Physical controller dispatch, Steam
 enumeration, and actual navigation are still required.
 
 ### Rootless stage 3: user-space Steam session supervision

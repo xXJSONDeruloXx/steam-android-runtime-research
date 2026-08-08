@@ -6,8 +6,14 @@ import android.graphics.Color;
 import android.graphics.Paint;
 import android.graphics.PixelFormat;
 import android.hardware.HardwareBuffer;
+import android.hardware.input.InputManager;
+import android.net.LocalServerSocket;
+import android.net.LocalSocket;
 import android.os.Bundle;
 import android.util.Log;
+import android.view.InputDevice;
+import android.view.KeyEvent;
+import android.view.MotionEvent;
 import android.view.Surface;
 import android.view.SurfaceHolder;
 import android.view.SurfaceView;
@@ -23,7 +29,9 @@ import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
+import java.util.Locale;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -44,6 +52,15 @@ public final class MainActivity extends Activity implements SurfaceHolder.Callba
     private TextView androidVulkanStatus;
     private TextView bridgeStatus;
     private boolean doubleBufferPresentationMode;
+    private volatile boolean androidInputBridgeRunning;
+    private Thread androidInputBridgeThread;
+    private volatile LocalServerSocket androidInputServer;
+    private volatile LocalSocket androidInputClient;
+    private volatile OutputStream androidInputOutput;
+    private File androidInputSocketFile;
+    private File androidInputReportFile;
+    private boolean androidInputKeyLogged;
+    private boolean androidInputMotionLogged;
 
     private static native String nativeRunHardwareBufferProbe();
     private static native String nativeRunAndroidVulkanHardwareBufferProbe();
@@ -183,6 +200,10 @@ public final class MainActivity extends Activity implements SurfaceHolder.Callba
             surfaceStatus.setText("Surface: Linux presentation mode");
         }
 
+        if (getIntent().getBooleanExtra("run_android_input_bridge", false)) {
+            startAndroidInputBridge();
+        }
+
         Log.i(TAG, "launch_flags run_dmabuf_double_buffer="
                 + getIntent().getBooleanExtra("run_dmabuf_double_buffer", false)
                 + " frame_count=" + getIntent().getIntExtra(
@@ -239,6 +260,7 @@ public final class MainActivity extends Activity implements SurfaceHolder.Callba
     @Override
     protected void onDestroy() {
         surfaceProbeRunning = false;
+        stopAndroidInputBridge();
         worker.shutdownNow();
         super.onDestroy();
     }
@@ -278,6 +300,188 @@ public final class MainActivity extends Activity implements SurfaceHolder.Callba
         surfaceProbeRunning = false;
         presentationSurface = null;
         Log.i(TAG, "surface_destroyed");
+    }
+
+    @Override
+    public boolean dispatchKeyEvent(KeyEvent event) {
+        if (androidInputBridgeRunning) {
+            sendAndroidInputLine("K " + event.getKeyCode() + " " + event.getAction() + "\n",
+                    true);
+        }
+        return super.dispatchKeyEvent(event);
+    }
+
+    @Override
+    public boolean dispatchGenericMotionEvent(MotionEvent event) {
+        int controllerSources = InputDevice.SOURCE_GAMEPAD | InputDevice.SOURCE_JOYSTICK;
+        if (androidInputBridgeRunning
+                && event.getAction() == MotionEvent.ACTION_MOVE
+                && (event.getSource() & controllerSources) != 0) {
+            int[] axes = {0, 1, 11, 14, 15, 16, 17, 18};
+            for (int axis : axes) {
+                String line = String.format(Locale.US, "A %d %.5f\n", axis,
+                        event.getAxisValue(axis));
+                sendAndroidInputLine(line, false);
+            }
+        }
+        return super.dispatchGenericMotionEvent(event);
+    }
+
+    private void startAndroidInputBridge() {
+        androidInputBridgeRunning = true;
+        androidInputKeyLogged = false;
+        androidInputMotionLogged = false;
+        androidInputSocketFile = new File(getFilesDir(), "nova-input.sock");
+        androidInputReportFile = new File(getFilesDir(), "android-input-bridge-report.txt");
+        if (androidInputSocketFile.exists() && !androidInputSocketFile.delete()) {
+            Log.w(TAG, "android_input_socket_delete_failed path="
+                    + androidInputSocketFile.getAbsolutePath());
+        }
+        if (androidInputReportFile.exists() && !androidInputReportFile.delete()) {
+            Log.w(TAG, "android_input_report_delete_failed path="
+                    + androidInputReportFile.getAbsolutePath());
+        }
+        logAndroidInputDevices();
+        androidInputBridgeThread = new Thread(new Runnable() {
+            @Override
+            public void run() {
+                runAndroidInputBridgeServer();
+            }
+        }, "nova-android-input-bridge");
+        androidInputBridgeThread.start();
+    }
+
+    private void runAndroidInputBridgeServer() {
+        try {
+            androidInputServer = new LocalServerSocket(androidInputSocketFile.getAbsolutePath());
+            Log.i(TAG, "android_input_socket=listening path="
+                    + androidInputSocketFile.getAbsolutePath());
+            appendAndroidInputReport("android_input_socket=listening");
+            while (androidInputBridgeRunning) {
+                LocalSocket client = androidInputServer.accept();
+                synchronized (this) {
+                    androidInputClient = client;
+                    androidInputOutput = client.getOutputStream();
+                }
+                Log.i(TAG, "android_input_socket=connected");
+                appendAndroidInputReport("android_input_socket=connected");
+                while (androidInputBridgeRunning && client.isConnected()) {
+                    try {
+                        Thread.sleep(250L);
+                    } catch (InterruptedException error) {
+                        Thread.currentThread().interrupt();
+                        break;
+                    }
+                }
+                closeAndroidInputClient(client);
+            }
+        } catch (IOException error) {
+            if (androidInputBridgeRunning) {
+                Log.e(TAG, "android_input_socket_failed", error);
+            }
+        } finally {
+            LocalServerSocket server = androidInputServer;
+            androidInputServer = null;
+            if (server != null) {
+                try {
+                    server.close();
+                } catch (IOException ignored) {
+                }
+            }
+        }
+    }
+
+    private void stopAndroidInputBridge() {
+        androidInputBridgeRunning = false;
+        LocalServerSocket server = androidInputServer;
+        if (server != null) {
+            try {
+                server.close();
+            } catch (IOException ignored) {
+            }
+        }
+        LocalSocket client = androidInputClient;
+        if (client != null) {
+            closeAndroidInputClient(client);
+        }
+        Thread bridgeThread = androidInputBridgeThread;
+        if (bridgeThread != null) {
+            bridgeThread.interrupt();
+        }
+        if (androidInputSocketFile != null && androidInputSocketFile.exists()) {
+            androidInputSocketFile.delete();
+        }
+    }
+
+    private synchronized void closeAndroidInputClient(LocalSocket client) {
+        if (androidInputClient == client) {
+            androidInputOutput = null;
+            androidInputClient = null;
+        }
+        try {
+            client.close();
+        } catch (IOException ignored) {
+        }
+    }
+
+    private synchronized void sendAndroidInputLine(String line, boolean key) {
+        if (androidInputOutput == null) {
+            return;
+        }
+        try {
+            androidInputOutput.write(line.getBytes(StandardCharsets.UTF_8));
+            androidInputOutput.flush();
+            if (key && !androidInputKeyLogged) {
+                androidInputKeyLogged = true;
+                Log.i(TAG, "android_input_key_forwarded=pass");
+                appendAndroidInputReport("android_input_key_forwarded=pass");
+            } else if (!key && !androidInputMotionLogged) {
+                androidInputMotionLogged = true;
+                Log.i(TAG, "android_input_motion_forwarded=pass");
+                appendAndroidInputReport("android_input_motion_forwarded=pass");
+            }
+        } catch (IOException error) {
+            Log.w(TAG, "android_input_socket_write_failed", error);
+            androidInputOutput = null;
+        }
+    }
+
+    private synchronized void appendAndroidInputReport(String line) {
+        if (androidInputReportFile == null) {
+            return;
+        }
+        try {
+            FileOutputStream output = new FileOutputStream(androidInputReportFile, true);
+            output.write((line + "\n").getBytes(StandardCharsets.UTF_8));
+            output.close();
+        } catch (IOException error) {
+            Log.w(TAG, "android_input_report_write_failed", error);
+        }
+    }
+
+    private void logAndroidInputDevices() {
+        InputManager manager = (InputManager) getSystemService(INPUT_SERVICE);
+        if (manager == null) {
+            Log.i(TAG, "android_input_device_manager=unavailable");
+            return;
+        }
+        int controllerCount = 0;
+        int controllerSources = InputDevice.SOURCE_GAMEPAD | InputDevice.SOURCE_JOYSTICK;
+        for (int id : manager.getInputDeviceIds()) {
+            InputDevice device = manager.getInputDevice(id);
+            if (device == null) {
+                continue;
+            }
+            Log.i(TAG, "android_input_device id=" + id
+                    + " name=" + device.getName()
+                    + " sources=0x" + Integer.toHexString(device.getSources()));
+            if ((device.getSources() & controllerSources) != 0) {
+                controllerCount++;
+            }
+        }
+        Log.i(TAG, "android_input_device_controller="
+                + (controllerCount > 0 ? "pass" : "none")
+                + " count=" + controllerCount);
     }
 
     private String runSurfaceProbe(SurfaceHolder holder) {
