@@ -132,17 +132,20 @@ residual_runtime_check() {
     echo "headless_ahb_residual_processes=pass"
 }
 cleanup_on_exit() {
-    local original_status=$? cleanup_status residual_status
+    local original_status=$? cleanup_status residual_status app_files_status
     trap - EXIT
     set +e
     cleanup_runtime
     cleanup_status=$?
     residual_runtime_check
     residual_status=$?
+    clear_app_runtime_files
+    app_files_status=$?
     if [ "$original_status" -ne 0 ]; then
         exit "$original_status"
     fi
-    if [ "$cleanup_status" -ne 0 ] || [ "$residual_status" -ne 0 ]; then
+    if [ "$cleanup_status" -ne 0 ] || [ "$residual_status" -ne 0 ] || \
+        [ "$app_files_status" -ne 0 ]; then
         exit 1
     fi
     exit 0
@@ -281,6 +284,7 @@ for artifact in "$REPORT" "$LOGCAT" "$APP_REPORT"; do
 done
 cleanup_runtime
 residual_runtime_check
+clear_app_runtime_files
 
 echo "report:     $REPORT"
 echo "app logcat: $LOGCAT"

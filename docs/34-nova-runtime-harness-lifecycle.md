@@ -59,7 +59,7 @@ The follow-up hardening closes three less obvious lifecycle gaps:
   in the manual/controller logs instead of being swallowed by `|| true` or a
   trap; and
 - the bounded deploy path force-stops the APK and removes its app-owned bridge
-  sockets and reports before launch, then prints the selected Gamescope
+  sockets and reports before launch and again on teardown, then prints the selected Gamescope
   metadata (path, SHA-256, source/build identity, libei marker, and
   presentation/input flags) into the run log.
 
@@ -72,6 +72,12 @@ passing `run-as PACKAGE sh -c` as separate `adb shell` arguments flattened the
 `-c` payload under the device shell, producing toybox `rm`/`sh` errors. App-file
 cleanup and its residual check now pass one quoted remote command string, and a
 failed cleanup remains a hard gate.
+
+The next bounded run caught the complementary teardown case: the app's fresh
+`dmabuf-double-buffer-report.txt` was valid evidence but would have become a
+stale input on the next run if it remained in app storage. The deploy path now
+pulls that report before teardown and then removes it, so the acceptance gate
+can require an empty app-owned runtime-file set after every exit.
 
 ## Evidence and regression check
 
