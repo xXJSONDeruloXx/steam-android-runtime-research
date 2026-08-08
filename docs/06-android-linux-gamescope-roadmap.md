@@ -108,7 +108,11 @@ both SteamUI WebSocket `connection ready` markers, and visibly renders the
 pre-login Gamepad UI welcome screen into the Android AHardwareBuffer queue; see
 [doc 15](15-nova-steam-ui-ahb-smoke.md). The stage is not complete until login,
 controller input, a game, and clean lifecycle behavior work, and the current
-CEF report still identifies software `softpipe` rendering.
+CEF report still identifies software `softpipe` rendering. An optional libei
+Gamescope build now accepts a keyboard scancode and completes the EIS protocol
+round trip through `gamescope-0-ei`; [doc 16](16-nova-libei-input-smoke.md)
+records the result. That proves a compositor-side control seam, not gamepad/HID
+navigation, so Android event mapping remains required.
 
 ### Rootless stage 3: user-space Steam session supervision
 
@@ -140,6 +144,7 @@ behavior, and controller handoff per game.
 | DRM/KMS gamescope backend | Natural | Usually unavailable unless Android/device exposes it | Not a safe assumption |
 | Android Surface presentation | Separate bridge | Rooted bridge already explored | App-owned Surface/ANativeWindow or buffer-copy bridge |
 | Controller `/dev/uinput` | System service | Root helper possible | App input/socket path required |
+| Gamescope keyboard input | Native EIS/XTEST path | libei round trip proven | Android event mapping required |
 | PipeWire/session services | Systemd/logind | Rootfs + Android bridge | User session only |
 | FEX/Proton x86 games | System integration | Root helper can provide missing pieces | Explicit wrappers and user namespaces required |
 | ABL/kernel/firmware ownership | Yes | Android kernel remains in control | Android kernel remains in control |

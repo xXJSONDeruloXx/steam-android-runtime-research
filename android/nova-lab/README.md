@@ -89,12 +89,15 @@ android/nova-lab/deploy-ahb-bridge-test.sh
 android/nova-lab/deploy-ahb-double-buffer-test.sh
 android/nova-lab/deploy-gamescope-control.sh
 GAMESCOPE_SOURCE=/path/to/gamescope android/nova-lab/build-gamescope-headless.sh
+NOVA_GAMESCOPE_INPUT_EMULATION=enabled android/nova-lab/build-gamescope-headless.sh
+android/nova-lab/build-libei-key-probe.sh
 android/nova-lab/build-wayland-shm-control.sh
 android/nova-lab/deploy-gamescope-headless-test.sh
 android/nova-lab/deploy-gamescope-headless-composite-test.sh
 android/nova-lab/deploy-gamescope-headless-ahb-test.sh
 android/nova-lab/deploy-native-steam-smoke-test.sh
 android/nova-lab/deploy-native-steam-ui-smoke-test.sh
+android/nova-lab/deploy-native-steam-input-smoke-test.sh
 android/nova-lab/fetch-steam-arm64-seed.sh --all
 NOVA_STEAM_UID=1000 NOVA_STEAM_GID=1000 android/nova-lab/deploy-steam-arm64-seed.sh
 android/nova-lab/build-posix-sync-probe.sh
@@ -109,9 +112,12 @@ The Steam seed and SteamRT archives are downloaded only into the ignored
 reproducible `UID:GID` marker so the bounded client runs with `setpriv` under a
 non-root user. The seed/bootstrap and current ABI boundary are documented in
 `docs/14-nova-steam-arm64-seed-and-startup.md`. The native UI smoke wrapper in
-`docs/15-nova-steam-ui-ahb-smoke.md` now captures the pre-login Gamepad UI
-welcome screen through the Android AHardwareBuffer path; login, input, games,
-and hardware CEF rendering remain open. For loader-only diagnostics,
+`docs/15-nova-steam-ui-ahb-smoke.md` captures the pre-login Gamepad UI welcome
+screen through the Android AHardwareBuffer path. The optional libei build and
+`docs/16-nova-libei-input-smoke.md` now prove a keyboard scancode and protocol
+round trip through Gamescope's `gamescope-0-ei` socket while that UI is running;
+this is a compositor control seam, not yet Android gamepad/HID navigation. Login,
+games, and hardware CEF rendering remain open. For loader-only diagnostics,
 `NOVA_STEAM_EXECUTABLE` can point at another ARM64 entry point, such as
 `steamwebhelper`, and `NOVA_STEAM_CLIENT_FLAGS` supplies its bounded arguments.
 

@@ -13,6 +13,16 @@ SOURCE_DIR="${GAMESCOPE_SOURCE:-}"
 WORKTREE="${GAMESCOPE_HEADLESS_SOURCE:-$BUILD_DIR/gamescope-headless-source}"
 OUT_DIR="${GAMESCOPE_HEADLESS_BUILD:-$BUILD_DIR/gamescope-headless-build}"
 DOCKER_IMAGE="${GAMESCOPE_BUILD_IMAGE:-debian:trixie-slim}"
+INPUT_EMULATION="${NOVA_GAMESCOPE_INPUT_EMULATION:-disabled}"
+
+case "$INPUT_EMULATION" in
+    disabled|enabled|auto)
+        ;;
+    *)
+        echo "NOVA_GAMESCOPE_INPUT_EMULATION must be disabled, enabled, or auto" >&2
+        exit 2
+        ;;
+esac
 
 if [ ! -e "$WORKTREE/.git" ]; then
     if [ -z "$SOURCE_DIR" ]; then
@@ -37,6 +47,7 @@ done
 
 mkdir -p "$OUT_DIR"
 docker run --rm --platform linux/arm64 \
+    -e "NOVA_GAMESCOPE_INPUT_EMULATION=$INPUT_EMULATION" \
     -v "$WORKTREE:/src" \
     -v "$OUT_DIR:/out" \
     "$DOCKER_IMAGE" \
@@ -49,7 +60,7 @@ apt-get install -y --no-install-recommends \
     libxkbcommon-dev libdrm-dev libinput-dev libwayland-dev wayland-protocols xwayland cmake \
     libdecor-0-dev libxdamage-dev libxfixes-dev libxxf86vm-dev libxi-dev libxcursor-dev libxext-dev \
     libxrandr-dev libpixman-1-dev libudev-dev libluajit-5.1-dev libepoxy-dev libseat-dev \
-    libdisplay-info-dev libvulkan-dev libegl-dev libgbm-dev libxcb1-dev libxcb-ewmh-dev \
+    libdisplay-info-dev libvulkan-dev libegl-dev libgbm-dev libei-dev libeis-dev libxcb1-dev libxcb-ewmh-dev \
     libxcb-dri3-dev libxcb-present-dev libxcb-render-util0-dev libxcb-xfixes0-dev libxcb-xinput-dev \
     libxcb-xkb-dev libxkbcommon-x11-dev liblcms2-dev libxcb-composite0-dev libxcb-icccm4-dev \
     libxcb-res0-dev >/dev/null
@@ -61,7 +72,7 @@ MESON_OPTIONS="\
 -Denable_gamescope_wsi_layer=false \
 -Denable_openvr_support=false \
 -Dforce_fallback_for=wlroots,libliftoff,vkroots,libdisplay-info \
--Dinput_emulation=disabled \
+-Dinput_emulation=${NOVA_GAMESCOPE_INPUT_EMULATION:-disabled} \
 -Dpipewire=disabled \
 -Dprefix=/usr \
 -Drt_cap=disabled \
