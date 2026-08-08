@@ -125,7 +125,7 @@ capture_ready_screenshot() {
         surface_hash=$(sha256sum "$surface_sample" | cut -c1-64)
         surface_yhigh=$(ffmpeg -hide_banner -i "$sample" \
             -vf "crop=1232:312:24:170,signalstats,metadata=print:file=-" \
-            -f null - 2>&1 | grep "lavfi.signalstats.YHIGH=" | head -1 | cut -d= -f2)
+            -f null - 2>&1 | awk -F= '/lavfi.signalstats.YHIGH=/{value=$2} END {printf "%s", value}')
         case "$surface_yhigh" in
             ""|*[!0-9]*) surface_yhigh=0 ;;
         esac
