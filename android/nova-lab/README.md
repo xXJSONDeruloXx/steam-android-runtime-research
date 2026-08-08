@@ -177,7 +177,14 @@ passes an exact physical `BTN_DPAD_DOWN` through the same relay and observes a
 changed Steam navigation panel; see `docs/28-nova-steam-dpad-navigation.md`.
 The Android-keyevent variant now also passes through the app socket and changes
 the panel; see `docs/29-nova-android-input-steam-ui-navigation.md`. Additional
-button/axis mappings remain open.
+button/axis mappings remain open. The corrected ABXY semantic mapping and the
+Android-visible virtual-device feedback-loop filter are accepted for
+`KEYCODE_BUTTON_A`/`BTN_SOUTH`; see
+`docs/30-nova-android-a-button-navigation.md`. The current map is
+`96->304` (A/SOUTH), `97->305` (B/EAST), `98->306` (C), `99->307` (X/NORTH),
+and `100->308` (Y/WEST). The app deliberately ignores events from the
+`Nova Virtual Xbox Controller` identity after the rooted helper creates it, so
+the app does not feed its own uinput output back into the socket.
 For loader-only diagnostics,
 `NOVA_STEAM_EXECUTABLE` can point at another ARM64 entry point, such as
 `steamwebhelper`, and `NOVA_STEAM_CLIENT_FLAGS` supplies its bounded arguments.

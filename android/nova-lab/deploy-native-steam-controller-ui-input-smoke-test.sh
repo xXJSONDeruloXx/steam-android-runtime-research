@@ -382,9 +382,7 @@ else
         'android_input_socket_connected=pass' \
         'android_key_forwarded=pass' \
         'android_input_forwarded=pass' \
-        "android_input_keycode=$ANDROID_KEYCODE" \
-        "android_input_linux_code=$EVENT_CODE" \
-        "android_input_linux_event=$EVENT_NAME"; do
+        "android_input_key_received code=$ANDROID_KEYCODE linux_code=$EVENT_CODE event=$EVENT_NAME action=0"; do
         if ! rg -q -- "$marker" "$HELPER_LOG"; then
             echo "missing Android input relay marker: $marker" >&2
             exit 1

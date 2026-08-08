@@ -64,6 +64,7 @@ public final class MainActivity extends Activity implements SurfaceHolder.Callba
     private boolean androidInputKeyLogged;
     private boolean androidInputKeyDeviceLogged;
     private boolean androidInputMotionLogged;
+    private boolean androidInputRelayFiltered;
 
     private static native String nativeRunHardwareBufferProbe();
     private static native String nativeRunAndroidVulkanHardwareBufferProbe();
@@ -316,6 +317,9 @@ public final class MainActivity extends Activity implements SurfaceHolder.Callba
     @Override
     public boolean dispatchKeyEvent(KeyEvent event) {
         if (androidInputBridgeRunning) {
+            if (isRelayInputDevice(event.getDevice())) {
+                return super.dispatchKeyEvent(event);
+            }
             sendAndroidInputLine("K " + event.getKeyCode() + " " + event.getAction() + "\n",
                     true);
             String dispatchMarker = "android_input_key_dispatch keycode="
@@ -346,6 +350,7 @@ public final class MainActivity extends Activity implements SurfaceHolder.Callba
         if (androidInputBridgeRunning
                 && !androidInputKeyOnly
                 && event.getAction() == MotionEvent.ACTION_MOVE
+                && !isRelayInputDevice(event.getDevice())
                 && (event.getSource() & controllerSources) != 0) {
             int[] axes = {0, 1, 11, 14, 15, 16, 17, 18};
             for (int axis : axes) {
@@ -357,11 +362,28 @@ public final class MainActivity extends Activity implements SurfaceHolder.Callba
         return super.dispatchGenericMotionEvent(event);
     }
 
+    private boolean isRelayInputDevice(InputDevice device) {
+        if (device == null) {
+            return false;
+        }
+        String name = device.getName();
+        boolean relay = name != null && name.startsWith("Nova Virtual Xbox Controller");
+        if (relay && !androidInputRelayFiltered) {
+            androidInputRelayFiltered = true;
+            String marker = "android_input_relay_loop_filtered device="
+                    + device.getId() + " name=" + name;
+            Log.i(TAG, marker);
+            appendAndroidInputReport(marker);
+        }
+        return relay;
+    }
+
     private void startAndroidInputBridge() {
         androidInputBridgeRunning = true;
         androidInputKeyLogged = false;
         androidInputKeyDeviceLogged = false;
         androidInputMotionLogged = false;
+        androidInputRelayFiltered = false;
         androidInputSocketFile = new File(getFilesDir(), "nova-input.sock");
         androidInputReportFile = new File(getFilesDir(), "android-input-bridge-report.txt");
         if (androidInputSocketFile.exists() && !androidInputSocketFile.delete()) {

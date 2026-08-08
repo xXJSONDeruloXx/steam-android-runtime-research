@@ -144,6 +144,8 @@ Android key dispatch
 ```
 
 This proves the app-side D-pad path, not hardware CEF rendering, login, game
-launch, rumble, axes, or lifecycle cleanup. The next input work is to add
-ABXY, Start, Back, Guide, axis, and hold/repeat mappings, then use the same
-accepted Android bridge while advancing Steam OOBE/login and a first game.
+launch, rumble, axes, or lifecycle cleanup. The corrected A-button mapping and
+the virtual-device feedback-loop guard are accepted in [doc 30](30-nova-android-a-button-navigation.md).
+The next input work is to accept B/X/Y, Start, Back, Guide, axis, and
+hold/repeat mappings, then use the same Android bridge while advancing Steam
+OOBE/login and a first game.

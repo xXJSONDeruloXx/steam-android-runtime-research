@@ -91,6 +91,32 @@ static const char *control_event_label(unsigned short code)
     switch (code) {
     case BTN_SOUTH:
         return "BTN_SOUTH";
+    case BTN_EAST:
+        return "BTN_EAST";
+    case BTN_C:
+        return "BTN_C";
+    case BTN_NORTH:
+        return "BTN_NORTH";
+    case BTN_WEST:
+        return "BTN_WEST";
+    case BTN_TL:
+        return "BTN_TL";
+    case BTN_TR:
+        return "BTN_TR";
+    case BTN_TL2:
+        return "BTN_TL2";
+    case BTN_TR2:
+        return "BTN_TR2";
+    case BTN_SELECT:
+        return "BTN_SELECT";
+    case BTN_START:
+        return "BTN_START";
+    case BTN_MODE:
+        return "BTN_MODE";
+    case BTN_THUMBL:
+        return "BTN_THUMBL";
+    case BTN_THUMBR:
+        return "BTN_THUMBR";
     case BTN_DPAD_UP:
         return "BTN_DPAD_UP";
     case BTN_DPAD_DOWN:
@@ -408,12 +434,12 @@ static int forward_source_event(int uinput_fd, const struct input_event *event)
 static int map_android_key(int android_keycode)
 {
     switch (android_keycode) {
-    case 96:  /* KEYCODE_BUTTON_A: this Nova controller reports BTN_EAST. */
-        return BTN_EAST;
+    case 96:  /* KEYCODE_BUTTON_A */
+        return BTN_SOUTH;
     case 97:  /* KEYCODE_BUTTON_B */
-        return BTN_C;
+        return BTN_EAST;
     case 98:  /* KEYCODE_BUTTON_C */
-        return BTN_Z;
+        return BTN_C;
     case 99:  /* KEYCODE_BUTTON_X */
         return BTN_NORTH;
     case 100: /* KEYCODE_BUTTON_Y */
@@ -544,6 +570,10 @@ static int forward_android_line(int uinput_fd, char *line,
         *key_forwarded = 1;
         *last_android_keycode = code;
         *last_linux_keycode = linux_code;
+        printf("android_input_key_received code=%d linux_code=%d event=%s action=%d\n",
+               code, linux_code, control_event_label((unsigned short)linux_code),
+               action);
+        fflush(stdout);
         return 0;
     }
     if (sscanf(line, "A %d %f", &android_axis, &axis_value) == 2) {
