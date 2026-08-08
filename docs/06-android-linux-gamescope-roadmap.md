@@ -150,8 +150,10 @@ socket into the same rooted virtual device; [doc 19](19-nova-android-input-uinpu
   observes D-pad-down press/release transitions. [Doc 28](28-nova-steam-dpad-navigation.md)
   then crosses Steam's own consumer boundary: the same exact physical
   `BTN_DPAD_DOWN` changes the live Gamepad UI navigation panel while Steam
-  holds the matching event FD. The Android-keyevent route and broader button,
-  axis, rumble, login, and game-launch checks remain open.
+  holds the matching event FD. [Doc 29](29-nova-android-input-steam-ui-navigation.md)
+  repeats the same acceptance through `MainActivity.dispatchKeyEvent` and the
+  app socket. Broader button, axis, rumble, login, and game-launch checks
+  remain open.
 
 ### Rootless stage 3: user-space Steam session supervision
 

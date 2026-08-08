@@ -40,10 +40,11 @@ The useful results are split across several projects:
 - [Nova Steam input process FD probe](docs/22-nova-steam-input-process-fd.md) records the native Steam process holding an open FD for that virtual event node while the AHardwareBuffer smoke passes; UI navigation is still open.
 - [Nova controlled Steam Gamepad UI input](docs/23-nova-steam-controller-ui-input.md) combines that live FD observation with an exact physical BTN_SOUTH relay; the event reaches the virtual node, but the language-selector navigation region remains unchanged.
 - [Nova D-pad semantic Steam UI input](docs/24-nova-steam-dpad-input.md) repeats the live-session comparison with BTN_DPAD_DOWN; the lower-level path still passes, but the selector remains unchanged, rejecting a narrow A-button mapping explanation.
-- [Nova Android input bridge in Steam UI](docs/25-nova-android-input-steam-ui.md) proves the app-side socket and exact Android-to-Linux D-pad mapping in the live session; key-only isolation still leaves SteamUI navigation unproven.
+- [Nova Android input bridge in Steam UI](docs/25-nova-android-input-steam-ui.md) records the earlier key-only negative comparison; the corrected app-side acceptance is in doc 29.
 - [Nova SDL3 joystick event target-selection pitfall](docs/26-nova-sdl3-event-input.md) records why the first name-based SDL3 event result was superseded when duplicate virtual nodes were found.
 - [Nova SDL3 Gamepad semantic event delivery](docs/27-nova-sdl3-gamepad-event.md) uses the exact relay-created event path and proves Valve's SDL3 Gamepad mapping receives D-pad press/release events.
 - [Nova Steam Gamepad UI D-pad navigation acceptance](docs/28-nova-steam-dpad-navigation.md) proves an exact rooted `BTN_DPAD_DOWN` event changes the live Steam Gamepad UI navigation panel while native Steam owns the matching event FD and Android presentation passes.
+- [Nova Android input bridge Steam UI navigation acceptance](docs/29-nova-android-input-steam-ui-navigation.md) proves the Android app dispatch/socket path produces the same live Steam Gamepad UI navigation result.
 
 ## Recommended direction
 
@@ -91,6 +92,7 @@ the gamescope frames on its own surface.
 - [Nova SDL3 joystick event target-selection pitfall](docs/26-nova-sdl3-event-input.md)
 - [Nova SDL3 Gamepad semantic event delivery](docs/27-nova-sdl3-gamepad-event.md)
 - [Nova Steam Gamepad UI D-pad navigation acceptance](docs/28-nova-steam-dpad-navigation.md)
+- [Nova Android input bridge Steam UI navigation acceptance](docs/29-nova-android-input-steam-ui-navigation.md)
 - [Retroid Pocket Nova flashing kit](tools/retroid-pocket-nova/README.md)
 
 ## Evidence standard

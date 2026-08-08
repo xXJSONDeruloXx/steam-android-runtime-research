@@ -143,8 +143,9 @@ The target should not be considered proven until all of these work on one device
   semantic D-pad transitions; see [doc 27](27-nova-sdl3-gamepad-event.md).
   The exact-path live-session follow-up now also proves Steam's own consumer
   accepts physical `BTN_DPAD_DOWN` and changes the Gamepad UI navigation panel;
-  see [doc 28](28-nova-steam-dpad-navigation.md). The Android-keyevent variant,
-  broader controls, login, and game launch remain open.
+  see [doc 28](28-nova-steam-dpad-navigation.md). The Android app dispatch and
+  socket variant now also passes and changes the live panel; see [doc 29](29-nova-android-input-steam-ui-navigation.md).
+  Broader controls, login, and game launch remain open.
 - Can the Nova expose hardware GLX/CEF for Steam? The bounded `msm` probe keeps
   Gamescope's Turnip/AHardwareBuffer side alive but Steam exits before CEF with
   `SIGILL`; an explicit `freedreno` Gallium profile instead fails at `drisw`

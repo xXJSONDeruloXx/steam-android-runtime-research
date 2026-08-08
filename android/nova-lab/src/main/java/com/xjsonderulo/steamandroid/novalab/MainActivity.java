@@ -318,6 +318,13 @@ public final class MainActivity extends Activity implements SurfaceHolder.Callba
         if (androidInputBridgeRunning) {
             sendAndroidInputLine("K " + event.getKeyCode() + " " + event.getAction() + "\n",
                     true);
+            String dispatchMarker = "android_input_key_dispatch keycode="
+                    + event.getKeyCode() + " action=" + event.getAction()
+                    + " source=0x" + Integer.toHexString(event.getSource());
+            if (event.getKeyCode() != KeyEvent.KEYCODE_UNKNOWN) {
+                Log.i(TAG, dispatchMarker);
+                appendAndroidInputReport(dispatchMarker);
+            }
             int controllerSources = InputDevice.SOURCE_GAMEPAD | InputDevice.SOURCE_JOYSTICK;
             if (!androidInputKeyDeviceLogged
                     && event.getDeviceId() >= 0
@@ -503,9 +510,11 @@ public final class MainActivity extends Activity implements SurfaceHolder.Callba
                 controllerCount++;
             }
         }
-        Log.i(TAG, "android_input_device_controller="
+        String controllerMarker = "android_input_device_controller="
                 + (controllerCount > 0 ? "pass" : "none")
-                + " count=" + controllerCount);
+                + " count=" + controllerCount;
+        Log.i(TAG, controllerMarker);
+        appendAndroidInputReport(controllerMarker);
     }
 
     private String runSurfaceProbe(SurfaceHolder holder) {

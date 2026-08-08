@@ -16,8 +16,8 @@ uinput, libudev, or SDL3 probes.
 The earlier negative physical and Android-keyevent comparisons in [doc 24](24-nova-steam-dpad-input.md)
 and [doc 25](25-nova-android-input-steam-ui.md) remain useful historical
 experiments, but they ran before the relay's exact sysname/path selection and
-mount cleanup hardening. This run is the current physical-input acceptance
-boundary. The Android-keyevent route is still the next separate test.
+mount cleanup hardening. This run is the physical-input acceptance boundary;
+the Android app-side acceptance is now recorded in [doc 29](29-nova-android-input-steam-ui-navigation.md).
 
 ## Reproducible test
 

@@ -12,6 +12,10 @@ activity receives Android `KEYCODE_DPAD_DOWN`, writes it to its abstract Unix
 socket, and the rooted ARM64 helper maps it to Linux `BTN_DPAD_DOWN` (code
 545) on the virtual Xbox-shaped uinput device.
 
+This document preserves the earlier negative comparison. The corrected
+identity-safe and focus-safe Android acceptance is recorded in
+[doc 29](29-nova-android-input-steam-ui-navigation.md).
+
 The test uses key-only bridge mode so background Android controller motion
 cannot explain a UI change. The harness also waits for both the app socket and
 the Holo chroot's bind-mounted physical source before creating the virtual

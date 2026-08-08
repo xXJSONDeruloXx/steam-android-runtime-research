@@ -273,6 +273,13 @@ if [ "$ui_ready" -eq 0 ]; then
                 "sendevent $SOURCE_EVENT 1 $EVENT_CODE 1; sendevent $SOURCE_EVENT 0 0 0; sendevent $SOURCE_EVENT 1 $EVENT_CODE 0; sendevent $SOURCE_EVENT 0 0 0" \
                 >/dev/null
         else
+            focused_window=$("$ADB" shell dumpsys input 2>/dev/null | tr -d '\r' | \
+                awk '/FocusedWindows:/{getline; print}')
+            if printf '%s\n' "$focused_window" | rg -q 'com\.rp\.settings'; then
+                "$ADB" shell input keyevent 4 >/dev/null 2>&1 || true
+                sleep 1
+                echo "controller_ui_dismissed_overlay=com.rp.settings"
+            fi
             "$ADB" shell input keyevent "$ANDROID_KEYCODE" >/dev/null 2>&1 || true
         fi
         event_sent=0
@@ -387,13 +394,13 @@ else
         'android_input_socket=listening' \
         'android_input_socket=connected' \
         'android_input_key_forwarded=pass' \
-        "android_input_key_event device=[0-9-]+ keycode=$ANDROID_KEYCODE source=0x"; do
+        "android_input_key_dispatch keycode=$ANDROID_KEYCODE action=0 source=0x"; do
         if ! rg -q -- "$marker" "$APP_REPORT"; then
             echo "missing Android app bridge marker: $marker" >&2
             exit 1
         fi
     done
-    if ! rg -q -- 'android_input_device_controller=pass' "$APP_LOG"; then
+    if ! rg -q -- 'android_input_device_controller=pass' "$APP_LOG" "$APP_REPORT"; then
         echo "missing Android controller enumeration marker" >&2
         exit 1
     fi
