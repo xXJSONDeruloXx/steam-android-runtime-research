@@ -199,6 +199,41 @@ bootstrapper HTTP-client teardown and child-process launch rather than add
 another unverified library blindly. Login, persistent Gamepad UI, controller
 input, and a presented Steam frame remain open gates.
 
+## Normal bootstrap/update boundary
+
+The `skip` smoke mode above is useful for fast ABI and compositor checks, but it
+does not exercise the normal updater lifecycle. A longer run with
+`NOVA_STEAM_BOOTSTRAP_MODE=normal` was therefore used against the complete tree:
+
+```sh
+NOVA_STEAM_BOOTSTRAP_MODE=normal \
+NOVA_STEAM_CLIENT_TIMEOUT=180 \
+NOVA_STEAM_GAMESCOPE_TIMEOUT=220 \
+NOVA_AHB_FRAME_COUNT=5 \
+android/nova-lab/deploy-native-steam-smoke-test.sh
+```
+
+This run established a separate, later boundary:
+
+```text
+Downloaded new manifest: ... version 1786141909, installed version 1785979169
+Process started ... -child-update-ui ...
+Using update UI: glx
+Download complete.
+Installing update...
+Extracting package...
+client_status=124
+```
+
+The client downloaded the full 209770 KB update over the rooted Android network
+namespace and began extracting it into Steam's package staging directory before
+the bounded 180-second client budget expired. Gamescope still reached
+`android_ahb_target_reached=30`, `offscreen_probe_status=0`, and `probe_status=0`.
+No `steamwebhelper` launch or persistent Steam UI was observed in this run. The
+timeout is now propagated through the probe and stored in the disposable rootfs
+so the next run can reuse the downloaded package with a longer installation
+window.
+
 ## Runtime experiments that did not become defaults
 
 The Holo Mesa stack must stay ahead of SteamRT's Mesa libraries. Reversing that
@@ -219,10 +254,10 @@ Mesa/Turnip Steam UI rendering is therefore a separate open issue.
 The chroot shares the rooted Android network namespace. The probe now derives
 the active Android default gateway and generates `/etc/resolv.conf` for the
 disposable rootfs; an in-chroot `curl -I` to Valve's client manifest returned
-HTTP 200. This removes the earlier DNS hypothesis, but it did not make Steam
-complete its bootstrap lifecycle. The current launch still stops with the
-`Bootstrapper HTTP Client` assertion above, so network reachability and Steam
-bootstrap completion must be measured separately:
+HTTP 200. This removes the earlier DNS hypothesis. The fast `skip` launch still
+stops with the `Bootstrapper HTTP Client` assertion above, while the longer
+normal launch now reaches the update download and extraction stages, so network
+reachability and Steam bootstrap completion remain separate measurements:
 
 ```text
 chroot curl -I https://client-update.steamstatic.com/steam_client_steamdeck_publicbeta_linuxarm64
@@ -230,7 +265,6 @@ HTTP/2 200
 CFrameFunctionMgr::~CFrameFunctionMgr: non static FrameFunction[Bootstrapper HTTP Client] still registered
 ```
 
-The next bootstrap experiment is to capture the client's actual child/fork and
-HTTP lifecycle with the now-complete tree, then compare it against the Armada
-bootstrap session. Login, Gamepad UI, `steamwebhelper`, controller input, and a
-presented Steam frame remain open gates.
+The next bootstrap experiment is to let the package installation finish, then
+capture the post-update client restart and `steamwebhelper` launch. Login,
+Gamepad UI, controller input, and a presented Steam frame remain open gates.

@@ -7,6 +7,12 @@ OUTPUT_WIDTH=${NOVA_AHB_WIDTH:-960}
 OUTPUT_HEIGHT=${NOVA_AHB_HEIGHT:-540}
 GAMESCOPE_TIMEOUT=${NOVA_STEAM_GAMESCOPE_TIMEOUT:-35}
 CLIENT_TIMEOUT=${NOVA_STEAM_CLIENT_TIMEOUT:-25}
+if [ -r /opt/nova-steam/gamescope-timeout ]; then
+    GAMESCOPE_TIMEOUT=$(cat /opt/nova-steam/gamescope-timeout)
+fi
+if [ -r /opt/nova-steam/client-timeout ]; then
+    CLIENT_TIMEOUT=$(cat /opt/nova-steam/client-timeout)
+fi
 STEAM_HOME=/opt/nova-steam/home
 STEAM_ROOT="$STEAM_HOME/.local/share/Steam"
 STEAM_CLIENT="$STEAM_ROOT/steamrtarm64/steam"
