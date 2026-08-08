@@ -109,6 +109,10 @@ The target should not be considered proven until all of these work on one device
   keyboard scancode plus protocol round trip through `gamescope-0-ei`; see
   [doc 16](16-nova-libei-input-smoke.md). This establishes a compositor control
   seam, but not Android gamepad mapping or Linux HID navigation.
+- Can the Nova expose hardware GLX/CEF for Steam? The bounded `msm` probe keeps
+  Gamescope's Turnip/AHardwareBuffer side alive but Steam exits before CEF with
+  `SIGILL`; an explicit `freedreno` Gallium profile instead fails at `drisw`
+  initialization. See [doc 17](17-nova-steam-hardware-glx-probe.md).
 - Can a rooted Android app give a Linux userspace enough GPU/DMABUF/Surface access without booting a separate kernel?
 - For rootless mode, can an app-owned `Surface`/`ANativeWindow` replace the current privileged/low-level presentation path without a copy bottleneck?
 - Which rootless process boundary works for glibc Steam: proot, a user namespace, Termux:X11, or a future Android-native launcher?

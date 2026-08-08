@@ -113,6 +113,11 @@ Gamescope build now accepts a keyboard scancode and completes the EIS protocol
 round trip through `gamescope-0-ei`; [doc 16](16-nova-libei-input-smoke.md)
 records the result. That proves a compositor-side control seam, not gamepad/HID
 navigation, so Android event mapping remains required.
+The separate hardware GLX probe keeps the same Gamescope/Turnip output alive,
+but native Steam exits before `steamwebhelper` with `SIGILL` when Mesa's `msm`
+path is selected; an explicit `freedreno` profile fails at `drisw` creation.
+See [doc 17](17-nova-steam-hardware-glx-probe.md). Hardware CEF is therefore
+still an open graphics gate, independent of the already-proven Vulkan output.
 
 ### Rootless stage 3: user-space Steam session supervision
 

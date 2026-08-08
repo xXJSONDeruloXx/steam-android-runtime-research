@@ -98,6 +98,7 @@ android/nova-lab/deploy-gamescope-headless-ahb-test.sh
 android/nova-lab/deploy-native-steam-smoke-test.sh
 android/nova-lab/deploy-native-steam-ui-smoke-test.sh
 android/nova-lab/deploy-native-steam-input-smoke-test.sh
+android/nova-lab/deploy-native-steam-hardware-probe.sh
 android/nova-lab/fetch-steam-arm64-seed.sh --all
 NOVA_STEAM_UID=1000 NOVA_STEAM_GID=1000 android/nova-lab/deploy-steam-arm64-seed.sh
 android/nova-lab/build-posix-sync-probe.sh
@@ -117,7 +118,10 @@ screen through the Android AHardwareBuffer path. The optional libei build and
 `docs/16-nova-libei-input-smoke.md` now prove a keyboard scancode and protocol
 round trip through Gamescope's `gamescope-0-ei` socket while that UI is running;
 this is a compositor control seam, not yet Android gamepad/HID navigation. Login,
-games, and hardware CEF rendering remain open. For loader-only diagnostics,
+games, and hardware CEF rendering remain open. The separate hardware wrapper in
+`docs/17-nova-steam-hardware-glx-probe.md` records the current negative result:
+the native `msm` path reaches neither CEF nor a hosted frame before its GLX/SVE
+boundary fails. For loader-only diagnostics,
 `NOVA_STEAM_EXECUTABLE` can point at another ARM64 entry point, such as
 `steamwebhelper`, and `NOVA_STEAM_CLIENT_FLAGS` supplies its bounded arguments.
 

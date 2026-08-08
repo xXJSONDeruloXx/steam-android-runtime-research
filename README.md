@@ -32,6 +32,7 @@ The useful results are split across several projects:
 - [Nova native ARM64 Steam seed and startup](docs/14-nova-steam-arm64-seed-and-startup.md) records the live Valve seed/runtime, reproducible deployment, System V semaphore and loader ABI probes, and the first bounded native Steam launch.
 - [Nova native Steam Gamepad UI through Android AHardwareBuffer](docs/15-nova-steam-ui-ahb-smoke.md) records the first live SteamUI WebSocket-ready Gamepad UI screen crossing the complete Nova presentation path, with software CEF rendering explicitly called out.
 - [Nova Gamescope libei input seam](docs/16-nova-libei-input-smoke.md) records the first live keyboard-event round trip through Gamescope's EIS socket while native Steam and Android presentation remain active; gamepad navigation is still open.
+- [Nova native Steam hardware GLX probe](docs/17-nova-steam-hardware-glx-probe.md) records the bounded negative result for the Holo `msm` path: Steam reaches neither CEF nor a hosted frame before the Nova's Mesa/SVE and GLX boundaries fire.
 
 ## Recommended direction
 
@@ -67,6 +68,7 @@ the gamescope frames on its own surface.
 - [Nova native ARM64 Steam seed and startup](docs/14-nova-steam-arm64-seed-and-startup.md)
 - [Nova native Steam Gamepad UI through Android AHardwareBuffer](docs/15-nova-steam-ui-ahb-smoke.md)
 - [Nova Gamescope libei input seam](docs/16-nova-libei-input-smoke.md)
+- [Nova native Steam hardware GLX probe](docs/17-nova-steam-hardware-glx-probe.md)
 - [Retroid Pocket Nova flashing kit](tools/retroid-pocket-nova/README.md)
 
 ## Evidence standard
