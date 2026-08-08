@@ -109,6 +109,15 @@ matched unrelated minified code and reported the file as already patched. The
 no-restart patch now matches the complete `Gm` callback before declaring either
 the old or new form, so an unrelated occurrence cannot mask a missed rewrite.
 
+The same run then separated the update fix from the remaining OOBE state gate:
+the live `Gm` callback was the corrected `t(void 0)` form, but Steam still
+reported `/login blocked` because `GetOOBEComplete()` requires both
+`oobe_completed` and `oobe_stage_2_completed`. Nova does not currently expose
+the Deck stage-2 hardware, controller-pairing, underscan, or audio screens, so
+the Nova-only compatibility path now records and completes both OOBE stages
+before attempting login. This is a scoped compatibility decision, not a
+claim that those Deck hardware checks have passed.
+
 ## Evidence and regression check
 
 The original bad state was reproduced by a fresh app session with a gray

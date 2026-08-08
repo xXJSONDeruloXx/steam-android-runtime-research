@@ -119,6 +119,12 @@ update state. Source inspection showed that the minified update component's
 separate `Gm` no-restart callback was still `const n={};t(n)`. A broad
 `t(void 0)` fallback had falsely called the bundle already patched because
 other code contained that substring. The patcher now requires the complete
-`Gm` callback marker before reporting success. Login remains an open
-acceptance gate until a fresh run verifies the corrected update callback and
-the OOBE stage-2 state transition.
+`Gm` callback marker before reporting success. The next fresh run used the
+corrected marker and live inspection confirmed `onUpdateComplete` now calls
+`t(void 0)`, but the same `/login blocked` line remained. Bundle inspection
+then showed that `GetOOBEComplete()` is stage-1 **and** stage-2 completion;
+`SetOOBEComplete()` alone cannot clear that lock. The Nova compatibility path
+now also awaits `SetOOBEStage2Complete()` because Nova does not implement the
+Deck-specific stage-2 hardware/audio screens. Login remains an open
+acceptance gate until a fresh run verifies this scoped stage-2 completion and
+reaches the login surface.

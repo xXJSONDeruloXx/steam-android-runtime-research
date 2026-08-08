@@ -11,6 +11,8 @@ STEAMUI_ROOT="$STEAM_ROOT/steamui"
 TMP_SUFFIX=".nova-network-compat.$$"
 OOBE_NO_RESTART_OLD='function Gm(e){const{onContinue:t,onBack:r}=e,n=p.useCallback((e,i)=>{if(e!=ve.R)return void(r&&r());const n={};t(n)},[t,r])'
 OOBE_NO_RESTART_NEW='function Gm(e){const{onContinue:t,onBack:r}=e,n=p.useCallback((e,i)=>{if(e!=ve.R)return void(r&&r());t(void 0)},[t,r])'
+OOBE_STAGE2_COMPLETION_OLD='await nl.op.SetOOBEComplete(),t(e,r)'
+OOBE_STAGE2_COMPLETION_NEW='await nl.op.SetOOBEComplete(),await nl.op.SetOOBEStage2Complete(),t(e,r)'
 
 patch_file() {
     file=$1
@@ -46,7 +48,8 @@ patch_file() {
         return 1
     fi
     rm -f "$tmp"
-    if [ "$label" = "oobe_completion_order" ]; then
+    if [ "$label" = "oobe_completion_order" ] || \
+        [ "$label" = "oobe_stage2_completion" ]; then
         # The new await form necessarily contains the old call as a suffix.
         verified=1
         if ! grep -Fq "$new" "$file"; then
@@ -159,6 +162,13 @@ for file in $(find "$STEAMUI_ROOT" -type f -name '*.js' -exec grep -l 'SteamClie
             'await nl.op.SetOOBEComplete(),t(e,r)' \
             oobe_completion_order || status=1
     fi
+    if grep -Fq "$OOBE_STAGE2_COMPLETION_OLD" "$file"; then
+        matched=1
+        patch_file "$file" \
+            "$OOBE_STAGE2_COMPLETION_OLD" \
+            "$OOBE_STAGE2_COMPLETION_NEW" \
+            oobe_stage2_completion || status=1
+    fi
     if grep -Fq "$OOBE_NO_RESTART_OLD" "$file"; then
         matched=1
         patch_file "$file" \
@@ -180,7 +190,7 @@ if [ "$matched" -eq 0 ]; then
         if grep -Fq 'SteamClient.System.Network?.RegisterForDeviceChanges?.(this.OnNetworkDevicesChanged)' "$file" && \
             grep -Fq 'StartScanningForNetworks(){const e=SteamClient.System.Network?.StartScanningForNetworks?.();e?.then?.(u.rA)}' "$file" && \
             grep -Fq 'SteamClient.System.Network?.GetProxyInfo?.()?.then?.(e=>this.m_proxyInfo=e)' "$file" && \
-            grep -Fq 'await nl.op.SetOOBEComplete(),t(e,r)' "$file" && \
+            grep -Fq "$OOBE_STAGE2_COMPLETION_NEW" "$file" && \
             grep -Fq "$OOBE_NO_RESTART_NEW" "$file" && \
             grep -Fq 'children:"Continue with Android host network"' "$file"; then
             echo "steam_network_compat=already-patched file=$file"
