@@ -404,9 +404,10 @@ stable_surface_hash=
 navigation_result=unknown
 if [ "$ui_ready" -eq 0 ]; then
     sleep "$SETTLE_DELAY"
-    if [ "$INPUT_MODE" = "android-keyevent" ]; then
-        dismiss_android_overlay
-    fi
+    # The Nova settings process can put its USB chooser above the Steam
+    # surface during an ADB-connected run.  It intercepts physical controls
+    # too, so clear it before sampling regardless of the input transport.
+    dismiss_android_overlay
     if capture_ready_screenshot "$BEFORE_SCREENSHOT"; then
         if [ "$INPUT_MODE" = "physical" ]; then
             "$ADB" shell su -c \
@@ -422,9 +423,7 @@ if [ "$ui_ready" -eq 0 ]; then
             echo "controller_ui_android_event=$ANDROID_KEY_NAME code=$ANDROID_KEYCODE maps_to=$EVENT_NAME code=$EVENT_CODE"
         fi
         sleep "$AFTER_DELAY"
-        if [ "$INPUT_MODE" = "android-keyevent" ]; then
-            dismiss_android_overlay
-        fi
+        dismiss_android_overlay
         echo "controller_ui_after_delay=$AFTER_DELAY"
         "$ADB" exec-out screencap -p >"$AFTER_SCREENSHOT"
         after_surface="$AFTER_SCREENSHOT.surface.png"
