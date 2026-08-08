@@ -14,12 +14,14 @@ BINARY=${NOVA_GAMESCOPE_HEADLESS:-$BUILD_DIR/gamescope-headless-build/src/gamesc
 CLIENT=${NOVA_WAYLAND_SHM_CONTROL:-$BUILD_DIR/wayland-shm-control}
 CONTROL=${NOVA_GAMESCOPE_AHB_CONTROL:-$SCRIPT_DIR/device/gamescope-headless-ahb-control.sh}
 X11_CLIENT=${NOVA_GAMESCOPE_X11_CLIENT:-}
+TOUCH_HELPER=${NOVA_EIS_TOUCH_HELPER:-}
 DEVICE_ROOT=${DEVICE_ROOT:-/data/local/tmp/nova-holo-rootfs}
 DEVICE_STAGE=/data/local/tmp/nova-gamescope-stage
 DEVICE_DRIVER_DIR="$DEVICE_ROOT/opt/nova-kgsl-driver"
 DEVICE_BINARY="$DEVICE_DRIVER_DIR/gamescope-headless"
 DEVICE_CLIENT="$DEVICE_DRIVER_DIR/wayland-shm-control"
 DEVICE_CONTROL="$DEVICE_DRIVER_DIR/gamescope-headless-ahb-control.sh"
+DEVICE_TOUCH_HELPER="$DEVICE_DRIVER_DIR/nova-libei-input-bridge"
 REPORT="$BUILD_DIR/device-gamescope-headless-ahb-report.txt"
 LOGCAT="$BUILD_DIR/device-gamescope-headless-ahb-logcat.txt"
 APP_REPORT="$BUILD_DIR/device-gamescope-headless-ahb-app-report.txt"
@@ -53,7 +55,17 @@ fi
 if [ -n "$X11_CLIENT" ]; then
     "$ADB" push "$X11_CLIENT" "$DEVICE_STAGE/nova-x11-animate" >/dev/null
 fi
+if [ -n "$TOUCH_HELPER" ]; then
+    if [ ! -f "$TOUCH_HELPER" ]; then
+        echo "missing EIS touch helper: $TOUCH_HELPER" >&2
+        exit 1
+    fi
+    "$ADB" push "$TOUCH_HELPER" "$DEVICE_STAGE/nova-libei-input-bridge" >/dev/null
+fi
 "$ADB" shell "su -c 'cp $DEVICE_STAGE/gamescope-headless $DEVICE_BINARY; cp $DEVICE_STAGE/wayland-shm-control $DEVICE_CLIENT; cp $DEVICE_STAGE/gamescope-headless-ahb-control.sh $DEVICE_CONTROL; chmod 755 $DEVICE_BINARY $DEVICE_CLIENT $DEVICE_CONTROL'"
+if [ -n "$TOUCH_HELPER" ]; then
+    "$ADB" shell "su -c 'cp $DEVICE_STAGE/nova-libei-input-bridge $DEVICE_TOUCH_HELPER; chmod 755 $DEVICE_TOUCH_HELPER'"
+fi
 if [ -n "$X11_CLIENT" ]; then
     "$ADB" shell "su -c 'cp $DEVICE_STAGE/nova-x11-animate $DEVICE_DRIVER_DIR/nova-x11-animate; chmod 755 $DEVICE_DRIVER_DIR/nova-x11-animate'"
 fi
@@ -76,6 +88,12 @@ if [ "${NOVA_ANDROID_INPUT_BRIDGE:-0}" = "1" ]; then
     if [ "${NOVA_ANDROID_INPUT_KEY_ONLY:-0}" = "1" ]; then
         activity_args+=(--ez android_input_key_only true)
     fi
+fi
+if [ "${NOVA_ANDROID_TOUCH_BRIDGE:-0}" = "1" ]; then
+    activity_args+=(--ez run_android_touch_bridge true)
+fi
+if [ "${NOVA_FULLSCREEN_PRESENTATION:-0}" = "1" ]; then
+    activity_args+=(--ez fullscreen_presentation true)
 fi
 "$ADB" shell am start -W -n "$PACKAGE/.MainActivity" \
     "${activity_args[@]}" >/dev/null
@@ -100,6 +118,10 @@ cp "$BUILD_DIR/holo-glibc-report.txt" "$REPORT"
 "$ADB" logcat -d -v threadtime NovaLab:I '*:S' > "$LOGCAT"
 "$ADB" shell run-as "$PACKAGE" cat files/dmabuf-double-buffer-report.txt \
     > "$APP_REPORT" 2>/dev/null || true
+if [ "${NOVA_ANDROID_TOUCH_BRIDGE:-0}" = "1" ]; then
+    "$ADB" shell run-as "$PACKAGE" cat files/android-touch-bridge-report.txt \
+        > "$BUILD_DIR/nova-android-touch-bridge-report.txt" 2>/dev/null || true
+fi
 "$ADB" exec-out screencap -p > "$SCREENSHOT"
 
 echo "report:     $REPORT"

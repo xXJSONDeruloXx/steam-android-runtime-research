@@ -1,0 +1,54 @@
+--- a/src/InputEmulation.cpp
++++ b/src/InputEmulation.cpp
+@@ -80,5 +80,5 @@
+                     eis_seat_configure_capability( pSeat, EIS_DEVICE_CAP_POINTER_ABSOLUTE );
+                     eis_seat_configure_capability( pSeat, EIS_DEVICE_CAP_KEYBOARD );
+-                    //eis_seat_configure_capability( pSeat, EIS_DEVICE_CAP_TOUCH );
++                    eis_seat_configure_capability( pSeat, EIS_DEVICE_CAP_TOUCH );
+                     eis_seat_configure_capability( pSeat, EIS_DEVICE_CAP_BUTTON );
+                     eis_seat_configure_capability( pSeat, EIS_DEVICE_CAP_SCROLL );
+@@ -104,4 +104,5 @@
+                                         eis_event_seat_has_capability( pEisEvent, EIS_DEVICE_CAP_POINTER_ABSOLUTE ) ||
+                                         eis_event_seat_has_capability( pEisEvent, EIS_DEVICE_CAP_BUTTON ) ||
+                                         eis_event_seat_has_capability( pEisEvent, EIS_DEVICE_CAP_SCROLL ) ||
++                                        eis_event_seat_has_capability( pEisEvent, EIS_DEVICE_CAP_TOUCH ) ||
+                                         eis_event_seat_has_capability( pEisEvent, EIS_DEVICE_CAP_KEYBOARD );
+@@ -118,5 +118,6 @@
+                         eis_device_configure_capability( pVirtualInput, EIS_DEVICE_CAP_BUTTON );
+                         eis_device_configure_capability( pVirtualInput, EIS_DEVICE_CAP_SCROLL );
+                         eis_device_configure_capability( pVirtualInput, EIS_DEVICE_CAP_KEYBOARD );
+-                        // Can add this someday if we want it.
+-                        //eis_device_configure_capability( pVirtualInput, EIS_DEVICE_CAP_TOUCH );
++                        // The Android presentation bridge uses this capability
++                        // for real touch down/motion/up events.
++                        eis_device_configure_capability( pVirtualInput, EIS_DEVICE_CAP_TOUCH );
+@@ -218,6 +218,25 @@
+                 case EIS_EVENT_TOUCH_DOWN:
+                 case EIS_EVENT_TOUCH_MOTION:
+                 case EIS_EVENT_TOUCH_UP:
+                 {
+-                    // Touch not implemented yet.
+-                    gamescope_ei.errorf( "No touch support yet! How did you get here?" );
++                    const enum eis_event_type type = eis_event_get_type( pEisEvent );
++                    const uint32_t touch_id = eis_event_touch_get_id( pEisEvent );
++                    gamescope_ei.infof( "EIS touch event type=%d id=%u", (int) type, touch_id );
++                    wlserver_lock();
++                    if ( type == EIS_EVENT_TOUCH_DOWN )
++                    {
++                        wlserver_touchdown( eis_event_touch_get_x( pEisEvent ),
++                                            eis_event_touch_get_y( pEisEvent ),
++                                            touch_id, ++s_uSequence );
++                    }
++                    else if ( type == EIS_EVENT_TOUCH_MOTION )
++                    {
++                        wlserver_touchmotion( eis_event_touch_get_x( pEisEvent ),
++                                              eis_event_touch_get_y( pEisEvent ),
++                                              touch_id, ++s_uSequence );
++                    }
++                    else
++                    {
++                        wlserver_touchup( touch_id, ++s_uSequence );
++                    }
++                    wlserver_unlock();
+                 }
+                 break;

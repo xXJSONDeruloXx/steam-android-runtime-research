@@ -19,6 +19,7 @@ import android.view.Surface;
 import android.view.SurfaceHolder;
 import android.view.SurfaceView;
 import android.view.View;
+import android.view.ViewGroup;
 import android.widget.Button;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
@@ -67,6 +68,17 @@ public final class MainActivity extends Activity implements SurfaceHolder.Callba
     private boolean androidInputMotionLogged;
     private boolean androidInputRelayFiltered;
     private final SparseBooleanArray androidInputKeysDown = new SparseBooleanArray();
+    private boolean fullscreenPresentationMode;
+    private boolean androidTouchBridgeRunning;
+    private Thread androidTouchBridgeThread;
+    private volatile LocalServerSocket androidTouchServer;
+    private volatile LocalSocket androidTouchClient;
+    private volatile OutputStream androidTouchOutput;
+    private File androidTouchSocketFile;
+    private File androidTouchReportFile;
+    private boolean androidTouchLogged;
+    private int presentationWidth = 960;
+    private int presentationHeight = 540;
 
     private static native String nativeRunHardwareBufferProbe();
     private static native String nativeRunAndroidVulkanHardwareBufferProbe();
@@ -81,6 +93,11 @@ public final class MainActivity extends Activity implements SurfaceHolder.Callba
     protected void onCreate(Bundle state) {
         super.onCreate(state);
         getWindow().addFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+        fullscreenPresentationMode = getIntent().getBooleanExtra(
+                "fullscreen_presentation", false);
+        if (fullscreenPresentationMode) {
+            enterFullscreenPresentationMode();
+        }
 
         LinearLayout page = new LinearLayout(this);
         page.setOrientation(LinearLayout.VERTICAL);
@@ -106,22 +123,32 @@ public final class MainActivity extends Activity implements SurfaceHolder.Callba
         surface.setZOrderOnTop(true);
         surface.getHolder().addCallback(this);
         surface.getHolder().setFormat(PixelFormat.RGBA_8888);
-        surface.getHolder().setFixedSize(960, 540);
-        LinearLayout.LayoutParams surfaceParams = new LinearLayout.LayoutParams(-1, 0, 1.0f);
-        surfaceParams.topMargin = dp(8);
-        surfaceParams.bottomMargin = dp(8);
-        page.addView(surface, surfaceParams);
+        surface.setKeepScreenOn(true);
+        if (fullscreenPresentationMode) {
+            presentationWidth = getResources().getDisplayMetrics().widthPixels;
+            presentationHeight = getResources().getDisplayMetrics().heightPixels;
+            surface.getHolder().setFixedSize(presentationWidth, presentationHeight);
+            surface.setLayoutParams(new ViewGroup.LayoutParams(-1, -1));
+        } else {
+            surface.getHolder().setFixedSize(960, 540);
+            LinearLayout.LayoutParams surfaceParams = new LinearLayout.LayoutParams(-1, 0, 1.0f);
+            surfaceParams.topMargin = dp(8);
+            surfaceParams.bottomMargin = dp(8);
+            page.addView(surface, surfaceParams);
+        }
 
-        surfaceStatus = statusText("Surface: waiting for SurfaceView");
-        page.addView(surfaceStatus, new LinearLayout.LayoutParams(-1, -2));
-        rootStatus = statusText("Root: not run");
-        page.addView(rootStatus, new LinearLayout.LayoutParams(-1, -2));
-        nativeStatus = statusText("Native: not run");
-        page.addView(nativeStatus, new LinearLayout.LayoutParams(-1, -2));
-        androidVulkanStatus = statusText("Android Vulkan: not run");
-        page.addView(androidVulkanStatus, new LinearLayout.LayoutParams(-1, -2));
-        bridgeStatus = statusText("Linux bridge: not run");
-        page.addView(bridgeStatus, new LinearLayout.LayoutParams(-1, -2));
+        if (!fullscreenPresentationMode) {
+            surfaceStatus = statusText("Surface: waiting for SurfaceView");
+            page.addView(surfaceStatus, new LinearLayout.LayoutParams(-1, -2));
+            rootStatus = statusText("Root: not run");
+            page.addView(rootStatus, new LinearLayout.LayoutParams(-1, -2));
+            nativeStatus = statusText("Native: not run");
+            page.addView(nativeStatus, new LinearLayout.LayoutParams(-1, -2));
+            androidVulkanStatus = statusText("Android Vulkan: not run");
+            page.addView(androidVulkanStatus, new LinearLayout.LayoutParams(-1, -2));
+            bridgeStatus = statusText("Linux bridge: not run");
+            page.addView(bridgeStatus, new LinearLayout.LayoutParams(-1, -2));
+        }
 
         LinearLayout buttons = new LinearLayout(this);
         buttons.setOrientation(LinearLayout.HORIZONTAL);
@@ -157,7 +184,9 @@ public final class MainActivity extends Activity implements SurfaceHolder.Callba
             }
         });
         buttons.addView(clearButton, new LinearLayout.LayoutParams(0, -2, 1.0f));
-        page.addView(buttons, new LinearLayout.LayoutParams(-1, -2));
+        if (!fullscreenPresentationMode) {
+            page.addView(buttons, new LinearLayout.LayoutParams(-1, -2));
+        }
 
         LinearLayout vulkanButtons = new LinearLayout(this);
         vulkanButtons.setOrientation(LinearLayout.HORIZONTAL);
@@ -191,7 +220,9 @@ public final class MainActivity extends Activity implements SurfaceHolder.Callba
         });
         vulkanButtons.addView(doubleBufferButton,
                 new LinearLayout.LayoutParams(0, -2, 1.0f));
-        page.addView(vulkanButtons, new LinearLayout.LayoutParams(-1, -2));
+        if (!fullscreenPresentationMode) {
+            page.addView(vulkanButtons, new LinearLayout.LayoutParams(-1, -2));
+        }
 
         ScrollView reportScroll = new ScrollView(this);
         TextView hint = new TextView(this);
@@ -199,12 +230,17 @@ public final class MainActivity extends Activity implements SurfaceHolder.Callba
         hint.setTextColor(Color.GRAY);
         hint.setTextSize(11);
         reportScroll.addView(hint);
-        page.addView(reportScroll, new LinearLayout.LayoutParams(-1, dp(28)));
-
-        setContentView(page);
+        if (!fullscreenPresentationMode) {
+            page.addView(reportScroll, new LinearLayout.LayoutParams(-1, dp(28)));
+            setContentView(page);
+        } else {
+            setContentView(surface);
+        }
 
         if (doubleBufferPresentationMode) {
-            surfaceStatus.setText("Surface: Linux presentation mode");
+            if (surfaceStatus != null) {
+                surfaceStatus.setText("Surface: Linux presentation mode");
+            }
             doubleBufferReportFile = new File(getFilesDir(),
                     "dmabuf-double-buffer-report.txt");
             if (doubleBufferReportFile.exists() && !doubleBufferReportFile.delete()) {
@@ -216,6 +252,9 @@ public final class MainActivity extends Activity implements SurfaceHolder.Callba
         if (getIntent().getBooleanExtra("run_android_input_bridge", false)) {
             startAndroidInputBridge();
         }
+        if (getIntent().getBooleanExtra("run_android_touch_bridge", false)) {
+            startAndroidTouchBridge();
+        }
 
         Log.i(TAG, "launch_flags run_dmabuf_double_buffer="
                 + getIntent().getBooleanExtra("run_dmabuf_double_buffer", false)
@@ -226,6 +265,8 @@ public final class MainActivity extends Activity implements SurfaceHolder.Callba
                 + "x" + getIntent().getIntExtra(
                         "dmabuf_double_buffer_height", -1)
                 + " android_input_key_only=" + androidInputKeyOnly);
+        Log.i(TAG, "presentation fullscreen=" + fullscreenPresentationMode
+                + " size=" + presentationWidth + "x" + presentationHeight);
 
         if (getIntent().getBooleanExtra("run_root", false)) {
             rootButton.postDelayed(new Runnable() {
@@ -260,7 +301,7 @@ public final class MainActivity extends Activity implements SurfaceHolder.Callba
             }, 1100);
         }
         if (getIntent().getBooleanExtra("run_dmabuf_double_buffer", false)) {
-            boolean scheduled = doubleBufferButton.postDelayed(new Runnable() {
+            boolean scheduled = surface.postDelayed(new Runnable() {
                 @Override
                 public void run() {
                     Log.i(TAG, "auto_double_buffer_invoked");
@@ -275,14 +316,35 @@ public final class MainActivity extends Activity implements SurfaceHolder.Callba
     protected void onDestroy() {
         surfaceProbeRunning = false;
         stopAndroidInputBridge();
+        stopAndroidTouchBridge();
         worker.shutdownNow();
         super.onDestroy();
     }
 
     @Override
+    public void onWindowFocusChanged(boolean hasFocus) {
+        super.onWindowFocusChanged(hasFocus);
+        if (hasFocus && fullscreenPresentationMode) {
+            enterFullscreenPresentationMode();
+        }
+    }
+
+    private void enterFullscreenPresentationMode() {
+        getWindow().setFlags(android.view.WindowManager.LayoutParams.FLAG_FULLSCREEN,
+                android.view.WindowManager.LayoutParams.FLAG_FULLSCREEN);
+        getWindow().getDecorView().setSystemUiVisibility(
+                View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
+                        | View.SYSTEM_UI_FLAG_FULLSCREEN
+                        | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
+                        | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
+                        | View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
+                        | View.SYSTEM_UI_FLAG_LAYOUT_STABLE);
+    }
+
+    @Override
     public void surfaceCreated(final SurfaceHolder holder) {
         presentationSurface = holder.getSurface();
-        if (doubleBufferPresentationMode) {
+        if (doubleBufferPresentationMode || fullscreenPresentationMode) {
             return;
         }
         if (surfaceProbeRunning) {
@@ -365,6 +427,15 @@ public final class MainActivity extends Activity implements SurfaceHolder.Callba
             return true;
         }
         return super.dispatchGenericMotionEvent(event);
+    }
+
+    @Override
+    public boolean dispatchTouchEvent(MotionEvent event) {
+        if (androidTouchBridgeRunning) {
+            forwardAndroidTouchEvent(event);
+            return true;
+        }
+        return super.dispatchTouchEvent(event);
     }
 
     private boolean isRelayInputDevice(InputDevice device) {
@@ -469,6 +540,176 @@ public final class MainActivity extends Activity implements SurfaceHolder.Callba
         }
         if (androidInputSocketFile != null && androidInputSocketFile.exists()) {
             androidInputSocketFile.delete();
+        }
+    }
+
+    private void startAndroidTouchBridge() {
+        androidTouchBridgeRunning = true;
+        androidTouchLogged = false;
+        androidTouchSocketFile = new File(getFilesDir(), "nova-touch.sock");
+        androidTouchReportFile = new File(getFilesDir(), "android-touch-bridge-report.txt");
+        if (androidTouchSocketFile.exists() && !androidTouchSocketFile.delete()) {
+            Log.w(TAG, "android_touch_socket_delete_failed path="
+                    + androidTouchSocketFile.getAbsolutePath());
+        }
+        if (androidTouchReportFile.exists() && !androidTouchReportFile.delete()) {
+            Log.w(TAG, "android_touch_report_delete_failed path="
+                    + androidTouchReportFile.getAbsolutePath());
+        }
+        androidTouchBridgeThread = new Thread(new Runnable() {
+            @Override
+            public void run() {
+                runAndroidTouchBridgeServer();
+            }
+        }, "nova-android-touch-bridge");
+        androidTouchBridgeThread.start();
+    }
+
+    private void runAndroidTouchBridgeServer() {
+        try {
+            androidTouchServer = new LocalServerSocket(androidTouchSocketFile.getAbsolutePath());
+            Log.i(TAG, "android_touch_socket=listening path="
+                    + androidTouchSocketFile.getAbsolutePath());
+            appendAndroidTouchReport("android_touch_socket=listening");
+            while (androidTouchBridgeRunning) {
+                LocalSocket client = androidTouchServer.accept();
+                synchronized (this) {
+                    androidTouchClient = client;
+                    androidTouchOutput = client.getOutputStream();
+                }
+                Log.i(TAG, "android_touch_socket=connected");
+                appendAndroidTouchReport("android_touch_socket=connected");
+                while (androidTouchBridgeRunning && client.isConnected()) {
+                    try {
+                        Thread.sleep(250L);
+                    } catch (InterruptedException error) {
+                        Thread.currentThread().interrupt();
+                        break;
+                    }
+                }
+                closeAndroidTouchClient(client);
+            }
+        } catch (IOException error) {
+            if (androidTouchBridgeRunning) {
+                Log.e(TAG, "android_touch_socket_failed", error);
+            }
+        } finally {
+            LocalServerSocket server = androidTouchServer;
+            androidTouchServer = null;
+            if (server != null) {
+                try {
+                    server.close();
+                } catch (IOException ignored) {
+                }
+            }
+        }
+    }
+
+    private void stopAndroidTouchBridge() {
+        androidTouchBridgeRunning = false;
+        LocalServerSocket server = androidTouchServer;
+        if (server != null) {
+            try {
+                server.close();
+            } catch (IOException ignored) {
+            }
+        }
+        LocalSocket client = androidTouchClient;
+        if (client != null) {
+            closeAndroidTouchClient(client);
+        }
+        Thread bridgeThread = androidTouchBridgeThread;
+        if (bridgeThread != null) {
+            bridgeThread.interrupt();
+        }
+        if (androidTouchSocketFile != null && androidTouchSocketFile.exists()) {
+            androidTouchSocketFile.delete();
+        }
+    }
+
+    private synchronized void closeAndroidTouchClient(LocalSocket client) {
+        if (androidTouchClient == client) {
+            androidTouchOutput = null;
+            androidTouchClient = null;
+        }
+        try {
+            client.close();
+        } catch (IOException ignored) {
+        }
+    }
+
+    private synchronized void sendAndroidTouchLine(String line) {
+        if (androidTouchOutput == null) {
+            return;
+        }
+        try {
+            androidTouchOutput.write(line.getBytes(StandardCharsets.UTF_8));
+            androidTouchOutput.flush();
+            if (!androidTouchLogged) {
+                androidTouchLogged = true;
+                Log.i(TAG, "android_touch_forwarded=pass");
+                appendAndroidTouchReport("android_touch_forwarded=pass");
+            }
+        } catch (IOException error) {
+            Log.w(TAG, "android_touch_socket_write_failed", error);
+            androidTouchOutput = null;
+        }
+    }
+
+    private void forwardAndroidTouchEvent(MotionEvent event) {
+        int action = event.getActionMasked();
+        int actionIndex = event.getActionIndex();
+        if (action == MotionEvent.ACTION_MOVE) {
+            actionIndex = 0;
+        }
+        if (actionIndex < 0 || actionIndex >= event.getPointerCount()) {
+            return;
+        }
+        int pointerId = event.getPointerId(actionIndex);
+        float width = Math.max(1.0f, getWindow().getDecorView().getWidth());
+        float height = Math.max(1.0f, getWindow().getDecorView().getHeight());
+        float x = Math.max(0.0f, Math.min(1.0f, event.getX(actionIndex) / width));
+        float y = Math.max(0.0f, Math.min(1.0f, event.getY(actionIndex) / height));
+        int bridgeAction;
+        switch (action) {
+            case MotionEvent.ACTION_DOWN:
+            case MotionEvent.ACTION_POINTER_DOWN:
+                bridgeAction = 0;
+                break;
+            case MotionEvent.ACTION_UP:
+            case MotionEvent.ACTION_POINTER_UP:
+                bridgeAction = 2;
+                break;
+            case MotionEvent.ACTION_CANCEL:
+                bridgeAction = 3;
+                break;
+            case MotionEvent.ACTION_MOVE:
+                bridgeAction = 1;
+                break;
+            default:
+                return;
+        }
+        String line = String.format(Locale.US, "T %d %d %.7f %.7f\n",
+                bridgeAction, pointerId, x, y);
+        sendAndroidTouchLine(line);
+        String marker = "android_touch_event action=" + bridgeAction
+                + " pointer=" + pointerId
+                + " x=" + String.format(Locale.US, "%.5f", x)
+                + " y=" + String.format(Locale.US, "%.5f", y);
+        Log.i(TAG, marker);
+        appendAndroidTouchReport(marker);
+    }
+
+    private synchronized void appendAndroidTouchReport(String line) {
+        if (androidTouchReportFile == null) {
+            return;
+        }
+        try {
+            FileOutputStream output = new FileOutputStream(androidTouchReportFile, true);
+            output.write((line + "\n").getBytes(StandardCharsets.UTF_8));
+            output.close();
+        } catch (IOException error) {
+            Log.w(TAG, "android_touch_report_write_failed", error);
         }
     }
 
@@ -750,7 +991,9 @@ public final class MainActivity extends Activity implements SurfaceHolder.Callba
                 "dmabuf_double_buffer_width", 64);
         final int frameHeight = getIntent().getIntExtra(
                 "dmabuf_double_buffer_height", 64);
-        bridgeStatus.setText("Linux 2-buffer loop: waiting for Holo importer...");
+        if (bridgeStatus != null) {
+            bridgeStatus.setText("Linux 2-buffer loop: waiting for Holo importer...");
+        }
         worker.execute(new Runnable() {
             @Override
             public void run() {
@@ -771,7 +1014,9 @@ public final class MainActivity extends Activity implements SurfaceHolder.Callba
                 runOnUiThread(new Runnable() {
                     @Override
                     public void run() {
-                        bridgeStatus.setText("Linux 2-buffer loop:\n" + trimForUi(report));
+                        if (bridgeStatus != null) {
+                            bridgeStatus.setText("Linux 2-buffer loop:\n" + trimForUi(report));
+                        }
                     }
                 });
             }

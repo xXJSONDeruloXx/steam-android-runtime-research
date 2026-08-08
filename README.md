@@ -46,6 +46,7 @@ The useful results are split across several projects:
 - [Nova Steam Gamepad UI D-pad navigation acceptance](docs/28-nova-steam-dpad-navigation.md) proves an exact rooted `BTN_DPAD_DOWN` event changes the live Steam Gamepad UI navigation panel while native Steam owns the matching event FD and Android presentation passes.
 - [Nova Android input bridge Steam UI navigation acceptance](docs/29-nova-android-input-steam-ui-navigation.md) proves the Android app dispatch/socket path changes the live Steam Gamepad UI navigation panel under a strict Steam-surface visual gate.
 - [Nova Android A-button mapping and feedback-loop checkpoint](docs/30-nova-android-a-button-navigation.md) corrects the Nova ABXY semantic table, filters the virtual-device feedback loop, and proves Android `KEYCODE_BUTTON_A` reaches SDL3 as Xbox button 0 / Linux `BTN_SOUTH`; A-button UI activation remains open.
+- [Nova Android touch → Gamescope libei and fullscreen presentation checkpoint](docs/31-nova-android-touch-libei-fullscreen.md) proves the app touch socket, ARM64 libei helper, Gamescope touch events, and synthetic fullscreen AHardwareBuffer presentation; native Steam fullscreen pixels remain the next gate.
 
 ## Recommended direction
 
@@ -95,6 +96,7 @@ the gamescope frames on its own surface.
 - [Nova Steam Gamepad UI D-pad navigation acceptance](docs/28-nova-steam-dpad-navigation.md)
 - [Nova Android input bridge Steam UI navigation acceptance](docs/29-nova-android-input-steam-ui-navigation.md)
 - [Nova Android A-button mapping and feedback-loop checkpoint](docs/30-nova-android-a-button-navigation.md)
+- [Nova Android touch → Gamescope libei and fullscreen presentation checkpoint](docs/31-nova-android-touch-libei-fullscreen.md)
 - [Retroid Pocket Nova flashing kit](tools/retroid-pocket-nova/README.md)
 
 ## Evidence standard

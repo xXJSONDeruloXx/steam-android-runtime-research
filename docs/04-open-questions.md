@@ -146,6 +146,14 @@ The target should not be considered proven until all of these work on one device
   The corrected ABXY table and virtual-device feedback-loop filter are in [doc
   30](30-nova-android-a-button-navigation.md); A-button UI activation,
   broader controls, login, and game launch remain open.
+- Can Android touch drive the live Gamescope session, and can Steam remain visible in
+  the app's fullscreen presentation? The Nova touch path now passes end to end: an
+  Android `MotionEvent` reaches the app's abstract socket, the ARM64 libei helper,
+  Gamescope's virtual touch device, and the compositor's received-event log. A
+  synthetic fullscreen Gamescope frame is also visible edge to edge. The native Steam
+  fullscreen run reaches SteamUI readiness but produces a uniform dark screenshot
+  (`YAVG=57`, `YMAX=57`), so the strict Steam-surface gate remains open; see
+  [doc 31](31-nova-android-touch-libei-fullscreen.md).
 - Can the Nova expose hardware GLX/CEF for Steam? The bounded `msm` probe keeps
   Gamescope's Turnip/AHardwareBuffer side alive but Steam exits before CEF with
   `SIGILL`; an explicit `freedreno` Gallium profile instead fails at `drisw`

@@ -253,6 +253,7 @@ present_surface_buffer(JNIEnv *env, jobject surface_object,
 static int
 present_surface_frame(ASurfaceControl *surface_control, AHardwareBuffer *buffer,
                        int acquire_fence_fd, int buffer_width, int buffer_height,
+                       int destination_width, int destination_height,
                        int *previous_release_fence_fd,
                        char *report, size_t capacity, size_t *used)
 {
@@ -296,7 +297,7 @@ present_surface_frame(ASurfaceControl *surface_control, AHardwareBuffer *buffer,
     append_line(report, capacity, used,
                 "surface_frame_acquire_fence=passed\n");
     ARect source = {0, 0, buffer_width, buffer_height};
-    ARect destination = {0, 0, buffer_width, buffer_height};
+    ARect destination = {0, 0, destination_width, destination_height};
     ASurfaceTransaction_setGeometry(transaction, surface_control, &source,
                                     &destination, 0);
     ASurfaceTransaction_setOnComplete(transaction, completion,
@@ -855,6 +856,11 @@ Java_com_xjsonderulo_steamandroid_novalab_MainActivity_nativeRunDmaBufDoubleBuff
     if (window == NULL) {
         goto double_buffer_done;
     }
+    const int destination_width = ANativeWindow_getWidth(window);
+    const int destination_height = ANativeWindow_getHeight(window);
+    append_line(report, sizeof(report), &used,
+                "ahb_double_buffer_destination=%dx%d\n",
+                destination_width, destination_height);
     surface_control = ASurfaceControl_createFromWindow(
         window, "Nova double-buffer Linux image loop");
     ANativeWindow_release(window);
@@ -914,7 +920,7 @@ Java_com_xjsonderulo_steamandroid_novalab_MainActivity_nativeRunDmaBufDoubleBuff
         int previous_release_fence_fd = -1;
         int frame_pass = present_surface_frame(
             surface_control, buffers[index], acquire_fence_fd, buffer_width,
-            buffer_height,
+            buffer_height, destination_width, destination_height,
             &previous_release_fence_fd, report, sizeof(report), &used);
         acquire_fence_fd = -1;
         if (!frame_pass) {

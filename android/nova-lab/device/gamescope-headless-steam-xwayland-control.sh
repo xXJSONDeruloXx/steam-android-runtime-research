@@ -13,6 +13,28 @@ fi
 if [ -r /opt/nova-steam/client-timeout ]; then
     CLIENT_TIMEOUT=$(cat /opt/nova-steam/client-timeout)
 fi
+EIS_TOUCH_BRIDGE=0
+EIS_TOUCH_HELPER=/opt/nova-kgsl-driver/nova-libei-input-bridge
+EIS_TOUCH_APP_SOCKET=/run/nova-lab-app/nova-touch.sock
+EIS_TOUCH_TIMEOUT=60000
+if [ -r /opt/nova-steam/eis-touch-bridge ]; then
+    EIS_TOUCH_BRIDGE=$(cat /opt/nova-steam/eis-touch-bridge)
+fi
+if [ -r /opt/nova-steam/eis-touch-helper ]; then
+    EIS_TOUCH_HELPER=$(cat /opt/nova-steam/eis-touch-helper)
+fi
+if [ -r /opt/nova-steam/eis-touch-app-socket ]; then
+    EIS_TOUCH_APP_SOCKET=$(cat /opt/nova-steam/eis-touch-app-socket)
+fi
+if [ -r /opt/nova-steam/eis-touch-timeout ]; then
+    EIS_TOUCH_TIMEOUT=$(cat /opt/nova-steam/eis-touch-timeout)
+fi
+touch_app_socket_ready() {
+    case "$EIS_TOUCH_APP_SOCKET" in
+        @*) return 0 ;;
+        *) [ -S "$EIS_TOUCH_APP_SOCKET" ] ;;
+    esac
+}
 STEAM_HOME=/opt/nova-steam/home
 STEAM_ROOT="$STEAM_HOME/.local/share/Steam"
 STEAM_CLIENT="$STEAM_ROOT/steamrtarm64/steam"
@@ -213,6 +235,39 @@ if [ "${1:-}" = "--client" ]; then
             preload=/opt/nova-kgsl-driver/libposix-sync-trace.so
         fi
         echo "client_sync_trace=pass" >> "$client_log"
+    fi
+
+    eis_touch_pid=
+    eis_touch_log=/tmp/nova-eis-touch.log
+    cleanup_eis_touch() {
+        if [ -n "${eis_touch_pid:-}" ]; then
+            /usr/bin/kill "$eis_touch_pid" 2>/dev/null || true
+            /usr/bin/wait "$eis_touch_pid" 2>/dev/null || true
+            eis_touch_pid=
+        fi
+        if [ -f "$eis_touch_log" ]; then
+            cat "$eis_touch_log" >&2
+        fi
+    }
+    trap cleanup_eis_touch EXIT
+    if [ "$EIS_TOUCH_BRIDGE" = "1" ] && [ -x "$EIS_TOUCH_HELPER" ]; then
+        eis_touch_attempt=0
+        while [ "$eis_touch_attempt" -lt 100 ]; do
+            if [ -S /tmp/gamescope-0-ei ] && touch_app_socket_ready; then
+                break
+            fi
+            /usr/bin/sleep 0.1
+            eis_touch_attempt=$((eis_touch_attempt + 1))
+        done
+        if [ -S /tmp/gamescope-0-ei ] && touch_app_socket_ready; then
+            /usr/bin/timeout "$EIS_TOUCH_TIMEOUT" "$EIS_TOUCH_HELPER" \
+                /tmp/gamescope-0-ei "$EIS_TOUCH_APP_SOCKET" "$EIS_TOUCH_TIMEOUT" \
+                >"$eis_touch_log" 2>&1 &
+            eis_touch_pid=$!
+            echo "eis_touch_bridge=started helper=$EIS_TOUCH_HELPER app_socket=$EIS_TOUCH_APP_SOCKET" >&2
+        else
+            echo "eis_touch_bridge=unavailable gamescope_socket=/tmp/gamescope-0-ei app_socket=$EIS_TOUCH_APP_SOCKET" >&2
+        fi
     fi
     if [ "${NOVA_STEAM_DISABLE_PRELOAD:-0}" = "1" ]; then
         unset LD_PRELOAD

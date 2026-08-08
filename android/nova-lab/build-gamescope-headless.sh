@@ -8,6 +8,7 @@ PATCH_FILES=(
     "$SCRIPT_DIR/patches/gamescope-headless-no-drm-identity.patch"
     "$SCRIPT_DIR/patches/gamescope-headless-composite.patch"
     "$SCRIPT_DIR/patches/gamescope-headless-ahb-output.patch"
+    "$SCRIPT_DIR/patches/gamescope-headless-libei-touch.patch"
 )
 SOURCE_DIR="${GAMESCOPE_SOURCE:-}"
 WORKTREE="${GAMESCOPE_HEADLESS_SOURCE:-$BUILD_DIR/gamescope-headless-source}"

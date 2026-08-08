@@ -190,6 +190,15 @@ so the app does not feed its own uinput output back into the socket.
 The SDL3 semantic probe accepts `NOVA_SDL3_GAMEPAD_EXPECT_BUTTON`; use `0` for
 the Xbox A/SOUTH button and `12` for D-pad down. The exact A/SOUTH SDL3 result
 is recorded in `docs/30-nova-android-a-button-navigation.md`.
+For the touch bridge checkpoint, build the ARM64 helper with
+`build-libei-input-bridge.sh` and run
+`deploy-native-steam-touch-input-smoke-test.sh`. The default harness requires the
+Android abstract touch socket, libei seat/device readiness, touch down/up delivery,
+Gamescope receipt, and the existing native Steam/AHB smoke. Add
+`NOVA_TOUCH_REQUIRE_STEAM_SURFACE=1` to make the fullscreen Steam screenshot a strict
+gate; as of 2026-08-08 that gate is intentionally failing with a uniform dark Steam
+surface while the synthetic fullscreen Gamescope test passes. See
+`docs/31-nova-android-touch-libei-fullscreen.md`.
 For loader-only diagnostics,
 `NOVA_STEAM_EXECUTABLE` can point at another ARM64 entry point, such as
 `steamwebhelper`, and `NOVA_STEAM_CLIENT_FLAGS` supplies its bounded arguments.
