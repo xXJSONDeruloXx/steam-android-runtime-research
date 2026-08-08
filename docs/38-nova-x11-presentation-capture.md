@@ -38,7 +38,10 @@ First follow the lifecycle gate in
 [`docs/34-nova-runtime-harness-lifecycle.md`](34-nova-runtime-harness-lifecycle.md),
 start a fresh manual session with one explicit profile, and record its run ID.
 While that session is live, push the helper into the active rootfs and invoke
-it as root:
+it as root. On this Nova build, the Xwayland root drawable rejects `XGetImage`
+with `BadMatch`; use the tree to select the mapped Steam window and capture
+that window rather than treating a root capture failure as a presentation
+failure:
 
 ```sh
 ADB=/Users/kurt/.local/bin/adb
@@ -47,18 +50,19 @@ $ADB push android/nova-lab/build/nova-x11-capture "$ROOTFS/tmp/nova-x11-capture"
 $ADB shell su -c "chmod 755 $ROOTFS/tmp/nova-x11-capture"
 $ADB shell su -c "mkdir -p $ROOTFS/tmp/nova-x11-capture-run"
 $ADB shell su -c \
-  "chroot $ROOTFS /usr/bin/env DISPLAY=:0 /tmp/nova-x11-capture \\
-   --tree --root-ppm /tmp/nova-x11-capture-run/root.ppm"
-$ADB pull "$ROOTFS/tmp/nova-x11-capture-run/root.ppm" \
-  android/nova-lab/build/nova-x11-root.ppm
+  "/system/bin/chroot $ROOTFS /usr/bin/env DISPLAY=:0 /tmp/nova-x11-capture \\
+   --tree"
 ```
+
+The tree prints the mapped Steam window as `0xWINDOW_ID` (currently it is
+usually `0x240003b`). Capture that drawable and pull the successful artifact:
 
 Use the window ID reported for the visible Steam window to add a targeted
 capture in the same invocation:
 
 ```sh
 $ADB shell su -c \
-  "chroot $ROOTFS /usr/bin/env DISPLAY=:0 /tmp/nova-x11-capture \\
+  "/system/bin/chroot $ROOTFS /usr/bin/env DISPLAY=:0 /tmp/nova-x11-capture \\
    --window-ppm 0xWINDOW_ID /tmp/nova-x11-capture-run/steam.ppm"
 $ADB pull "$ROOTFS/tmp/nova-x11-capture-run/steam.ppm" \
   android/nova-lab/build/nova-x11-steam.ppm
@@ -80,6 +84,13 @@ do not compare it with an artifact from another run.
    unsynchronized capture timing issue; repeat with a frame identity marker
    before declaring the presentation path repaired.
 
-This helper deliberately does not modify `HeadlessBackend.cpp` or `ahbbridge.c`.
-Those changes should wait until a fresh, same-run X11-versus-Android comparison
-identifies the failing boundary.
+This checkpoint deliberately does not modify `HeadlessBackend.cpp` or the
+AHardwareBuffer ownership algorithm in `ahbbridge.c`; the app-side markers are
+diagnostic only. Ownership changes should wait until a fresh, same-run
+X11-versus-Android comparison identifies the failing boundary. The 2026-08-08 run then identified a concrete
+downstream stall: run `legacy-20260808T220739Z-52938` reached the network route
+in CDP and X11 while Android remained on the timezone page; Gamescope logged
+repeated `Android release message wait failed buffer 1` errors after its frame
+180 marker. A one-shot `debug_force_repaint` command did not advance the
+Android layer. The next app build adds Android-side wait/ack/release markers so
+the release-message loss can be located before ownership logic is changed.

@@ -13,6 +13,16 @@ struct window_capture {
     const char *path;
 };
 
+static int x11_capture_error_code;
+
+static int
+capture_x11_error(Display *display, XErrorEvent *event)
+{
+    (void)display;
+    x11_capture_error_code = event->error_code;
+    return 0;
+}
+
 static void
 print_usage(const char *program)
 {
@@ -179,13 +189,27 @@ write_ppm(Display *display, Window window, const char *path)
         return 0;
     }
 
+    x11_capture_error_code = 0;
+    XErrorHandler previous_error_handler =
+        XSetErrorHandler(capture_x11_error);
     XImage *image = XGetImage(display, window, 0, 0,
                               (unsigned int)attributes.width,
                               (unsigned int)attributes.height,
                               AllPlanes, ZPixmap);
-    if (image == NULL) {
-        fprintf(stderr, "nova_x11_capture=failed id=0x%lx reason=xgetimage\n",
-                (unsigned long)window);
+    XSync(display, False);
+    XSetErrorHandler(previous_error_handler);
+    if (image == NULL || x11_capture_error_code != 0) {
+        fprintf(stderr,
+                "nova_x11_capture=failed id=0x%lx reason=xgetimage "
+                "error_code=%d depth=%d visual=0x%lx\n",
+                (unsigned long)window, x11_capture_error_code,
+                attributes.depth,
+                attributes.visual != NULL
+                    ? (unsigned long)XVisualIDFromVisual(attributes.visual)
+                    : 0UL);
+        if (image != NULL) {
+            XDestroyImage(image);
+        }
         return 0;
     }
 

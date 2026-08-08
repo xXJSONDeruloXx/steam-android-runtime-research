@@ -910,9 +910,20 @@ Java_com_xjsonderulo_steamandroid_novalab_MainActivity_nativeRunDmaBufDoubleBuff
         int index = frame % 3;
         char acknowledgement[256] = {0};
         int acquire_fence_fd = -1;
+        if (frame < 4 || (frame % 30) == 0) {
+            __android_log_print(ANDROID_LOG_INFO, "NovaLab",
+                                "ahb_double_buffer_wait_ack frame=%d buffer=%d",
+                                frame, index);
+        }
         ssize_t acknowledgement_bytes = receive_bridge_acknowledgement(
             clients[index], acknowledgement, sizeof(acknowledgement),
             &acquire_fence_fd);
+        if (frame < 4 || (frame % 30) == 0 || acknowledgement_bytes <= 0) {
+            __android_log_print(
+                ANDROID_LOG_INFO, "NovaLab",
+                "ahb_double_buffer_ack_result frame=%d buffer=%d bytes=%zd fence=%d",
+                frame, index, acknowledgement_bytes, acquire_fence_fd >= 0);
+        }
         append_line(report, sizeof(report), &used,
                     "ahb_double_buffer_frame=%d buffer=%d ack_bytes=%zd ack=%s",
                     frame, index, acknowledgement_bytes,
@@ -972,6 +983,12 @@ Java_com_xjsonderulo_steamandroid_novalab_MainActivity_nativeRunDmaBufDoubleBuff
                 clients[previous_index], previous_index,
                 previous_release_fence_fd);
             previous_release_fence_fd = -1;
+            if (frame < 4 || (frame % 30) == 0 || release_status != 0) {
+                __android_log_print(
+                    ANDROID_LOG_INFO, "NovaLab",
+                    "ahb_double_buffer_release_result frame=%d buffer=%d status=%d",
+                    frame, previous_index, release_status);
+            }
             append_line(report, sizeof(report), &used,
                         "ahb_double_buffer_release_%d=%s buffer=%d\n", frame,
                         release_status == 0 ? "sent" : "failed",
