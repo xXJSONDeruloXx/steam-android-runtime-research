@@ -874,16 +874,28 @@ Java_com_xjsonderulo_steamandroid_novalab_MainActivity_nativeRunDmaBufDoubleBuff
     /* Holo sends two frames before waiting for the first release fence. The
      * alternating order then allows each side to overlap one GPU write with
      * the other buffer's SurfaceControl presentation. */
+    /* A negative frame count is the manual-session sentinel. Keep the
+     * bounded positive mode strict for automated smoke tests, while allowing
+     * the live Android presentation and input bridges to remain available for
+     * real device interaction until the host session is stopped. */
+    const int continuous = frame_count_argument < 0;
     const int total_frames =
-        frame_count_argument > 0 && frame_count_argument <= 600
-            ? frame_count_argument
-            : 5;
-    append_line(report, sizeof(report), &used,
-                "ahb_double_buffer_target_frames=%d\n", total_frames);
+        continuous
+            ? 0
+            : (frame_count_argument > 0 && frame_count_argument <= 600
+                   ? frame_count_argument
+                   : 5);
+    if (continuous) {
+        append_line(report, sizeof(report), &used,
+                    "ahb_double_buffer_target_frames=continuous\n");
+    } else {
+        append_line(report, sizeof(report), &used,
+                    "ahb_double_buffer_target_frames=%d\n", total_frames);
+    }
     append_line(report, sizeof(report), &used,
                 "ahb_double_buffer_size=%dx%d\n", buffer_width,
                 buffer_height);
-    for (int frame = 0; frame < total_frames; ++frame) {
+    for (int frame = 0; continuous || frame < total_frames; ++frame) {
         int index = frame & 1;
         char acknowledgement[256] = {0};
         int acquire_fence_fd = -1;
@@ -956,7 +968,8 @@ Java_com_xjsonderulo_steamandroid_novalab_MainActivity_nativeRunDmaBufDoubleBuff
                         "ahb_double_buffer_release_%d=none\n", frame);
         }
     }
-    success = frame_count == total_frames && release_fence_count == total_frames - 1;
+    success = !continuous && frame_count == total_frames &&
+              release_fence_count == total_frames - 1;
 
 double_buffer_done:
     if (surface_control != NULL) {

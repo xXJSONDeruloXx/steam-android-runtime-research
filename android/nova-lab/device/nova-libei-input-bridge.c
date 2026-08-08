@@ -222,6 +222,7 @@ int main(int argc, char **argv)
 {
     const char *eis_socket = argc > 1 ? argv[1] : getenv("LIBEI_SOCKET");
     const char *app_socket = argc > 2 ? argv[2] : getenv("NOVA_TOUCH_SOCKET");
+    const int continuous = argc > 4 && strcmp(argv[4], "continuous") == 0;
     uint64_t timeout_ms = 60000;
     char *end = NULL;
 
@@ -239,6 +240,9 @@ int main(int argc, char **argv)
     (void)end;
     printf("libei_socket=%s\n", eis_socket);
     printf("android_touch_socket=%s\n", app_socket);
+    if (continuous) {
+        marker("libei_touch_mode=continuous");
+    }
     fflush(stdout);
 
     struct ei *context = ei_new_sender(NULL);
@@ -273,11 +277,13 @@ int main(int argc, char **argv)
     int down_sent = 0;
     int up_sent = 0;
     int roundtrip_complete = 0;
+    int server_disconnected = 0;
     int status = 1;
     char input_buffer[4096] = {0};
     size_t input_used = 0;
 
-    while (monotonic_milliseconds() < deadline && !roundtrip_complete) {
+    while (monotonic_milliseconds() < deadline &&
+           (!roundtrip_complete || continuous) && !server_disconnected) {
         struct pollfd fds[2] = {
             {.fd = eis_fd, .events = POLLIN},
             {.fd = app_fd, .events = POLLIN},
@@ -333,6 +339,7 @@ int main(int argc, char **argv)
                 } else if (type == EI_EVENT_DISCONNECT) {
                     fprintf(stderr, "libei_error=server_disconnect\n");
                     roundtrip_complete = 1;
+                    server_disconnected = 1;
                 }
                 ei_event_unref(event);
             }
@@ -344,7 +351,7 @@ int main(int argc, char **argv)
             if (consume_status < 0) {
                 break;
             }
-            if (consume_status > 0 && up_sent) {
+            if (consume_status > 0 && (!continuous || up_sent)) {
                 break;
             }
             if (up_sent && pending_ping == NULL) {

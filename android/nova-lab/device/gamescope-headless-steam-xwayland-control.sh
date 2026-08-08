@@ -17,6 +17,7 @@ EIS_TOUCH_BRIDGE=0
 EIS_TOUCH_HELPER=/opt/nova-kgsl-driver/nova-libei-input-bridge
 EIS_TOUCH_APP_SOCKET=/run/nova-lab-app/nova-touch.sock
 EIS_TOUCH_TIMEOUT=60000
+EIS_TOUCH_CONTINUOUS=0
 if [ -r /opt/nova-steam/eis-touch-bridge ]; then
     EIS_TOUCH_BRIDGE=$(cat /opt/nova-steam/eis-touch-bridge)
 fi
@@ -28,6 +29,9 @@ if [ -r /opt/nova-steam/eis-touch-app-socket ]; then
 fi
 if [ -r /opt/nova-steam/eis-touch-timeout ]; then
     EIS_TOUCH_TIMEOUT=$(cat /opt/nova-steam/eis-touch-timeout)
+fi
+if [ -r /opt/nova-steam/eis-touch-continuous ]; then
+    EIS_TOUCH_CONTINUOUS=$(cat /opt/nova-steam/eis-touch-continuous)
 fi
 touch_app_socket_ready() {
     case "$EIS_TOUCH_APP_SOCKET" in
@@ -260,9 +264,15 @@ if [ "${1:-}" = "--client" ]; then
             eis_touch_attempt=$((eis_touch_attempt + 1))
         done
         if [ -S /tmp/gamescope-0-ei ] && touch_app_socket_ready; then
-            /usr/bin/timeout "$EIS_TOUCH_TIMEOUT" "$EIS_TOUCH_HELPER" \
-                /tmp/gamescope-0-ei "$EIS_TOUCH_APP_SOCKET" "$EIS_TOUCH_TIMEOUT" \
-                >"$eis_touch_log" 2>&1 &
+            if [ "$EIS_TOUCH_CONTINUOUS" = "1" ]; then
+                /usr/bin/timeout "$EIS_TOUCH_TIMEOUT" "$EIS_TOUCH_HELPER" \
+                    /tmp/gamescope-0-ei "$EIS_TOUCH_APP_SOCKET" "$EIS_TOUCH_TIMEOUT" continuous \
+                    >"$eis_touch_log" 2>&1 &
+            else
+                /usr/bin/timeout "$EIS_TOUCH_TIMEOUT" "$EIS_TOUCH_HELPER" \
+                    /tmp/gamescope-0-ei "$EIS_TOUCH_APP_SOCKET" "$EIS_TOUCH_TIMEOUT" \
+                    >"$eis_touch_log" 2>&1 &
+            fi
             eis_touch_pid=$!
             echo "eis_touch_bridge=started helper=$EIS_TOUCH_HELPER app_socket=$EIS_TOUCH_APP_SOCKET" >&2
         else

@@ -39,6 +39,8 @@ Android MotionEvent
 - `android/nova-lab/deploy-native-steam-touch-input-smoke-test.sh` is the reproducible
   live-session harness. Its default result is the transport checkpoint. Set
   `NOVA_TOUCH_REQUIRE_STEAM_SURFACE=1` to require a visible Steam frame as well.
+- `android/nova-lab/deploy-native-steam-manual-session.sh` keeps a device-native
+  1280×960 session and both real-input bridges alive for hands-on controls/touch testing.
 
 The Android socket is abstract. `LocalServerSocket(String)` does not create a normal
 filesystem socket, so the rootfs configuration uses:
@@ -215,6 +217,29 @@ remains an open interaction item.
 The live root report also records Xwayland glamor falling back to software because GBM
 Wayland interfaces are unavailable. Hardware CEF rendering remains a separate unresolved
 graphics gate.
+
+## Hands-on device session
+
+The bounded smoke tests intentionally tear down Gamescope after their frame target. That
+leaves the last AHardwareBuffer visible but cannot accept later device input. For manual
+testing, start the continuous session instead:
+
+```sh
+android/nova-lab/deploy-native-steam-manual-session.sh
+```
+
+It keeps the 1280×960 AHardwareBuffer presentation, continuous physical controller
+relay, Android touch bridge, and continuous Gamescope EIS bridge alive. Stop it with:
+
+```sh
+android/nova-lab/deploy-native-steam-manual-session.sh stop
+```
+
+The host log is `android/nova-lab/build/native-steam-manual-session.log`. The bounded
+libei helper remains a one-touch probe; manual mode passes `continuous` to the helper
+so repeated touch gestures do not close the Android socket. The live-input diagnosis,
+including the earlier stale-session broken pipe and current continuous-session evidence,
+is recorded in [doc 32](32-nova-live-manual-input-diagnosis.md).
 
 ## Remaining graphics boundary
 

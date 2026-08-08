@@ -25,6 +25,18 @@ RELAY_TIMEOUT=${NOVA_CONTROLLER_UI_RELAY_TIMEOUT:-180000}
 EXPECT_NAVIGATION=${NOVA_CONTROLLER_UI_EXPECT_NAVIGATION:-0}
 AFTER_DELAY=${NOVA_CONTROLLER_UI_AFTER_DELAY:-20}
 REQUIRE_STEAM_SURFACE=${NOVA_CONTROLLER_UI_REQUIRE_STEAM_SURFACE:-1}
+MANUAL_SESSION=${NOVA_CONTROLLER_UI_MANUAL_SESSION:-0}
+if [ "$MANUAL_SESSION" = "1" ]; then
+    PHYSICAL_RELAY_MODE=relay
+else
+    PHYSICAL_RELAY_MODE=relay-once-code
+fi
+if [ "${NOVA_FULLSCREEN_PRESENTATION:-0}" = "1" ]; then
+    STEAM_PANEL_CROP=${NOVA_CONTROLLER_UI_STEAM_PANEL_CROP:-255:280:970:45}
+else
+    STEAM_PANEL_CROP=${NOVA_CONTROLLER_UI_STEAM_PANEL_CROP:-255:280:970:185}
+fi
+STEAM_PANEL_YLOW_MIN=${NOVA_CONTROLLER_UI_STEAM_PANEL_YLOW_MIN:-20}
 HELPER="$BUILD_DIR/nova-uinput-gamepad-relay"
 DEVICE_HELPER="$DEVICE_ROOT/opt/nova-kgsl-driver/nova-uinput-gamepad-relay"
 CHROOT_HELPER=/opt/nova-kgsl-driver/nova-uinput-gamepad-relay
@@ -61,6 +73,10 @@ export NOVA_STEAM_LIBGL_ALWAYS_SOFTWARE=${NOVA_STEAM_LIBGL_ALWAYS_SOFTWARE:-1}
 export NOVA_STEAM_NO_CEF_SANDBOX=${NOVA_STEAM_NO_CEF_SANDBOX:-1}
 export NOVA_STEAM_CLIENT_TIMEOUT=${NOVA_STEAM_CLIENT_TIMEOUT:-180}
 export NOVA_STEAM_GAMESCOPE_TIMEOUT=${NOVA_STEAM_GAMESCOPE_TIMEOUT:-220}
+if [ "$MANUAL_SESSION" = "1" ]; then
+    export NOVA_EIS_TOUCH_TIMEOUT=${NOVA_EIS_TOUCH_TIMEOUT:-86400000}
+    export NOVA_EIS_TOUCH_CONTINUOUS=${NOVA_EIS_TOUCH_CONTINUOUS:-1}
+fi
 
 mkdir -p "$BUILD_DIR"
 rm -f "$RUN_LOG" "$HELPER_LOG" "$FD_LOG" \
@@ -132,7 +148,7 @@ capture_ready_screenshot() {
         if [ "$surface_yhigh" -ge 40 ]; then
             if [ "$REQUIRE_STEAM_SURFACE" = "1" ]; then
                 steam_panel_stats=$(ffmpeg -hide_banner -i "$sample" \
-                    -vf "crop=255:280:970:185,signalstats,metadata=print:file=-" \
+                    -vf "crop=$STEAM_PANEL_CROP,signalstats,metadata=print:file=-" \
                     -f null - 2>&1 | awk -F= '
                         /lavfi.signalstats.YMIN=/{ymin=$2}
                         /lavfi.signalstats.YLOW=/{ylow=$2}
@@ -156,7 +172,7 @@ EOF
                     ''|*[!0-9]*) steam_panel_ymax=0 ;;
                 esac
                 if [ "$steam_panel_ymin" -lt 20 ] || \
-                    [ "$steam_panel_ylow" -lt 30 ] || \
+                    [ "$steam_panel_ylow" -lt "$STEAM_PANEL_YLOW_MIN" ] || \
                     [ "$steam_panel_yavg" -lt 50 ] || \
                     [ "$steam_panel_yavg" -gt 90 ] || \
                     [ "$steam_panel_ymax" -lt 220 ]; then
@@ -197,11 +213,30 @@ cleanup_remote_helper() {
         stop_remote_helper
     fi
 }
-trap cleanup_remote_helper EXIT
+stop_remote_lab() {
+    if [ "$MANUAL_SESSION" != "1" ]; then
+        return
+    fi
+    for remote_name in gamescope-headless nova-libei-input-bridge nova-uinput-gamepad-relay; do
+        remote_pids=$("$ADB" shell pidof "$remote_name" 2>/dev/null | tr -d '\r' || true)
+        if [ -n "$remote_pids" ]; then
+            "$ADB" shell su -c "kill $remote_pids" >/dev/null 2>&1 || true
+        fi
+    done
+    "$ADB" shell am force-stop "$PACKAGE" >/dev/null 2>&1 || true
+}
+cleanup_session() {
+    if [ -n "${run_pid:-}" ] && kill -0 "$run_pid" 2>/dev/null; then
+        kill "$run_pid" 2>/dev/null || true
+    fi
+    cleanup_remote_helper
+    stop_remote_lab
+}
+trap cleanup_session EXIT INT TERM
 
 focused_window() {
     "$ADB" shell dumpsys input 2>/dev/null | tr -d '\r' | \
-        awk '/FocusedWindows:/{getline; print; exit}'
+        awk '/FocusedWindows:/{getline; print; exit}' || true
 }
 
 dismiss_android_overlay() {
@@ -266,7 +301,7 @@ while [ "$elapsed" -lt "$WAIT_TIMEOUT" ]; do
         set +e
         if [ "$INPUT_MODE" = "physical" ]; then
             "$ADB" shell su -c \
-                "/system/bin/chroot $DEVICE_ROOT /usr/bin/env -i PATH=/usr/bin:/bin HOME=/tmp XDG_RUNTIME_DIR=/tmp $CHROOT_HELPER $SOURCE_EVENT $RELAY_TIMEOUT relay-once-code $EVENT_CODE" \
+                "/system/bin/chroot $DEVICE_ROOT /usr/bin/env -i PATH=/usr/bin:/bin HOME=/tmp XDG_RUNTIME_DIR=/tmp $CHROOT_HELPER $SOURCE_EVENT $RELAY_TIMEOUT $PHYSICAL_RELAY_MODE $([ "$PHYSICAL_RELAY_MODE" = "relay-once-code" ] && printf '%s' "$EVENT_CODE")" \
                 >"$HELPER_LOG" 2>&1 &
         else
             "$ADB" shell su -c \
@@ -336,6 +371,34 @@ else
     echo "controller_ui_ready=0 app_pid=missing"
 fi
 
+if [ "$MANUAL_SESSION" = "1" ]; then
+    echo "controller_ui_manual_session=$([ "$ui_ready" -eq 0 ] && echo ready || echo not_ready)"
+    set +e
+    wait "$run_pid"
+    run_status=$?
+    if [ -n "${helper_pid:-}" ]; then
+        cleanup_remote_helper
+        wait "$helper_pid"
+        helper_status=$?
+    else
+        helper_status=1
+    fi
+    if [ -n "${fd_pid:-}" ]; then
+        wait "$fd_pid"
+        fd_status=$?
+    else
+        fd_status=1
+    fi
+    set -e
+    cat "$HELPER_LOG" 2>/dev/null || true
+    cat "$FD_LOG" 2>/dev/null || true
+    cat "$RUN_LOG"
+    echo "controller_ui_run_status=$run_status"
+    echo "controller_ui_helper_status=$helper_status"
+    echo "controller_ui_fd_status=$fd_status"
+    exit "$run_status"
+fi
+
 event_sent=1
 stable_surface_hash=
 navigation_result=unknown
@@ -373,9 +436,9 @@ if [ "$ui_ready" -eq 0 ]; then
         before_panel="$BEFORE_SCREENSHOT.navigation-panel.png"
         after_panel="$AFTER_SCREENSHOT.navigation-panel.png"
         ffmpeg -y -hide_banner -loglevel error -i "$BEFORE_SCREENSHOT" \
-            -vf "crop=255:280:970:185" "$before_panel" >/dev/null 2>&1
+            -vf "crop=$STEAM_PANEL_CROP" "$before_panel" >/dev/null 2>&1
         ffmpeg -y -hide_banner -loglevel error -i "$AFTER_SCREENSHOT" \
-            -vf "crop=255:280:970:185" "$after_panel" >/dev/null 2>&1
+            -vf "crop=$STEAM_PANEL_CROP" "$after_panel" >/dev/null 2>&1
         before_panel_hash=$(sha256sum "$before_panel" | cut -c1-64)
         after_panel_hash=$(sha256sum "$after_panel" | cut -c1-64)
         echo "controller_ui_navigation_panel_before_sha256=$before_panel_hash"

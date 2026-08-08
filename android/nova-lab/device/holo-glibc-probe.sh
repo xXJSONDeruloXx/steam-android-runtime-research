@@ -39,6 +39,7 @@ NOVA_EIS_TOUCH_BRIDGE="${NOVA_EIS_TOUCH_BRIDGE:-0}"
 NOVA_EIS_TOUCH_HELPER="${NOVA_EIS_TOUCH_HELPER:-/opt/nova-kgsl-driver/nova-libei-input-bridge}"
 NOVA_EIS_TOUCH_APP_SOCKET="${NOVA_EIS_TOUCH_APP_SOCKET:-/run/nova-lab-app/nova-touch.sock}"
 NOVA_EIS_TOUCH_TIMEOUT="${NOVA_EIS_TOUCH_TIMEOUT:-60000}"
+NOVA_EIS_TOUCH_CONTINUOUS="${NOVA_EIS_TOUCH_CONTINUOUS:-0}"
 mkdir -p "$OUT_DIR" "$WORK"
 
 {
@@ -98,6 +99,7 @@ NOVA_EIS_TOUCH_BRIDGE='$NOVA_EIS_TOUCH_BRIDGE'
 NOVA_EIS_TOUCH_HELPER='$NOVA_EIS_TOUCH_HELPER'
 NOVA_EIS_TOUCH_APP_SOCKET='$NOVA_EIS_TOUCH_APP_SOCKET'
 NOVA_EIS_TOUCH_TIMEOUT='$NOVA_EIS_TOUCH_TIMEOUT'
+NOVA_EIS_TOUCH_CONTINUOUS='$NOVA_EIS_TOUCH_CONTINUOUS'
 VULKAN_AHB_HANDLE_SOCKET=''
 status=0
 
@@ -201,6 +203,7 @@ echo "\$NOVA_EIS_TOUCH_BRIDGE" >"\$ROOT/opt/nova-steam/eis-touch-bridge"
 echo "\$NOVA_EIS_TOUCH_HELPER" >"\$ROOT/opt/nova-steam/eis-touch-helper"
 echo "\$NOVA_EIS_TOUCH_APP_SOCKET" >"\$ROOT/opt/nova-steam/eis-touch-app-socket"
 echo "\$NOVA_EIS_TOUCH_TIMEOUT" >"\$ROOT/opt/nova-steam/eis-touch-timeout"
+echo "\$NOVA_EIS_TOUCH_CONTINUOUS" >"\$ROOT/opt/nova-steam/eis-touch-continuous"
 echo "\$NOVA_STEAM_CLIENT_TIMEOUT" >"\$ROOT/opt/nova-steam/client-timeout"
 echo "\$NOVA_STEAM_GAMESCOPE_TIMEOUT" >"\$ROOT/opt/nova-steam/gamescope-timeout"
 echo "rootfs.steam_client_timeout=\$NOVA_STEAM_CLIENT_TIMEOUT"

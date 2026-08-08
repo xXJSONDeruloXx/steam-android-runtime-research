@@ -200,6 +200,10 @@ gate. Use at least 120 compositor frames and a 30-second settle for the native S
 surface to latch; the strict gate passes with the fullscreen Steam language selector
 visible. See
 `docs/31-nova-android-touch-libei-fullscreen.md`.
+For hands-on testing rather than a bounded smoke test, run
+`deploy-native-steam-manual-session.sh`. It preserves the Nova's 1280×960
+presentation, uses a continuous physical-controller relay, and enables the
+continuous libei touch bridge; see `docs/32-nova-live-manual-input-diagnosis.md`.
 For loader-only diagnostics,
 `NOVA_STEAM_EXECUTABLE` can point at another ARM64 entry point, such as
 `steamwebhelper`, and `NOVA_STEAM_CLIENT_FLAGS` supplies its bounded arguments.
