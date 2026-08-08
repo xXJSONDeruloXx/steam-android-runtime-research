@@ -157,7 +157,12 @@ localized greeting from actual selector navigation. Set
 `NOVA_CONTROLLER_UI_EVENT_NAME=BTN_DPAD_DOWN` to probe a semantic D-pad
 action; set `NOVA_CONTROLLER_UI_EXPECT_NAVIGATION=1` to make unchanged
 navigation an assertion failure. The negative D-pad result is documented in
-`docs/24-nova-steam-dpad-input.md`. For
+`docs/24-nova-steam-dpad-input.md`. Set
+`NOVA_CONTROLLER_UI_INPUT_MODE=android-keyevent` to drive the same comparison
+through the app's abstract input socket; this mode defaults to
+`KEYCODE_DPAD_DOWN`, maps it to Linux code 545, and enables key-only isolation.
+Its transport-passing/UI-negative result is documented in
+`docs/25-nova-android-input-steam-ui.md`. For
 loader-only diagnostics,
 `NOVA_STEAM_EXECUTABLE` can point at another ARM64 entry point, such as
 `steamwebhelper`, and `NOVA_STEAM_CLIENT_FLAGS` supplies its bounded arguments.

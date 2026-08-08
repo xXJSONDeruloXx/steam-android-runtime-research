@@ -8,8 +8,16 @@ ADB=${ADB:-/Users/kurt/.local/bin/adb}
 DEVICE_ROOT=${DEVICE_ROOT:-/data/local/tmp/nova-holo-rootfs}
 PACKAGE=com.xjsonderulo.steamandroid.novalab
 SOURCE_EVENT=${NOVA_STEAM_GAMEPAD_SOURCE:-/dev/input/event7}
-EVENT_CODE=${NOVA_CONTROLLER_UI_EVENT_CODE:-304}
-EVENT_NAME=${NOVA_CONTROLLER_UI_EVENT_NAME:-BTN_SOUTH}
+INPUT_MODE=${NOVA_CONTROLLER_UI_INPUT_MODE:-physical}
+ANDROID_KEYCODE=${NOVA_CONTROLLER_UI_ANDROID_KEYCODE:-20}
+ANDROID_KEY_NAME=${NOVA_CONTROLLER_UI_ANDROID_KEY_NAME:-KEYCODE_DPAD_DOWN}
+if [ "$INPUT_MODE" = "android-keyevent" ]; then
+    EVENT_CODE=${NOVA_CONTROLLER_UI_EVENT_CODE:-545}
+    EVENT_NAME=${NOVA_CONTROLLER_UI_EVENT_NAME:-BTN_DPAD_DOWN}
+else
+    EVENT_CODE=${NOVA_CONTROLLER_UI_EVENT_CODE:-304}
+    EVENT_NAME=${NOVA_CONTROLLER_UI_EVENT_NAME:-BTN_SOUTH}
+fi
 WAIT_TIMEOUT=${NOVA_CONTROLLER_UI_WAIT_TIMEOUT:-140}
 SETTLE_DELAY=${NOVA_CONTROLLER_UI_SETTLE_DELAY:-30}
 STABLE_ATTEMPTS=${NOVA_CONTROLLER_UI_STABLE_ATTEMPTS:-20}
@@ -28,6 +36,17 @@ HELPER_LOG="$BUILD_DIR/nova-controller-ui-uinput-relay.log"
 FD_LOG="$BUILD_DIR/nova-controller-ui-steam-input-fd.log"
 BEFORE_SCREENSHOT="$BUILD_DIR/native-steam-controller-ui-before.png"
 AFTER_SCREENSHOT="$BUILD_DIR/native-steam-controller-ui-after.png"
+APP_LOG="$BUILD_DIR/native-steam-controller-ui-app-logcat.txt"
+APP_REPORT="$BUILD_DIR/native-steam-controller-ui-app-report.txt"
+
+case "$INPUT_MODE" in
+    physical|android-keyevent)
+        ;;
+    *)
+        echo "unknown controller UI input mode: $INPUT_MODE" >&2
+        exit 2
+        ;;
+esac
 
 export INSTALL_HOLO_GAMESCOPE=${INSTALL_HOLO_GAMESCOPE:-0}
 export NOVA_AHB_FRAME_COUNT=${NOVA_AHB_FRAME_COUNT:-120}
@@ -44,7 +63,12 @@ export NOVA_STEAM_GAMESCOPE_TIMEOUT=${NOVA_STEAM_GAMESCOPE_TIMEOUT:-220}
 
 mkdir -p "$BUILD_DIR"
 rm -f "$RUN_LOG" "$HELPER_LOG" "$FD_LOG" \
-    "$BEFORE_SCREENSHOT" "$AFTER_SCREENSHOT"
+    "$BEFORE_SCREENSHOT" "$AFTER_SCREENSHOT" "$APP_LOG" "$APP_REPORT"
+
+if [ "$INPUT_MODE" = "android-keyevent" ]; then
+    export NOVA_ANDROID_INPUT_BRIDGE=1
+    export NOVA_ANDROID_INPUT_KEY_ONLY=${NOVA_CONTROLLER_UI_ANDROID_KEY_ONLY:-1}
+fi
 
 if ! command -v ffmpeg >/dev/null 2>&1; then
     echo "missing required host tool: ffmpeg" >&2
@@ -135,14 +159,44 @@ run_pid=$!
 set -e
 
 source_ready=1
+app_data_dir=
+socket_path=
 elapsed=0
 while [ "$elapsed" -lt "$WAIT_TIMEOUT" ]; do
-    if "$ADB" shell su -c "test -e $DEVICE_ROOT$SOURCE_EVENT" \
-        >/dev/null 2>&1; then
+    input_available=0
+    if [ "$INPUT_MODE" = "physical" ] && \
+        "$ADB" shell su -c "test -e $DEVICE_ROOT$SOURCE_EVENT" \
+            >/dev/null 2>&1; then
+        input_available=1
+    elif [ "$INPUT_MODE" = "android-keyevent" ]; then
+        source_available=0
+        if "$ADB" shell su -c "test -e $DEVICE_ROOT$SOURCE_EVENT" \
+            >/dev/null 2>&1; then
+            source_available=1
+        fi
+        if [ -z "$socket_path" ]; then
+            app_data_dir=$("$ADB" shell run-as "$PACKAGE" pwd 2>/dev/null | tr -d '\r' || true)
+            if [ -n "$app_data_dir" ]; then
+                socket_path="@$app_data_dir/files/nova-input.sock"
+            fi
+        fi
+        if [ "$source_available" -eq 1 ] && [ -n "$socket_path" ] && \
+            "$ADB" shell cat /proc/net/unix 2>/dev/null | tr -d '\r' | \
+                rg -F -- "$socket_path" >/dev/null; then
+            input_available=1
+        fi
+    fi
+    if [ "$input_available" -eq 1 ]; then
         set +e
-        "$ADB" shell su -c \
-            "/system/bin/chroot $DEVICE_ROOT /usr/bin/env -i PATH=/usr/bin:/bin HOME=/tmp XDG_RUNTIME_DIR=/tmp $CHROOT_HELPER $SOURCE_EVENT $RELAY_TIMEOUT relay-once-code $EVENT_CODE" \
-            >"$HELPER_LOG" 2>&1 &
+        if [ "$INPUT_MODE" = "physical" ]; then
+            "$ADB" shell su -c \
+                "/system/bin/chroot $DEVICE_ROOT /usr/bin/env -i PATH=/usr/bin:/bin HOME=/tmp XDG_RUNTIME_DIR=/tmp $CHROOT_HELPER $SOURCE_EVENT $RELAY_TIMEOUT relay-once-code $EVENT_CODE" \
+                >"$HELPER_LOG" 2>&1 &
+        else
+            "$ADB" shell su -c \
+                "/system/bin/chroot $DEVICE_ROOT /usr/bin/env -i PATH=/usr/bin:/bin HOME=/tmp XDG_RUNTIME_DIR=/tmp $CHROOT_HELPER $SOURCE_EVENT $RELAY_TIMEOUT socket $socket_path" \
+                >"$HELPER_LOG" 2>&1 &
+        fi
         helper_pid=$!
         set -e
         source_ready=0
@@ -200,6 +254,7 @@ while [ "$elapsed" -lt "$WAIT_TIMEOUT" ]; do
 done
 
 echo "controller_ui_source_ready=$([ "$source_ready" -eq 0 ] && echo 1 || echo 0)"
+echo "controller_ui_input_mode=$INPUT_MODE"
 echo "controller_ui_relay_ready=$([ "$helper_ready" -eq 0 ] && echo 1 || echo 0)"
 if [ -n "$app_pid" ]; then
     echo "controller_ui_ready=$([ "$ui_ready" -eq 0 ] && echo 1 || echo 0) app_pid=$app_pid"
@@ -213,11 +268,19 @@ navigation_result=unknown
 if [ "$ui_ready" -eq 0 ]; then
     sleep "$SETTLE_DELAY"
     if capture_ready_screenshot "$BEFORE_SCREENSHOT"; then
-        "$ADB" shell su -c \
-            "sendevent $SOURCE_EVENT 1 $EVENT_CODE 1; sendevent $SOURCE_EVENT 0 0 0; sendevent $SOURCE_EVENT 1 $EVENT_CODE 0; sendevent $SOURCE_EVENT 0 0 0" \
-            >/dev/null
+        if [ "$INPUT_MODE" = "physical" ]; then
+            "$ADB" shell su -c \
+                "sendevent $SOURCE_EVENT 1 $EVENT_CODE 1; sendevent $SOURCE_EVENT 0 0 0; sendevent $SOURCE_EVENT 1 $EVENT_CODE 0; sendevent $SOURCE_EVENT 0 0 0" \
+                >/dev/null
+        else
+            "$ADB" shell input keyevent "$ANDROID_KEYCODE" >/dev/null 2>&1 || true
+        fi
         event_sent=0
-        echo "controller_ui_event=$EVENT_NAME code=$EVENT_CODE"
+        if [ "$INPUT_MODE" = "physical" ]; then
+            echo "controller_ui_event=$EVENT_NAME code=$EVENT_CODE"
+        else
+            echo "controller_ui_android_event=$ANDROID_KEY_NAME code=$ANDROID_KEYCODE maps_to=$EVENT_NAME code=$EVENT_CODE"
+        fi
         sleep "$AFTER_DELAY"
         echo "controller_ui_after_delay=$AFTER_DELAY"
         "$ADB" exec-out screencap -p >"$AFTER_SCREENSHOT"
@@ -277,6 +340,13 @@ set -e
 cat "$HELPER_LOG" 2>/dev/null || true
 cat "$FD_LOG" 2>/dev/null || true
 cat "$RUN_LOG"
+if [ "$INPUT_MODE" = "android-keyevent" ]; then
+    "$ADB" logcat -d -v threadtime NovaLab:I '*:S' >"$APP_LOG"
+    "$ADB" shell run-as "$PACKAGE" cat files/android-input-bridge-report.txt \
+        >"$APP_REPORT" 2>/dev/null || true
+    cat "$APP_LOG"
+    cat "$APP_REPORT"
+fi
 echo "controller_ui_run_status=$run_status"
 echo "controller_ui_helper_status=$helper_status"
 echo "controller_ui_fd_status=$fd_status"
@@ -285,18 +355,49 @@ if [ "$run_status" -ne 0 ]; then
     echo "native_steam_controller_ui_input_smoke=fail underlying_status=$run_status" >&2
     exit "$run_status"
 fi
-for marker in \
-    'uinput_device_ready=pass' \
-    'uinput_event_forwarded=pass'; do
-    if ! rg -q -- "$marker" "$HELPER_LOG"; then
-        echo "missing controller relay marker: $marker" >&2
+if [ "$INPUT_MODE" = "physical" ]; then
+    for marker in \
+        'uinput_device_ready=pass' \
+        'uinput_event_forwarded=pass'; do
+        if ! rg -q -- "$marker" "$HELPER_LOG"; then
+            echo "missing controller relay marker: $marker" >&2
+            exit 1
+        fi
+    done
+    control_marker="uinput_control_event=$EVENT_NAME"
+    if ! rg -q -- "$control_marker" "$HELPER_LOG"; then
+        echo "missing controller relay marker: $control_marker" >&2
         exit 1
     fi
-done
-control_marker="uinput_control_event=$EVENT_NAME"
-if ! rg -q -- "$control_marker" "$HELPER_LOG"; then
-    echo "missing controller relay marker: $control_marker" >&2
-    exit 1
+else
+    for marker in \
+        'uinput_device_ready=pass' \
+        'android_input_socket_connected=pass' \
+        'android_key_forwarded=pass' \
+        'android_input_forwarded=pass' \
+        "android_input_keycode=$ANDROID_KEYCODE" \
+        "android_input_linux_code=$EVENT_CODE" \
+        "android_input_linux_event=$EVENT_NAME"; do
+        if ! rg -q -- "$marker" "$HELPER_LOG"; then
+            echo "missing Android input relay marker: $marker" >&2
+            exit 1
+        fi
+    done
+    for marker in \
+        'android_input_socket=listening' \
+        'android_input_socket=connected' \
+        'android_input_key_forwarded=pass' \
+        "android_input_key_event device=[0-9-]+ keycode=$ANDROID_KEYCODE source=0x"; do
+        if ! rg -q -- "$marker" "$APP_REPORT"; then
+            echo "missing Android app bridge marker: $marker" >&2
+            exit 1
+        fi
+    done
+    if ! rg -q -- 'android_input_device_controller=pass' "$APP_LOG"; then
+        echo "missing Android controller enumeration marker" >&2
+        exit 1
+    fi
+    echo "controller_ui_android_input_bridge=pass"
 fi
 if [ "$fd_status" -ne 0 ] || ! rg -q -- 'steam_input_fd_probe=pass' "$FD_LOG"; then
     echo "missing Steam process FD marker" >&2

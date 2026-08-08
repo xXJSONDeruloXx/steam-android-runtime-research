@@ -70,6 +70,9 @@ activity_args=(
 )
 if [ "${NOVA_ANDROID_INPUT_BRIDGE:-0}" = "1" ]; then
     activity_args+=(--ez run_android_input_bridge true)
+    if [ "${NOVA_ANDROID_INPUT_KEY_ONLY:-0}" = "1" ]; then
+        activity_args+=(--ez android_input_key_only true)
+    fi
 fi
 "$ADB" shell am start -W -n "$PACKAGE/.MainActivity" \
     "${activity_args[@]}" >/dev/null

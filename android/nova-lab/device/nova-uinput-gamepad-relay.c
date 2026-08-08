@@ -362,7 +362,9 @@ static int connect_input_socket(const char *path)
 }
 
 static int forward_android_line(int uinput_fd, char *line,
-                                int *key_forwarded, int *axis_forwarded)
+                                int *key_forwarded, int *axis_forwarded,
+                                int *last_android_keycode,
+                                int *last_linux_keycode)
 {
     int code;
     int action;
@@ -378,6 +380,8 @@ static int forward_android_line(int uinput_fd, char *line,
             return -1;
         }
         *key_forwarded = 1;
+        *last_android_keycode = code;
+        *last_linux_keycode = linux_code;
         return 0;
     }
     if (sscanf(line, "A %d %f", &android_axis, &axis_value) == 2) {
@@ -398,6 +402,8 @@ static int forward_android_line(int uinput_fd, char *line,
 static int read_android_socket(int socket_fd, int uinput_fd, char *buffer,
                                size_t *used, size_t capacity,
                                int *key_forwarded, int *axis_forwarded,
+                               int *last_android_keycode,
+                               int *last_linux_keycode,
                                int *closed)
 {
     char incoming[512];
@@ -428,7 +434,9 @@ static int read_android_socket(int socket_fd, int uinput_fd, char *buffer,
         size_t line_length = (size_t)(newline - line_start);
         *newline = '\0';
         if (forward_android_line(uinput_fd, line_start,
-                                  key_forwarded, axis_forwarded) != 0) {
+                                  key_forwarded, axis_forwarded,
+                                  last_android_keycode,
+                                  last_linux_keycode) != 0) {
             return -1;
         }
         line_start = newline + 1;
@@ -457,6 +465,8 @@ int main(int argc, char **argv)
     int socket_fd = -1;
     int socket_key_forwarded = 0;
     int socket_axis_forwarded = 0;
+    int last_android_keycode = -1;
+    int last_linux_keycode = -1;
     int status = 1;
 
     if (argc > 2 && parse_timeout(argv[2], &timeout_ms) != 0) {
@@ -628,6 +638,8 @@ int main(int argc, char **argv)
                                     &socket_used, sizeof(socket_buffer),
                                     &socket_key_forwarded,
                                     &socket_axis_forwarded,
+                                    &last_android_keycode,
+                                    &last_linux_keycode,
                                     &socket_closed) != 0) {
                 fprintf(stderr, "uinput_error=read_android_socket errno=%d\n", errno);
                 goto cleanup;
@@ -656,6 +668,12 @@ int main(int argc, char **argv)
     if (socket_fd >= 0) {
         printf("android_key_forwarded=%s\n",
                socket_key_forwarded ? "pass" : "none");
+        if (last_android_keycode >= 0) {
+            printf("android_input_keycode=%d\n", last_android_keycode);
+            printf("android_input_linux_code=%d\n", last_linux_keycode);
+            printf("android_input_linux_event=%s\n",
+                   control_event_label((unsigned short)last_linux_keycode));
+        }
         printf("android_axis_forwarded=%s\n",
                socket_axis_forwarded ? "pass" : "none");
         printf("android_input_forwarded=%s\n",

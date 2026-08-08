@@ -138,6 +138,10 @@ socket into the same rooted virtual device; [doc 19](19-nova-android-input-uinpu
   but the selector is still unchanged. The next investigation should therefore
   move above uinput creation toward Steam's higher-level input path or an
   alternative compositor/keyboard route.
+  [Doc 25](25-nova-android-input-steam-ui.md) moves the same semantic event
+  through the Android app's `dispatchKeyEvent` and abstract socket, with
+  generic-motion forwarding disabled. The app bridge and exact Linux mapping
+  pass in the live session, but SteamUI navigation remains unproven.
 
 ### Rootless stage 3: user-space Steam session supervision
 

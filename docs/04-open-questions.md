@@ -131,6 +131,10 @@ The target should not be considered proven until all of these work on one device
   node and Steam FD, but the selector remains unchanged under the explicit
   navigation assertion; see [doc 24](24-nova-steam-dpad-input.md). This
   rejects the narrow hypothesis that only the A-button mapping was wrong.
+  The app-side follow-up now drives the same `BTN_DPAD_DOWN` through
+  `Activity.dispatchKeyEvent` and an abstract socket, with key-only isolation;
+  the exact mapping, virtual node, Steam FD, and presentation all pass, but the
+  selector still remains unchanged. See [doc 25](25-nova-android-input-steam-ui.md).
 - Can the Nova expose hardware GLX/CEF for Steam? The bounded `msm` probe keeps
   Gamescope's Turnip/AHardwareBuffer side alive but Steam exits before CEF with
   `SIGILL`; an explicit `freedreno` Gallium profile instead fails at `drisw`

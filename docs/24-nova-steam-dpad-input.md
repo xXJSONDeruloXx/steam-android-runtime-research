@@ -58,5 +58,7 @@ The center greeting continued to rotate through localized strings, but the
 language-list panel did not move. This rejects the narrow “the A mapping is
 wrong” hypothesis: both a face-button event and a D-pad event reach the
 virtual node while Steam owns its FD, yet Steam Gamepad UI navigation remains
-unproven. The next seam is Steam's higher-level input consumption or an
-alternative compositor/keyboard input path, not uinput device creation.
+unproven. The next seam is Steam's higher-level input consumption, not uinput
+device creation. [Doc 25](25-nova-android-input-steam-ui.md) also exercises the
+Android app's abstract input bridge with motion forwarding disabled and reaches
+the same negative UI boundary.

@@ -87,6 +87,7 @@ android/nova-lab/build/native-steam-controller-ui-after.png
 The current boundary is therefore: virtual-device creation, SDL3 discovery,
 native Steam FD ownership, and exact event forwarding pass; Steam Input/Gamepad
 UI consumption and navigation are still unproven. The D-pad follow-up in
-[doc 24](24-nova-steam-dpad-input.md) also leaves the selector unchanged, so the
-next investigation should move above uinput creation toward Steam's
+[doc 24](24-nova-steam-dpad-input.md), and the app-side key-only bridge follow-up
+in [doc 25](25-nova-android-input-steam-ui.md), leave the selector unchanged.
+The next investigation should move above uinput creation toward Steam's
 higher-level input path or an alternative compositor/keyboard route.

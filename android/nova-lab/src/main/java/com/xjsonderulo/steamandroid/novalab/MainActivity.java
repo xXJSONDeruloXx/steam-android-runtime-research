@@ -52,6 +52,7 @@ public final class MainActivity extends Activity implements SurfaceHolder.Callba
     private TextView androidVulkanStatus;
     private TextView bridgeStatus;
     private boolean doubleBufferPresentationMode;
+    private boolean androidInputKeyOnly;
     private volatile boolean androidInputBridgeRunning;
     private Thread androidInputBridgeThread;
     private volatile LocalServerSocket androidInputServer;
@@ -97,6 +98,7 @@ public final class MainActivity extends Activity implements SurfaceHolder.Callba
         SurfaceView surface = new SurfaceView(this);
         doubleBufferPresentationMode = getIntent().getBooleanExtra(
                 "run_dmabuf_double_buffer", false);
+        androidInputKeyOnly = getIntent().getBooleanExtra("android_input_key_only", false);
         surface.setZOrderOnTop(true);
         surface.getHolder().addCallback(this);
         surface.getHolder().setFormat(PixelFormat.RGBA_8888);
@@ -212,7 +214,8 @@ public final class MainActivity extends Activity implements SurfaceHolder.Callba
                 + " frame_size=" + getIntent().getIntExtra(
                         "dmabuf_double_buffer_width", -1)
                 + "x" + getIntent().getIntExtra(
-                        "dmabuf_double_buffer_height", -1));
+                        "dmabuf_double_buffer_height", -1)
+                + " android_input_key_only=" + androidInputKeyOnly);
 
         if (getIntent().getBooleanExtra("run_root", false)) {
             rootButton.postDelayed(new Runnable() {
@@ -327,6 +330,7 @@ public final class MainActivity extends Activity implements SurfaceHolder.Callba
     public boolean dispatchGenericMotionEvent(MotionEvent event) {
         int controllerSources = InputDevice.SOURCE_GAMEPAD | InputDevice.SOURCE_JOYSTICK;
         if (androidInputBridgeRunning
+                && !androidInputKeyOnly
                 && event.getAction() == MotionEvent.ACTION_MOVE
                 && (event.getSource() & controllerSources) != 0) {
             int[] axes = {0, 1, 11, 14, 15, 16, 17, 18};
