@@ -240,6 +240,7 @@ the gamescope frames on its own surface.
 - [Termux:X11 stateful cleanup and foreground launcher result](docs/122-termux-x11-stateful-cleanup-result-2026-08-09.md)
 - [Termux:X11 synthetic window result](docs/123-termux-x11-synthetic-window-result-2026-08-09.md)
 - [Termux:X11 Android screen capture experiment](docs/124-termux-x11-android-screen-capture-experiment-2026-08-09.md)
+- [Termux:X11 screen-capture preflight result](docs/125-termux-x11-screen-capture-preflight-result-2026-08-09.md)
 - [Retroid Pocket Nova flashing kit](tools/retroid-pocket-nova/README.md)
 
 ## Evidence standard

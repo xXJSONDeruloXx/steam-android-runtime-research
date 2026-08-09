@@ -35,7 +35,7 @@ server_pids() {
 client_pids() {
     /system/bin/ps -A -o PID,PPID,USER,ARGS 2>/dev/null |
         /system/bin/awk -v token="$CLIENT_TOKEN" \
-            'NR > 1 && index($0, token) > 0 { print $1 }'
+            'NR > 1 && $3 == "root" && index($0, token) > 0 { print $1 }'
 }
 
 kill_pid() {

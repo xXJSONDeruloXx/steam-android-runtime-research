@@ -66,3 +66,6 @@ If this passes, the next experiment can predeclare native ARM64 Steam over
 direct Termux:X11. If it fails, keep the failure at the Android Activity,
 SurfaceView, or cleanup boundary and do not introduce Steam as a confounding
 variable.
+
+The first preflight retry is recorded in
+[doc 125](125-termux-x11-screen-capture-preflight-result-2026-08-09.md).
