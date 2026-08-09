@@ -607,6 +607,40 @@ exercise the native MCU initialization path directly. Do not add the binder
 profile probe to the product launcher and do not spend more time on Steam-side
 mapping until a physical press changes either the raw state or an evdev node.
 
+### `input-20260809T220000Z-cleanup-fix`
+
+Before the next mode comparison, a teardown audit found that the prior helper
+could report `pass` after killing only the relay. The launch wrappers carried
+`/data/local/tmp/nova-holo-rootfs` as an argument, while the chrooted Steam
+children exposed only `/opt/nova-steam`; the matcher therefore failed to seed
+the descendant walk with the launcher tree. The old helper SHA-256 was
+`1ef0af366747d932639bfeeee67d117dde0b35317d522e2fdadd243eef1cc783`.
+
+Commit `6ef295d` now matches the exact requested rootfs path as well as the
+chrooted Nova paths. The pushed device helper SHA-256 is
+`12332bc7e8d9401dfbe9ce72c5aba8feb910c1574a0e28602817bf92da34fb97`.
+The corrected run enumerated the full launcher, Termux:X11, private namespace,
+Steam, and webhelper tree. Its first three TERM/KILL cycles returned a visible
+`fail` while those processes were still in ordinary sleeping states; an
+immediate exact-scope rerun then returned:
+
+```text
+nova_runtime_cleanup=pass root=/data/local/tmp/nova-holo-rootfs attempts=2 remaining=
+```
+
+The post-rerun process audit contained no matching Nova runtime process. This
+is an exit-timing race, not permission to broaden the kill scope; the helper
+must remain a hard gate and a failed first stop must be retried explicitly.
+Artifacts are retained under the ignored
+`android/nova-lab/build/mapper-test/input-20260809T220000Z-cleanup-fix/`
+directory. The rerun cleanup and post-rerun process-table hashes are
+`23fc591f7dc83a4d368136b43e2e76444bae4536ecf827f468076949999580a7` and
+`e78059fc5feafa6c287017b47e52961cda94baebf70d920e8bd71ec0c5bcb000`.
+
+No new physical-control sample was taken in this run because the operator was
+away and no buttons were pressed. The preceding no-input raw-state and
+all-node event captures remain the valid physical-source evidence.
+
 ## Cleanup
 
 Every attempt ended without a Nova Steam runtime. The exact helper returned
