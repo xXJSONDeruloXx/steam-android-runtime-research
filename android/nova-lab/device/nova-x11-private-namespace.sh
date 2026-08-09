@@ -38,11 +38,16 @@ case "$mode" in
         fi
         mounted=1
         shm_mounted=0
+        input_mounted=0
         proc_mounted=0
         cleanup_mount() {
             if [ "$proc_mounted" -eq 1 ]; then
                 /system/bin/umount -l "$root/proc" >/dev/null 2>&1 || true
                 proc_mounted=0
+            fi
+            if [ "$input_mounted" -eq 1 ]; then
+                /system/bin/umount -l "$root/dev/input" >/dev/null 2>&1 || true
+                input_mounted=0
             fi
             if [ "$shm_mounted" -eq 1 ]; then
                 /system/bin/umount -l "$root/dev/shm" >/dev/null 2>&1 || true
@@ -64,6 +69,33 @@ case "$mode" in
             exit 1
         fi
         proc_mounted=1
+        hide_input_events="${NOVA_X11_HIDE_INPUT_EVENTS:-}"
+        if [ -n "$hide_input_events" ]; then
+            if ! /system/bin/mount -t tmpfs -o mode=1777 tmpfs "$root/dev/input"; then
+                echo "x11_namespace_error=mount_input" >&2
+                exit 1
+            fi
+            input_mounted=1
+            input_index=0
+            while [ "$input_index" -lt 64 ]; do
+                hidden=0
+                case ",$hide_input_events," in
+                    *,"$input_index",*)
+                        hidden=1
+                        ;;
+                esac
+                if [ "$hidden" -eq 0 ]; then
+                    input_node="$root/dev/input/event$input_index"
+                    if ! /system/bin/mknod "$input_node" c 13 $((64 + input_index)) ||
+                        ! /system/bin/chmod 0666 "$input_node"; then
+                        echo "x11_namespace_error=mknod_input_event$input_index" >&2
+                        exit 1
+                    fi
+                fi
+                input_index=$((input_index + 1))
+            done
+            echo "x11_namespace_input=pass hidden_events=$hide_input_events"
+        fi
         /system/bin/chroot "$root" "$@"
         status=$?
         trap - EXIT INT TERM

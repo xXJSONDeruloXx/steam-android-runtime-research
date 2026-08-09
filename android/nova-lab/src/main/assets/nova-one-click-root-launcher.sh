@@ -181,6 +181,7 @@ printf '%s\n' "1" >"$STATE/client-active"
 printf '%s\n' "$session" >"$STATE/session"
 
 if [ -x "$RELAY_BINARY" ]; then
+    hide_input_events=
     NOVA_RELAY_MOUNT_PRIVATE_HELPER="$MOUNT_PRIVATE" \
         /system/bin/sh "$RELAY_STAGE" "$ROOT" "$RELAY_BINARY" \
         /dev/input/event7 86400000 relay >"$STATE/relay.log" 2>&1 &
@@ -201,10 +202,13 @@ if [ -x "$RELAY_BINARY" ]; then
     done
     if [ "$relay_ready" -eq 1 ]; then
         log "nova_launcher_gamepad=pass"
+        hide_input_events=7
+        log "nova_launcher_input_hide=event7"
     else
         log "nova_launcher_gamepad=not_ready"
     fi
 else
+    hide_input_events=
     log "nova_launcher_gamepad=skipped reason=missing_relay_binary"
 fi
 
@@ -250,6 +254,7 @@ fi
     NOVA_TERMUX_X11_DBUS_SYSTEM=1 \
     NOVA_TERMUX_X11_STEAM_FULLSCREEN=1 \
     NOVA_TERMUX_X11_STEAM_FULLDESKTOPRES=1 \
+    NOVA_X11_HIDE_INPUT_EVENTS="$hide_input_events" \
     "$PRIVATE_HELPER" chroot-dev "$MOUNT_PRIVATE" "$ROOT" \
     /tmp/"$CLIENT_STAGE_NAME" >"$STATE/client.log" 2>&1 &
 client_pid=$!

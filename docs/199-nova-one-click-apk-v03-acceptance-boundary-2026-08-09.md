@@ -13,8 +13,8 @@ AHardwareBuffer path. The 198X game-launch result is recorded separately in
 [198](198-termux-x11-198x-game-launch-result-2026-08-09.md).
 
 The exact Nova lifecycle contract in [34](34-nova-runtime-harness-lifecycle.md)
-was read immediately before the retry run. Each attempt used a fresh local run
-directory and the exact runtime cleanup helper on exit.
+was read immediately before each device run. Each attempt used a fresh local
+run directory and the exact runtime cleanup helper on exit.
 
 ## Artifact identity
 
@@ -28,8 +28,9 @@ keystore, and verified by `apksigner`.
 | preflight-guard fix, pending device retest | `0d137c6` | `a5f4a5512fc89da9380eb275a81d1f408ed11796f0655be83f1f512b3f56b2a0` | 0.3 |
 | relay-corrected build | `00ed01c` | `d9288c9f7843c215441c074d51491e473b7b53453a1e4454adb4a576db766306` | 0.3 |
 | timeout/cleanup fix, pending device retest | working tree after `00ed01c` | `9124807429ff6d21a3c7556865cf6a33b0c8999ac8673cc4b5629b46839b3ec1` | 0.3 |
+| single-controller cleanup refinement, pending device retest | working tree after `40551fe` | `25d389dddc26cff7cbb53f39f6169cbbfc05eed68336dab53d09a4e4197d2ef0` | 0.3 |
 
-The runtime inputs for both attempts were the direct launcher mode: Termux:X11
+The runtime inputs for these attempts were the direct launcher mode: Termux:X11
 APK `/data/app/~~EaHbYh5LSrJyPyjYrj44Wg==/com.termux.x11-Yy3Sfe-6FUYa5hx2OcDldw==/base.apk`,
 rootfs `/data/local/tmp/nova-holo-rootfs`, display `:0`, Steam flags
 `-fullscreen -fulldesktopres`, and the ARM64 uinput relay when available.
@@ -154,10 +155,51 @@ runtime cleanup still returned `pass` and the final matching process set was
 empty. The cleanup verifier now excludes its own `awk` process; that change is
 included in the pending APK above.
 
+### `launcher-20260809T200927Z-apk-v03-relay-timeout-cleanup-fixed`
+
+The timeout and cleanup fixes passed their launch gates. The APK created a
+stable relay-backed virtual controller:
+
+```text
+nova_launcher_gamepad=pass
+uinput_source=/dev/input/event7
+uinput_source_name=Xbox Wireless Controller
+uinput_device=/dev/input/event9
+uinput_device_ready=pass
+nova_launcher_ready=pass display=:0 geometry=1280x960
+```
+
+Steam's fresh controller log opened both the physical Xbox device and the
+virtual `Nova Virtual Xbox Controller`, with complete SDL mappings for ABXY,
+LB/RB, triggers, sticks, and the D-pad. The controller trace hash is retained
+in the run directory. This is why the next refinement hides only physical
+event7 in the Steam client namespace: the relay still reads it, but Steam sees
+one stable virtual device instead of two.
+
+The controlled source-event proof was end-to-end. Root sent a BTN_SOUTH/A
+event to event7; event9 reported the corresponding gamepad down/up and the
+visible Steam UI opened 198X. A BTN_EAST/B event returned to the home carousel.
+The event9 trace also recorded `BTN_TL`, `BTN_TR`, and `BTN_DPAD_RIGHT`; the
+right-D-pad screenshot visibly moved the carousel. These are kernel-level
+`sendevent` controls, not a claim that a human hand-press was sampled, but they
+prove the same physical-event node -> relay -> Steam path that the device
+buttons use.
+
+Fresh X11 captures again showed root 1280x960 and Steam Big Picture 1280x800;
+the geometry decision is unchanged. The signed-in UI capture and the A/B/D-pad
+screenshots are all under this run ID.
+
+The one-click stop and Termux:X11 cleanup both returned `pass`. The immediate
+runtime audit briefly showed a reparented relay process with basename
+`nova-uinput-gamepad-relay`, which exited before the targeted exact stop. The
+runtime cleanup matcher now includes that basename (plus the control-wrapper
+basename) so the next run can prove this race closed rather than relying on a
+second observation.
+
 ## Cleanup
 
-Both attempts ended without a Nova Steam runtime. The retry's teardown still
-ran the exact helper and returned:
+Every attempt ended without a Nova Steam runtime. The exact helper returned
+the following on the latest completed run:
 
 ```text
 nova_runtime_cleanup=pass root=/data/local/tmp/nova-holo-rootfs attempts=1 term_pids= kill_pids= remaining=
@@ -169,8 +211,8 @@ matching runtime. No broad process kill was used.
 
 ## Next gate
 
-Install the timeout/cleanup-corrected build as a new run identity and confirm,
-in order:
+Install the single-controller cleanup refinement as a new run identity and
+confirm, in order:
 
 1. the APK launcher renders;
 2. the root-side preflight passes without a stale-process match;

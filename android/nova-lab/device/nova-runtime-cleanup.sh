@@ -20,8 +20,9 @@ runtime_pids() {
                 }
                 if (index(args, root "/opt/nova-steam") ||
                     index(args, "/opt/nova-kgsl-driver/gamescope-headless") ||
-                    index(args, "/opt/nova-kgsl-driver/nova-libei-input-bridge") ||
-                    index(args, "/opt/nova-kgsl-driver/nova-uinput-gamepad-relay")) {
+                    index(args, "gamescope-headless-ahb-control.sh") ||
+                    index(args, "nova-libei-input-bridge") ||
+                    index(args, "nova-uinput-gamepad-relay")) {
                     print pid
                 }
             }'
