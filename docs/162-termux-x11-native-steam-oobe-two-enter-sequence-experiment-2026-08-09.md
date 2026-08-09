@@ -1,6 +1,6 @@
 # Termux:X11 native ARM64 Steam OOBE two-Enter sequence experiment — 2026-08-09
 
-Status: predeclared; no device launch has run for this profile.
+Status: completed; see the [two-step sequence result](163-termux-x11-native-steam-oobe-network-result-2026-08-09.md).
 
 ## Why this is next
 
