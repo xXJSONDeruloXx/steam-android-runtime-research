@@ -1,6 +1,7 @@
 # Termux:X11 native ARM64 Steam bind-launcher forwarding repair — 2026-08-09
 
-Status: predeclared repair; no device launch has run for this profile.
+Status: completed; the device result is recorded in
+`docs/143-termux-x11-native-steam-dev-bind-result-2026-08-09.md`.
 
 ## Reason
 
