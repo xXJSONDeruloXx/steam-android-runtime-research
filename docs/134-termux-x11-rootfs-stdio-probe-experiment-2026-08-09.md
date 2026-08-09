@@ -1,6 +1,7 @@
 # Termux:X11 rootfs stdio probe experiment — 2026-08-09
 
-Status: predeclared experiment; no device probe has run for this profile.
+Status: completed; the device result is recorded in
+`docs/135-termux-x11-rootfs-stdio-probe-result-2026-08-09.md`.
 
 ## Why this is next
 

@@ -91,10 +91,10 @@ launcher failed while constructing the command, and its Steam stdout/stderr
 files remained empty. The `client_installed=pass` line reflects the existing
 package marker in the rootfs, not a successful launch in this run.
 
-## Narrowing diagnostic
+## Narrowing diagnostic — superseded ad-hoc probe
 
-After teardown, a read-only chroot probe ran the same uid/gid transition and
-opened the newly created devices without starting Steam:
+An ad-hoc nested `adb shell su -c` command printed the following after
+teardown:
 
 ```text
 exec 3</dev/urandom; echo fd_status=$?
@@ -103,11 +103,13 @@ exec 4>/dev/null; echo null_status=$?
 null_status=0
 ```
 
-That result narrows the next hypothesis. The nodes are not simply absent, and
-a minimal shell can open them as uid 501. The failing path is specifically
-the background/timeout launcher shell’s stdio setup, or a context difference
-introduced when it starts the Steam process. It should be isolated with a
-minimal `timeout`/stdio probe before another Steam launch.
+The later checked-in stdio probe in
+`docs/135-termux-x11-rootfs-stdio-probe-result-2026-08-09.md` disproved this
+as a reliable uid-501 chroot result: the nested quoting did not establish the
+same controlled execution boundary. The controlled probe is the authoritative
+result and found that uid 501 is denied even by foreground opens. This result
+note retains the earlier output for provenance but it must not be used as a
+positive device-access claim.
 
 ## Cleanup and acceptance result
 

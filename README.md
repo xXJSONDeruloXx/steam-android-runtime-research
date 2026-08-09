@@ -250,6 +250,7 @@ the gamescope frames on its own surface.
 - [Termux:X11 rootfs device-namespace repair experiment](docs/132-termux-x11-rootfs-device-repair-experiment-2026-08-09.md)
 - [Termux:X11 rootfs device-namespace repair result](docs/133-termux-x11-rootfs-device-repair-result-2026-08-09.md)
 - [Termux:X11 rootfs stdio probe experiment](docs/134-termux-x11-rootfs-stdio-probe-experiment-2026-08-09.md)
+- [Termux:X11 rootfs stdio probe result](docs/135-termux-x11-rootfs-stdio-probe-result-2026-08-09.md)
 - [Retroid Pocket Nova flashing kit](tools/retroid-pocket-nova/README.md)
 
 ## Evidence standard
