@@ -304,6 +304,7 @@ the gamescope frames on its own surface.
 - [Termux:X11 UID-matched session-bus result](docs/186-termux-x11-uid-matched-session-bus-result-2026-08-09.md)
 - [Termux:X11 system-D-Bus-only experiment](docs/187-termux-x11-system-dbus-only-experiment-2026-08-09.md)
 - [Termux:X11 system-D-Bus-only result](docs/188-termux-x11-system-dbus-only-result-2026-08-09.md)
+- [Termux:X11 system-D-Bus repeatability experiment](docs/189-termux-x11-system-dbus-repeat-experiment-2026-08-09.md)
 - [Retroid Pocket Nova flashing kit](tools/retroid-pocket-nova/README.md)
 
 ## Evidence standard
