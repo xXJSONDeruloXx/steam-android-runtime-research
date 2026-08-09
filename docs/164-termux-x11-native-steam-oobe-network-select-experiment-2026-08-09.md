@@ -1,6 +1,6 @@
 # Termux:X11 native ARM64 Steam OOBE network-select experiment — 2026-08-09
 
-Status: predeclared; no device launch has run for this profile.
+Status: completed; see the [network-selection result](165-termux-x11-native-steam-oobe-login-wait-result-2026-08-09.md).
 
 ## Why this is next
 
