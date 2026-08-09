@@ -557,6 +557,56 @@ API/UI, then repeat the same physical-event gate. If that profile still
 produces no event, the remaining blocker is the MCU/ADC/pinctrl path rather
 than the profile database or Steam integration.
 
+### `input-20260809T214900Z-profile-api-raw`
+
+This follow-up tested the vendor's exported `com.ro.mapping.service.ApiService`
+directly with a disposable Android binder probe. The probe serialized the
+decompiled built-in `XboxGamepadConfig`, invoked the vendor
+`setGamepadConfig(GamepadConfig)` transaction, and kept both the mapping binder
+and the probe Activity in the foreground while the operator pressed the
+physical controls. The probe APK SHA-256 was
+`6352ef463e0e04dd3257cc18c5d8ced34b1a81d07b7ec0685e14035f5e42b1f2`.
+
+The vendor service accepted the profile and logcat recorded
+`Config changed: Empty->XBox Gamepad` followed by a successful native
+`parse_config` call. Releasing the probe later caused the vendor mapper to
+revert to `Empty`; the call is therefore a live service operation, not a
+persistent profile selection. It is not a suitable launcher fix by itself.
+
+While the profile was held, a fresh 30-second all-node `getevent -lt` capture
+still contained only the eleven device-announcement lines (739 bytes; SHA-256
+`1628d7aeb61319aa4ead2bdaed9583e5cb2f6a9ba2667fc4e98360ac63ae8da3`). No key,
+axis, switch, event7, or mapper event9 records appeared. The vendor binder's
+`currentRawEvent()` was also sampled 60 times at 250 ms intervals. Every
+sample was identical:
+
+```text
+[-31.0, 0.0, -18.0, -7.0, 1527.0, 1501.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+```
+
+The raw-state log SHA-256 is
+`938682377312f92ae03a51f521722c99a9fb3ab9f0c74ffc813f139155c4f6c4`; the
+focused device state was still `persist.sys.handle.mode=1`,
+`persist.sys.gamepad.type=1`, and `persist.sys.mcu.checkerrs=2`. The input
+reader continued to list event7 as the virtual `Xbox Wireless Controller`
+and event9 as `Nova Virtual Xbox Controller`, with no physical evdev source.
+
+This rules out the empty profile as the immediate cause of the physical-control
+failure. The controls are not reaching the vendor mapper's raw state, so the
+remaining blocker is the Retroid MCU/ADC/UART/GPIO source path. The signed-in
+Steam runtime was returned to the foreground afterward; the restored
+1280x800 capture is retained with SHA-256
+`2a26476c6f0cfc006069450343a5192b59bc67253ba9fa443aa441183694497b`.
+The full run artifacts are under the ignored
+`android/nova-lab/build/mapper-test/input-20260809T214900Z-profile-api-raw/`
+directory.
+
+The next controlled experiment should compare the vendor's original
+`persist.sys.handle.mode=0` path with mode 1 across a documented reboot, or
+exercise the native MCU initialization path directly. Do not add the binder
+profile probe to the product launcher and do not spend more time on Steam-side
+mapping until a physical press changes either the raw state or an evdev node.
+
 ## Cleanup
 
 Every attempt ended without a Nova Steam runtime. The exact helper returned
