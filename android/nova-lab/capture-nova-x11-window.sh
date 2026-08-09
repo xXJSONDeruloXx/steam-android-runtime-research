@@ -39,6 +39,8 @@ PPM="$RUN_DIR/x11-steam-$PHASE.ppm"
 WINDOW_MANIFEST="$RUN_DIR/x11-window-id.txt"
 STATUS="$RUN_DIR/x11-capture-$PHASE-status.txt"
 REMOTE_PPM="/tmp/nova-x11-capture-run/${RUN_ID}-${PHASE}.ppm"
+DEVICE_REMOTE_DIR="$DEVICE_ROOT${REMOTE_PPM%/*}"
+DEVICE_REMOTE_PPM="$DEVICE_ROOT$REMOTE_PPM"
 
 write_status() {
     local status_code="$1"
@@ -97,11 +99,11 @@ else
     fi
 fi
 
-"$ADB" shell su -c "/system/bin/mkdir -p /tmp/nova-x11-capture-run"
+"$ADB" shell su -c "/system/bin/mkdir -p $DEVICE_REMOTE_DIR"
 "$ADB" shell su -c \
     "/system/bin/chroot $DEVICE_ROOT /usr/bin/env DISPLAY=:0 $DEVICE_X11_CAPTURE --window-ppm $window_id $REMOTE_PPM" \
     >"$CAPTURE_LOG"
-"$ADB" pull "$DEVICE_ROOT$REMOTE_PPM" "$PPM" >"$PULL_LOG" 2>&1
+"$ADB" pull "$DEVICE_REMOTE_PPM" "$PPM" >"$PULL_LOG" 2>&1
 [ -s "$PPM" ]
 
 echo "nova_x11_capture_status=pass phase=$PHASE window_id=$window_id ppm=$PPM"

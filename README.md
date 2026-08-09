@@ -79,7 +79,7 @@ The useful results are split across several projects:
 - [Nova harness audit repairs](docs/62-nova-harness-audit-repairs-2026-08-09.md) records the run-scoped X11 manifest, PID-filtered boundary poll, aggregate capture status, and fail-closed teardown wrapper added after the audit.
 - [Nova AHB handshake-deadlock research synthesis](docs/63-nova-ahb-handshake-deadlock-research-synthesis-2026-08-09.md) incorporates the attached report's ACK-first causal conclusion, hypothesis ordering, and independent SurfaceControl correctness items.
 - [Nova AHB poll/recvmsg boundary experiment](docs/64-nova-ahb-poll-recvmsg-boundary-experiment-2026-08-09.md) predeclares the property-gated finite ACK poll and queue-state observation.
-- [Nova harness CDP-forward guard](docs/65-nova-harness-cdp-forward-guard-2026-08-09.md) records the invalid pre-forward capture attempt and the fail-closed phase precondition added before the replacement run.
+- [Nova manual-capture harness guards](docs/65-nova-harness-cdp-forward-guard-2026-08-09.md) records the invalid pre-forward/X11-staging attempts and the fail-closed capture preconditions added before the replacement run.
 
 ## Recommended direction
 
@@ -163,7 +163,7 @@ the gamescope frames on its own surface.
 - [Nova harness audit repairs](docs/62-nova-harness-audit-repairs-2026-08-09.md)
 - [Nova AHB handshake-deadlock research synthesis](docs/63-nova-ahb-handshake-deadlock-research-synthesis-2026-08-09.md)
 - [Nova AHB poll/recvmsg boundary experiment](docs/64-nova-ahb-poll-recvmsg-boundary-experiment-2026-08-09.md)
-- [Nova harness CDP-forward guard](docs/65-nova-harness-cdp-forward-guard-2026-08-09.md)
+- [Nova manual-capture harness guards](docs/65-nova-harness-cdp-forward-guard-2026-08-09.md)
 - [Retroid Pocket Nova flashing kit](tools/retroid-pocket-nova/README.md)
 
 ## Evidence standard
