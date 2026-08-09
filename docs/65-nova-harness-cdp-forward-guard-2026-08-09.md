@@ -59,6 +59,13 @@ The bounded boundary poll's “latest wait” extraction was also changed from a
 `rg | tail` pipeline to a single-pass `awk`, so the same audit does not leave a
 masked SIGPIPE in the evidence poller.
 
+The first successful timed-poll run then showed a separate poller logic bug:
+the script retained frame 79 as “blocked” after a later successful ACK and
+reported a false `blocked_ack_window`. The poller now clears a blocked frame
+when that exact frame has a positive, `status=0` ACK, replaces it when the
+current wait frame advances, and recognizes `ack_wait_timeout`/poll-error
+events directly.
+
 The correct order for the next run is now explicit:
 
 1. Start the fresh manual session and wait for its current-PID readiness marker.

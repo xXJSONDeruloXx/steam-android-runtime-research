@@ -80,6 +80,8 @@ The useful results are split across several projects:
 - [Nova AHB handshake-deadlock research synthesis](docs/63-nova-ahb-handshake-deadlock-research-synthesis-2026-08-09.md) incorporates the attached report's ACK-first causal conclusion, hypothesis ordering, and independent SurfaceControl correctness items.
 - [Nova AHB poll/recvmsg boundary experiment](docs/64-nova-ahb-poll-recvmsg-boundary-experiment-2026-08-09.md) predeclares the property-gated finite ACK poll and queue-state observation.
 - [Nova manual-capture harness guards](docs/65-nova-harness-cdp-forward-guard-2026-08-09.md) records the invalid pre-forward/X11-staging attempts and the fail-closed capture preconditions added before the replacement run.
+- [Nova AHB poll/recvmsg boundary result](docs/66-nova-ahb-poll-recvmsg-boundary-result-2026-08-09.md) records the valid frame-109 timed poll with zero queued bytes, stable endpoint pairs, and the downstream EPIPE after diagnostic fail-closed behavior.
+- [Nova blocking-stream ACK correlation experiment](docs/67-nova-ahb-blocking-stream-correlation-experiment-2026-08-09.md) predeclares the unchanged blocking receiver needed to correlate a full Gamescope ACK with the same Android wait frame.
 
 ## Recommended direction
 
@@ -164,6 +166,8 @@ the gamescope frames on its own surface.
 - [Nova AHB handshake-deadlock research synthesis](docs/63-nova-ahb-handshake-deadlock-research-synthesis-2026-08-09.md)
 - [Nova AHB poll/recvmsg boundary experiment](docs/64-nova-ahb-poll-recvmsg-boundary-experiment-2026-08-09.md)
 - [Nova manual-capture harness guards](docs/65-nova-harness-cdp-forward-guard-2026-08-09.md)
+- [Nova AHB poll/recvmsg boundary result](docs/66-nova-ahb-poll-recvmsg-boundary-result-2026-08-09.md)
+- [Nova blocking-stream ACK correlation experiment](docs/67-nova-ahb-blocking-stream-correlation-experiment-2026-08-09.md)
 - [Retroid Pocket Nova flashing kit](tools/retroid-pocket-nova/README.md)
 
 ## Evidence standard

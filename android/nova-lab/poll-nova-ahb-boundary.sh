@@ -48,7 +48,7 @@ write_status() {
         printf 'marker_source_pid=%s\n' "$ANDROID_PID"
         printf 'boundary_status=%s\n' "$status_value"
         printf 'boundary_marker=%s\n' "${marker:-unset}"
-        printf 'boundary_frame=%s\n' "${blocked_frame:-unset}"
+        printf 'boundary_frame=%s\n' "${boundary_frame:-${blocked_frame:-unset}}"
     } >"$STATUS"
 }
 
@@ -63,6 +63,7 @@ trap on_exit EXIT
 : >"$POLL_LOG"
 blocked_frame=
 blocked_since=
+boundary_frame=
 marker=
 deadline=$((SECONDS + POLL_TIMEOUT_SECONDS))
 
@@ -88,22 +89,49 @@ while [ "$SECONDS" -lt "$deadline" ]; do
         } >"$SOURCE"
     fi
 
-    if rg -q 'recv_timeout_queue_bytes=' "$FILTERED_LOG"; then
-        marker=recv_timeout_queue
-        printf '%s marker=%s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$marker" >>"$POLL_LOG"
-        exit 0
-    fi
-
     wait_line=$(awk '/ahb_double_buffer_trace .*phase=wait_ack/ { line = $0 } END { if (line != "") print line }' \
         "$FILTERED_LOG")
     frame=$(printf '%s\n' "$wait_line" |
         sed -n 's/.*frame=\([0-9][0-9]*\).*phase=wait_ack.*/\1/p')
-    if [ -n "$frame" ] &&
-        ! rg -q "ahb_double_buffer_trace frame=$frame .*phase=ack_received" \
+
+    if rg -q 'ahb_socket_trace op=ack_wait_timeout' "$FILTERED_LOG"; then
+        marker=ack_poll_timeout
+        boundary_frame=${frame:-unknown}
+        printf '%s marker=%s frame=%s\n' \
+            "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$marker" \
+            "$boundary_frame" >>"$POLL_LOG"
+        exit 0
+    fi
+    if rg -q 'ahb_socket_trace op=ack_wait_poll_error' "$FILTERED_LOG"; then
+        marker=ack_poll_error
+        boundary_frame=${frame:-unknown}
+        printf '%s marker=%s frame=%s\n' \
+            "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$marker" \
+            "$boundary_frame" >>"$POLL_LOG"
+        exit 0
+    fi
+    if rg -q 'recv_timeout_queue_bytes=' "$FILTERED_LOG"; then
+        marker=recv_timeout_queue
+        boundary_frame=${frame:-unknown}
+        printf '%s marker=%s frame=%s\n' \
+            "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$marker" \
+            "$boundary_frame" >>"$POLL_LOG"
+        exit 0
+    fi
+
+    if [ -n "$frame" ]; then
+        if rg -q "ahb_double_buffer_trace frame=$frame .*phase=ack_received bytes=[1-9][0-9]* .*status=0" \
             "$FILTERED_LOG"; then
-        if [ -z "$blocked_frame" ]; then
+            if [ -n "$blocked_frame" ]; then
+                printf '%s blocked_ack_cleared frame=%s\n' \
+                    "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$blocked_frame" >>"$POLL_LOG"
+            fi
+            blocked_frame=
+            blocked_since=
+        elif [ "$blocked_frame" != "$frame" ]; then
             blocked_frame=$frame
             blocked_since=$SECONDS
+            boundary_frame=$frame
             printf '%s blocked_ack_start_utc=%s frame=%s\n' \
                 "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
                 "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$frame" >>"$POLL_LOG"
@@ -113,6 +141,7 @@ while [ "$SECONDS" -lt "$deadline" ]; do
     if [ -n "$blocked_since" ] &&
         [ "$((SECONDS - blocked_since))" -ge "$BLOCKED_WINDOW_SECONDS" ]; then
         marker=blocked_ack_window
+        boundary_frame=$blocked_frame
         printf '%s marker=%s frame=%s elapsed=%s\n' \
             "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$marker" "$blocked_frame" \
             "$((SECONDS - blocked_since))" >>"$POLL_LOG"
