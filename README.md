@@ -199,6 +199,7 @@ the gamescope frames on its own surface.
 - [Nova origin/main repaint-trigger result](docs/82-nova-origin-main-repaint-trigger-result-2026-08-09.md)
 - [Nova OOBE A-button surface-correlation experiment](docs/83-nova-oobe-a-button-surface-correlation-experiment-2026-08-09.md)
 - [Nova OOBE A-button surface-correlation result](docs/84-nova-oobe-a-button-result-2026-08-09.md)
+- [Nova bounded-session overlay guard experiment](docs/85-nova-bounded-overlay-guard-experiment-2026-08-09.md)
 - [Retroid Pocket Nova flashing kit](tools/retroid-pocket-nova/README.md)
 
 ## Evidence standard

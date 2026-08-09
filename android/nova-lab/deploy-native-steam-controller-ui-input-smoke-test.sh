@@ -28,8 +28,18 @@ EXPECT_NAVIGATION=${NOVA_CONTROLLER_UI_EXPECT_NAVIGATION:-0}
 AFTER_DELAY=${NOVA_CONTROLLER_UI_AFTER_DELAY:-20}
 REQUIRE_STEAM_SURFACE=${NOVA_CONTROLLER_UI_REQUIRE_STEAM_SURFACE:-1}
 MANUAL_SESSION=${NOVA_CONTROLLER_UI_MANUAL_SESSION:-0}
+OVERLAY_GUARD=${NOVA_CONTROLLER_UI_OVERLAY_GUARD:-1}
 export NOVA_AHB_TRACE=${NOVA_AHB_TRACE:-0}
 export NOVA_AHB_SOCKET_TRACE=${NOVA_AHB_SOCKET_TRACE:-0}
+
+case "$OVERLAY_GUARD" in
+    0|1)
+        ;;
+    *)
+        echo "NOVA_CONTROLLER_UI_OVERLAY_GUARD must be 0 or 1" >&2
+        exit 2
+        ;;
+esac
 if [ "$MANUAL_SESSION" = "1" ]; then
     PHYSICAL_RELAY_MODE=relay
 else
@@ -329,7 +339,7 @@ overlay_guard_loop() {
 }
 
 start_overlay_guard() {
-    if [ "$MANUAL_SESSION" = "1" ]; then
+    if [ "$OVERLAY_GUARD" = "1" ]; then
         overlay_guard_loop &
         overlay_guard_pid=$!
         echo "controller_ui_overlay_guard=started pid=$overlay_guard_pid"
@@ -452,14 +462,16 @@ else
     echo "controller_ui_ready=0 app_pid=missing"
 fi
 
+if [ "$ui_ready" -eq 0 ]; then
+    # The settings USB chooser can reappear after readiness and stop the
+    # Activity, closing the AHB peer while the bounded probe is still running.
+    # Keep the exact-focus guard active for the whole controlled session, not
+    # only around the input event.
+    dismiss_android_overlay
+    start_overlay_guard
+fi
+
 if [ "$MANUAL_SESSION" = "1" ]; then
-    if [ "$ui_ready" -eq 0 ]; then
-        # Manual sessions must start with the same input focus invariant as
-        # bounded runs; otherwise Android's USB chooser can consume real
-        # controls and make a healthy Steam session appear unresponsive.
-        dismiss_android_overlay
-        start_overlay_guard
-    fi
     echo "controller_ui_manual_session=$([ "$ui_ready" -eq 0 ] && echo ready || echo not_ready)"
     set +e
     wait "$run_pid"
