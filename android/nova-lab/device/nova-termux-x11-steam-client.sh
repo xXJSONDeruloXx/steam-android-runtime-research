@@ -14,6 +14,8 @@ STEAM_GID=${NOVA_TERMUX_X11_STEAM_GID:-20}
 CLIENT_TIMEOUT=${NOVA_TERMUX_X11_STEAM_TIMEOUT_SECONDS:-60}
 STEAM_FULLSCREEN=${NOVA_TERMUX_X11_STEAM_FULLSCREEN:-0}
 STEAM_FULLDESKTOPRES=${NOVA_TERMUX_X11_STEAM_FULLDESKTOPRES:-0}
+STEAM_WIDTH=${NOVA_TERMUX_X11_STEAM_WIDTH:-}
+STEAM_HEIGHT=${NOVA_TERMUX_X11_STEAM_HEIGHT:-}
 DBUS_SESSION_MODE=${NOVA_TERMUX_X11_DBUS_SESSION:-0}
 DBUS_SESSION_USER=${NOVA_TERMUX_X11_DBUS_SESSION_USER:-steam}
 DBUS_SESSION_UID_RECORD=${NOVA_TERMUX_X11_DBUS_SESSION_UID_RECORD:-0}
@@ -57,6 +59,14 @@ case "$STEAM_FULLSCREEN:$STEAM_FULLDESKTOPRES" in
         ;;
     *)
         echo "invalid Steam fullscreen flags: $STEAM_FULLSCREEN:$STEAM_FULLDESKTOPRES" >&2
+        exit 2
+        ;;
+esac
+case "$STEAM_WIDTH:$STEAM_HEIGHT" in
+    :)
+        ;;
+    ''|*[!0-9:]*|*:*:*|0:*|*:0)
+        echo "invalid Steam window size: $STEAM_WIDTH:$STEAM_HEIGHT" >&2
         exit 2
         ;;
 esac
@@ -229,6 +239,8 @@ log "client_executable=$STEAM_EXECUTABLE"
 log "client_flags_base=-gamepadui -steamos3 -steampal -steamdeck -nobootstrapperupdate -skipinitialbootstrap -no-child-update-ui -no-cef-sandbox -cef-disable-gpu"
 log "client_fullscreen=$STEAM_FULLSCREEN"
 log "client_fulldesktopres=$STEAM_FULLDESKTOPRES"
+log "client_width=${STEAM_WIDTH:-unset}"
+log "client_height=${STEAM_HEIGHT:-unset}"
 log "client_uid=$STEAM_UID"
 log "client_gid=$STEAM_GID"
 log "client_timeout_seconds=$CLIENT_TIMEOUT"
@@ -519,6 +531,9 @@ if [ "$STEAM_FULLSCREEN" -eq 1 ]; then
 fi
 if [ "$STEAM_FULLDESKTOPRES" -eq 1 ]; then
     set -- "$@" -fulldesktopres
+fi
+if [ -n "$STEAM_WIDTH" ]; then
+    set -- "$@" -w "$STEAM_WIDTH" -h "$STEAM_HEIGHT"
 fi
 log "client_flags_final=$*"
 run_as_steam /usr/bin/timeout "$CLIENT_TIMEOUT" "$@" \
