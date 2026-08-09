@@ -23,6 +23,29 @@ android/nova-lab/build.sh
 android/nova-lab/deploy-and-test.sh
 ```
 
+The default launcher activity is now the first one-click product shell. It
+keeps the diagnostic `MainActivity` available through its diagnostics button,
+but can start the rooted Termux:X11/Steam session without an adb launch script:
+
+```sh
+android/nova-lab/build-one-click-apk.sh
+```
+
+That product build packages the Android-side `nova-mount-private` helper and
+the glibc uinput relay when the Holo rootfs is available. Install the resulting
+`build/nova-lab-debug.apk` once, install the matching Termux:X11 APK once, and
+prepare the rootfs at `/data/local/tmp/nova-holo-rootfs`. Subsequent launches
+use the Nova Steam button. The APK starts a foreground lifecycle service,
+creates the relay before Steam, starts the two-bus client profile, opens
+Termux:X11, and uses the exact-scope cleanup helpers for Stop.
+
+This is intentionally a one-click orchestration layer, not an APK containing
+the Valve client or the 1+ GiB rootfs. Audio output is not claimed yet: the
+current profile still needs a tested Android-facing PipeWire/Pulse/AudioTrack
+sink. The product launcher requests the Nova `1280x960` fullscreen flags, but
+the first device run must verify the mapped X11 window rather than infer the
+geometry from the Android surface.
+
 `deploy-and-test.sh` installs the debug APK, runs the root probe directly through
 `adb shell su`, launches the app, captures filtered logcat, and saves a device
 screenshot under `android/nova-lab/build/`.

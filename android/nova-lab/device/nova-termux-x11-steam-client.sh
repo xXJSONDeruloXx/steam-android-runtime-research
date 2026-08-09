@@ -12,6 +12,8 @@ RUNTIME_DIR=/tmp/nova-steam-runtime
 STEAM_UID=${NOVA_TERMUX_X11_STEAM_UID:-501}
 STEAM_GID=${NOVA_TERMUX_X11_STEAM_GID:-20}
 CLIENT_TIMEOUT=${NOVA_TERMUX_X11_STEAM_TIMEOUT_SECONDS:-60}
+STEAM_FULLSCREEN=${NOVA_TERMUX_X11_STEAM_FULLSCREEN:-0}
+STEAM_FULLDESKTOPRES=${NOVA_TERMUX_X11_STEAM_FULLDESKTOPRES:-0}
 DBUS_SESSION_MODE=${NOVA_TERMUX_X11_DBUS_SESSION:-0}
 DBUS_SESSION_USER=${NOVA_TERMUX_X11_DBUS_SESSION_USER:-steam}
 DBUS_SESSION_UID_RECORD=${NOVA_TERMUX_X11_DBUS_SESSION_UID_RECORD:-0}
@@ -50,6 +52,14 @@ if [ "$CLIENT_TIMEOUT" -lt 1 ]; then
     echo "Steam timeout must be at least 1 second" >&2
     exit 2
 fi
+case "$STEAM_FULLSCREEN:$STEAM_FULLDESKTOPRES" in
+    0:0|0:1|1:0|1:1)
+        ;;
+    *)
+        echo "invalid Steam fullscreen flags: $STEAM_FULLSCREEN:$STEAM_FULLDESKTOPRES" >&2
+        exit 2
+        ;;
+esac
 case "$DBUS_SESSION_MODE" in
     0|1)
         ;;
@@ -216,7 +226,9 @@ log "client_display=${DISPLAY:-unset}"
 log "client_home=$STEAM_HOME"
 log "client_root=$STEAM_ROOT"
 log "client_executable=$STEAM_EXECUTABLE"
-log "client_flags=-gamepadui -steamos3 -steampal -steamdeck -nobootstrapperupdate -skipinitialbootstrap -no-child-update-ui -no-cef-sandbox -cef-disable-gpu"
+log "client_flags_base=-gamepadui -steamos3 -steampal -steamdeck -nobootstrapperupdate -skipinitialbootstrap -no-child-update-ui -no-cef-sandbox -cef-disable-gpu"
+log "client_fullscreen=$STEAM_FULLSCREEN"
+log "client_fulldesktopres=$STEAM_FULLDESKTOPRES"
 log "client_uid=$STEAM_UID"
 log "client_gid=$STEAM_GID"
 log "client_timeout_seconds=$CLIENT_TIMEOUT"
@@ -493,10 +505,19 @@ if ! start_dbus_session; then
     exit 1
 fi
 
-run_as_steam /usr/bin/timeout "$CLIENT_TIMEOUT" "$STEAM_EXECUTABLE" \
+set -- "$STEAM_EXECUTABLE" \
     -gamepadui -steamos3 -steampal -steamdeck \
     -nobootstrapperupdate -skipinitialbootstrap -no-child-update-ui \
-    -no-cef-sandbox -cef-disable-gpu >"$CLIENT_STDOUT" 2>"$CLIENT_STDERR" &
+    -no-cef-sandbox -cef-disable-gpu
+if [ "$STEAM_FULLSCREEN" -eq 1 ]; then
+    set -- "$@" -fullscreen
+fi
+if [ "$STEAM_FULLDESKTOPRES" -eq 1 ]; then
+    set -- "$@" -fulldesktopres
+fi
+log "client_flags_final=$*"
+run_as_steam /usr/bin/timeout "$CLIENT_TIMEOUT" "$@" \
+    >"$CLIENT_STDOUT" 2>"$CLIENT_STDERR" &
 client_pid=$!
 log "client_pid=$client_pid"
 if /usr/bin/kill -0 "$client_pid" 2>/dev/null; then
