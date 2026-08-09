@@ -247,6 +247,8 @@ else
 fi
 
 : >"$STATE/server.log"
+/system/bin/am start --user 0 -n com.termux.x11/com.termux.x11.MainActivity \
+    >"$STATE/activity.log" 2>&1 || log "nova_launcher_x11_activity=unknown"
 /system/bin/env TMPDIR="$ROOT/tmp" \
     XKB_CONFIG_ROOT="$ROOT/usr/share/xkeyboard-config-2" \
     CLASSPATH="$TERMUX_APK" TERMUX_X11_DEBUG=1 \
@@ -274,9 +276,6 @@ if [ "$socket_ready" -ne 1 ]; then
     log "nova_launcher_start=fail reason=x11_socket_not_ready"
     stop_session
 fi
-
-/system/bin/am start --user 0 -n com.termux.x11/com.termux.x11.MainActivity \
-    >"$STATE/activity.log" 2>&1 || log "nova_launcher_x11_activity=unknown"
 
 /system/bin/env -i \
     PATH=/usr/bin:/bin HOME=/tmp XDG_RUNTIME_DIR=/tmp TMPDIR=/tmp \

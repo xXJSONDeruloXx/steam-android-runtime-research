@@ -100,6 +100,32 @@ processes or temporary probe files. This resolves the capability question but
 not the display question: `vulkaninfo` does not prove X11 GLX, CEF GPU
 composition, Steam UI stability, Gamescope presentation, or game rendering.
 
+## First UI-profile attempt — `gpu-20260809T233330Z-x11-socket-startup`
+
+The first one-click hardware-profile attempt stopped at the X11 server gate;
+Steam was never launched. The wrapper recorded:
+
+```text
+nova_launcher_hardware_accel=1
+nova_launcher_vulkan_icd=/opt/nova-kgsl-driver/freedreno-kgsl.icd.json
+nova_launcher_gamepad=pass
+nova_launcher_input_allow=event9
+nova_launcher_x11_pid=22956
+nova_launcher_start=fail reason=x11_socket_not_ready
+```
+
+The fresh server log and Activity-start log were empty. The exact cleanup
+helper still returned `nova_x11_cleanup=pass`, and the root runtime cleanup
+returned `nova_runtime_cleanup=pass`; no Steam, X11, Gamescope, or rootfs
+temporary probe process remained. The failure is classified as one-click
+Termux:X11 startup ordering, not as a Vulkan or Steam rendering result.
+
+The wrapper previously waited for `X0` before opening
+`com.termux.x11/com.termux.x11.MainActivity`. The established display bring-up
+sequence opens that Activity first, then starts `CmdEntryPoint`; the wrapper is
+now corrected to use that order. This source fix must be rebuilt and pushed
+before repeating the hardware UI profile.
+
 ## Next bounded experiment
 
 Add an explicit opt-in hardware profile to the direct Steam client. It will
