@@ -13,9 +13,11 @@ STEAM_UID=${NOVA_TERMUX_X11_STEAM_UID:-501}
 STEAM_GID=${NOVA_TERMUX_X11_STEAM_GID:-20}
 CLIENT_TIMEOUT=${NOVA_TERMUX_X11_STEAM_TIMEOUT_SECONDS:-60}
 DBUS_SESSION_MODE=${NOVA_TERMUX_X11_DBUS_SESSION:-0}
+DBUS_SESSION_USER=${NOVA_TERMUX_X11_DBUS_SESSION_USER:-steam}
 client_pid=
 dbus_session_pid=
 dbus_session_dir=
+dbus_session_runtime_dir=
 dbus_session_socket=
 dbus_session_log=
 
@@ -43,6 +45,14 @@ case "$DBUS_SESSION_MODE" in
         exit 2
         ;;
 esac
+case "$DBUS_SESSION_USER" in
+    root|steam)
+        ;;
+    *)
+        echo "invalid NOVA_TERMUX_X11_DBUS_SESSION_USER: $DBUS_SESSION_USER" >&2
+        exit 2
+        ;;
+esac
 
 log() {
     echo "$1" >>"$CLIENT_LOG"
@@ -53,6 +63,47 @@ run_as_steam() {
         --clear-groups "$@"
 }
 
+stop_dbus_session() {
+    if [ -n "${dbus_session_pid:-}" ] && /usr/bin/kill -0 "$dbus_session_pid" 2>/dev/null; then
+        /usr/bin/kill "$dbus_session_pid" 2>/dev/null || true
+    fi
+    ps_path=$(command -v ps 2>/dev/null || true)
+    if [ -n "$ps_path" ] && [ -n "${dbus_session_socket:-}" ]; then
+        dbus_session_pids=$(
+            "$ps_path" -eo pid,args 2>/dev/null |
+                /usr/bin/awk -v socket="$dbus_session_socket" '
+                    NR > 1 && $0 ~ /dbus-daemon/ && index($0, socket) { print $1 }
+                '
+        )
+        for pid in $dbus_session_pids; do
+            case "$pid" in
+                ''|*[!0-9]*|"$$")
+                    continue
+                    ;;
+            esac
+            /usr/bin/kill "$pid" 2>/dev/null || true
+        done
+        /usr/bin/sleep 0.2
+        dbus_session_pids=$(
+            "$ps_path" -eo pid,args 2>/dev/null |
+                /usr/bin/awk -v socket="$dbus_session_socket" '
+                    NR > 1 && $0 ~ /dbus-daemon/ && index($0, socket) { print $1 }
+                '
+        )
+        for pid in $dbus_session_pids; do
+            case "$pid" in
+                ''|*[!0-9]*|"$$")
+                    continue
+                    ;;
+            esac
+            /usr/bin/kill -9 "$pid" 2>/dev/null || true
+        done
+    fi
+    if [ -n "${dbus_session_pid:-}" ]; then
+        /usr/bin/wait "$dbus_session_pid" 2>/dev/null || true
+    fi
+}
+
 finish() {
     status=$?
     trap - EXIT INT TERM
@@ -61,22 +112,15 @@ finish() {
         /usr/bin/sleep 0.2
         /usr/bin/kill -9 "$client_pid" 2>/dev/null || true
     fi
-    if [ -n "${dbus_session_pid:-}" ] && /usr/bin/kill -0 "$dbus_session_pid" 2>/dev/null; then
-        /usr/bin/kill "$dbus_session_pid" 2>/dev/null || true
-        /usr/bin/sleep 0.2
-        /usr/bin/kill -9 "$dbus_session_pid" 2>/dev/null || true
-    fi
-    if [ -n "${dbus_session_pid:-}" ]; then
-        /usr/bin/wait "$dbus_session_pid" 2>/dev/null || true
-    fi
+    stop_dbus_session
     if [ -n "${dbus_session_log:-}" ] && [ -f "$dbus_session_log" ]; then
         log "dbus_session_daemon_output_begin"
         /bin/cat "$dbus_session_log" >>"$CLIENT_LOG"
         log "dbus_session_daemon_output_end"
     fi
-    if [ -n "${dbus_session_dir:-}" ]; then
-        /bin/rm -rf "$dbus_session_dir"
-        log "dbus_session_cleanup=pass path=$dbus_session_dir"
+    if [ -n "${dbus_session_runtime_dir:-}" ]; then
+        /bin/rm -rf "$dbus_session_runtime_dir"
+        log "dbus_session_cleanup=pass path=$dbus_session_runtime_dir"
     fi
     if [ -f "$CLIENT_LOG" ]; then
         cat "$CLIENT_LOG"
@@ -99,6 +143,7 @@ log "client_timeout_seconds=$CLIENT_TIMEOUT"
 log "client_xauthority=${XAUTHORITY:-unset}"
 log "client_runtime_dir=$RUNTIME_DIR"
 log "client_dbus_session_mode=$DBUS_SESSION_MODE"
+log "client_dbus_session_user=$DBUS_SESSION_USER"
 
 if [ ! -x "$STEAM_EXECUTABLE" ]; then
     log "client_started=fail"
@@ -187,9 +232,11 @@ start_dbus_session() {
         return 1
     fi
 
+    dbus_session_runtime_dir="$RUNTIME_DIR/dbus-1"
     dbus_session_dir="$RUNTIME_DIR/dbus-session-$$"
     dbus_session_socket="$dbus_session_dir/bus"
     dbus_session_log="$dbus_session_dir/daemon.log"
+    /bin/rm -rf "$dbus_session_runtime_dir"
     /bin/rm -rf "$dbus_session_dir"
     if ! /bin/mkdir -p "$dbus_session_dir" ||
         ! /usr/bin/chown "$STEAM_UID:$STEAM_GID" "$dbus_session_dir" ||
@@ -197,13 +244,29 @@ start_dbus_session() {
         log "client_dbus_session_status=fail reason=session_dir_setup"
         return 1
     fi
+    if [ "$DBUS_SESSION_USER" = steam ]; then
+        if ! /bin/mkdir -p "$dbus_session_runtime_dir" ||
+            ! /usr/bin/chown "$STEAM_UID:$STEAM_GID" "$dbus_session_runtime_dir" ||
+            ! /usr/bin/chmod 700 "$dbus_session_runtime_dir"; then
+            log "client_dbus_session_status=fail reason=runtime_dir_setup"
+            return 1
+        fi
+    fi
     log "client_dbus_session_config=$DBUS_SESSION_CONFIG"
+    log "client_dbus_session_user=$DBUS_SESSION_USER"
     log "client_dbus_session_socket=$dbus_session_socket"
 
-    run_as_steam /usr/bin/env -u LD_PRELOAD /usr/bin/dbus-daemon \
-        --config-file="$DBUS_SESSION_CONFIG" --nofork \
-        --address="unix:path=$dbus_session_socket" \
-        >"$dbus_session_log" 2>&1 &
+    if [ "$DBUS_SESSION_USER" = steam ]; then
+        run_as_steam /usr/bin/env -u LD_PRELOAD /usr/bin/dbus-daemon \
+            --config-file="$DBUS_SESSION_CONFIG" --nofork \
+            --address="unix:path=$dbus_session_socket" \
+            >"$dbus_session_log" 2>&1 &
+    else
+        /usr/bin/env -u LD_PRELOAD /usr/bin/dbus-daemon \
+            --config-file="$DBUS_SESSION_CONFIG" --nofork \
+            --address="unix:path=$dbus_session_socket" \
+            >"$dbus_session_log" 2>&1 &
+    fi
     dbus_session_pid=$!
     log "client_dbus_session_pid=$dbus_session_pid"
 
