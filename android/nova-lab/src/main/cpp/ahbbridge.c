@@ -28,6 +28,15 @@
 #include <time.h>
 #include <unistd.h>
 
+#define AHB_FRAME_MARKER_X 16
+#define AHB_FRAME_MARKER_Y 96
+#define AHB_FRAME_MARKER_CELL 8
+#define AHB_FRAME_MARKER_COLUMNS 12
+#define AHB_FRAME_MARKER_ROWS 4
+#define AHB_FRAME_MARKER_BITS \
+    (AHB_FRAME_MARKER_COLUMNS * AHB_FRAME_MARKER_ROWS)
+#define AHB_FRAME_MARKER_MAGIC 0x4e56u
+
 static int
 ahb_trace_enabled(void)
 {
@@ -47,6 +56,19 @@ ahb_frame_identity_enabled(void)
     if (enabled < 0) {
         char value[PROP_VALUE_MAX] = {0};
         int length = __system_property_get("debug.nova.ahb_frame_identity",
+                                           value);
+        enabled = length > 0 && value[0] == '1' ? 1 : 0;
+    }
+    return enabled;
+}
+
+static int
+ahb_frame_marker_enabled(void)
+{
+    static int enabled = -1;
+    if (enabled < 0) {
+        char value[PROP_VALUE_MAX] = {0};
+        int length = __system_property_get("debug.nova.ahb_frame_marker",
                                            value);
         enabled = length > 0 && value[0] == '1' ? 1 : 0;
     }
@@ -940,12 +962,58 @@ parse_ack_u64(const char *acknowledgement, const char *field_name,
 }
 
 static int
+write_frame_marker(uint8_t *pixels, size_t stride_bytes, int width, int height,
+                   int frame, uint64_t checksum)
+{
+    const int marker_width = AHB_FRAME_MARKER_COLUMNS * AHB_FRAME_MARKER_CELL;
+    const int marker_height = AHB_FRAME_MARKER_ROWS * AHB_FRAME_MARKER_CELL;
+    if (pixels == NULL || width < AHB_FRAME_MARKER_X + marker_width ||
+        height < AHB_FRAME_MARKER_Y + marker_height || frame < 0 ||
+        frame > 0xffff) {
+        return -1;
+    }
+
+    const uint64_t payload = ((uint64_t)AHB_FRAME_MARKER_MAGIC << 32) |
+                             ((uint64_t)(uint32_t)frame << 16) |
+                             (checksum & 0xffffu);
+    for (int bit = 0; bit < AHB_FRAME_MARKER_BITS; ++bit) {
+        const int column = bit % AHB_FRAME_MARKER_COLUMNS;
+        const int row = bit / AHB_FRAME_MARKER_COLUMNS;
+        const uint8_t value =
+            ((payload >> (AHB_FRAME_MARKER_BITS - 1 - bit)) & 1u) != 0
+                ? 0xff
+                : 0x00;
+        for (int y = 0; y < AHB_FRAME_MARKER_CELL; ++y) {
+            uint8_t *line = pixels +
+                            (size_t)(AHB_FRAME_MARKER_Y +
+                                     row * AHB_FRAME_MARKER_CELL + y) *
+                                stride_bytes;
+            for (int x = 0; x < AHB_FRAME_MARKER_CELL; ++x) {
+                uint8_t *pixel = line +
+                                 (size_t)(AHB_FRAME_MARKER_X +
+                                          column * AHB_FRAME_MARKER_CELL + x) *
+                                     4u;
+                pixel[0] = value;
+                pixel[1] = value;
+                pixel[2] = value;
+                pixel[3] = 0xff;
+            }
+        }
+    }
+    return 0;
+}
+
+static int
 checksum_ahardware_buffer(AHardwareBuffer *buffer, int width, int height,
-                          int acquire_fence_fd, uint64_t *checksum)
+                          int acquire_fence_fd, int marker_enabled, int frame,
+                          uint64_t *checksum, int *marker_status)
 {
     if (buffer == NULL || checksum == NULL || width <= 0 || height <= 0 ||
         acquire_fence_fd < 0) {
         return -1;
+    }
+    if (marker_status != NULL) {
+        *marker_status = marker_enabled ? -1 : 0;
     }
 
     struct pollfd fence_poll = {
@@ -972,7 +1040,8 @@ checksum_ahardware_buffer(AHardwareBuffer *buffer, int width, int height,
 
     void *mapped = NULL;
     int status = AHardwareBuffer_lock(buffer,
-                                      AHARDWAREBUFFER_USAGE_CPU_READ_OFTEN,
+                                      AHARDWAREBUFFER_USAGE_CPU_READ_OFTEN |
+                                          AHARDWAREBUFFER_USAGE_CPU_WRITE_OFTEN,
                                       -1, NULL, &mapped);
     if (status != 0 || mapped == NULL) {
         return -1;
@@ -987,6 +1056,18 @@ checksum_ahardware_buffer(AHardwareBuffer *buffer, int width, int height,
         for (size_t column = 0; column < row_bytes; ++column) {
             hash ^= line[column];
             hash *= 1099511628211ULL;
+        }
+    }
+
+    if (marker_enabled) {
+        if (marker_status == NULL) {
+            status = -1;
+        } else {
+            *marker_status = write_frame_marker(
+                (uint8_t *)mapped, stride_bytes, width, height, frame, hash);
+            if (*marker_status != 0) {
+                status = -1;
+            }
         }
     }
 
@@ -1574,6 +1655,7 @@ Java_com_xjsonderulo_steamandroid_novalab_MainActivity_nativeRunDmaBufDoubleBuff
     int release_fence_count = 0;
     const int continuous = frame_count_argument < 0;
     const int frame_identity = ahb_frame_identity_enabled();
+    const int frame_marker = ahb_frame_marker_enabled();
     const int buffer_width =
         frame_width_argument > 0 && frame_width_argument <= 4096
             ? frame_width_argument
@@ -1755,6 +1837,11 @@ Java_com_xjsonderulo_steamandroid_novalab_MainActivity_nativeRunDmaBufDoubleBuff
     append_line(report, sizeof(report), &used,
                 "ahb_double_buffer_frame_identity=%s\n",
                 frame_identity ? "enabled" : "disabled");
+    append_line(report, sizeof(report), &used,
+                "ahb_double_buffer_frame_marker=%s x=%d y=%d cell=%d columns=%d rows=%d\n",
+                frame_marker ? "enabled" : "disabled", AHB_FRAME_MARKER_X,
+                AHB_FRAME_MARKER_Y, AHB_FRAME_MARKER_CELL,
+                AHB_FRAME_MARKER_COLUMNS, AHB_FRAME_MARKER_ROWS);
     for (int frame = 0; continuous || frame < total_frames; ++frame) {
         int index = frame % 3;
         char acknowledgement[256] = {0};
@@ -1804,7 +1891,7 @@ Java_com_xjsonderulo_steamandroid_novalab_MainActivity_nativeRunDmaBufDoubleBuff
             goto double_buffer_done;
         }
 
-        if (frame_identity) {
+        if (frame_identity || frame_marker) {
             uint64_t producer_frame = 0;
             uint64_t focus_commit = 0;
             uint64_t override_commit = 0;
@@ -1817,22 +1904,36 @@ Java_com_xjsonderulo_steamandroid_novalab_MainActivity_nativeRunDmaBufDoubleBuff
                               &override_commit) == 0 &&
                 producer_frame == (uint64_t)frame;
             uint64_t checksum = 0;
+            int marker_status = frame_marker ? -1 : 0;
             int checksum_status = metadata_pass
                                        ? checksum_ahardware_buffer(
                                              buffers[index], buffer_width,
                                              buffer_height, acquire_fence_fd,
-                                             &checksum)
+                                             frame_marker, frame, &checksum,
+                                             &marker_status)
                                        : -1;
             int identity_pass = metadata_pass && checksum_status == 0;
-            append_line(
-                report, sizeof(report), &used,
-                "ahb_double_buffer_frame_identity_%d=%s producer_frame=%llu focus_commit=%llu override_commit=%llu checksum_fnv1a64=%016llx checksum_status=%d\n",
-                frame, identity_pass ? "pass" : "fail",
-                (unsigned long long)producer_frame,
-                (unsigned long long)focus_commit,
-                (unsigned long long)override_commit,
-                (unsigned long long)checksum, checksum_status);
-            if (!identity_pass) {
+            if (frame_identity) {
+                append_line(
+                    report, sizeof(report), &used,
+                    "ahb_double_buffer_frame_identity_%d=%s producer_frame=%llu focus_commit=%llu override_commit=%llu checksum_fnv1a64=%016llx checksum_status=%d\n",
+                    frame, identity_pass ? "pass" : "fail",
+                    (unsigned long long)producer_frame,
+                    (unsigned long long)focus_commit,
+                    (unsigned long long)override_commit,
+                    (unsigned long long)checksum, checksum_status);
+            }
+            if (frame_marker) {
+                append_line(
+                    report, sizeof(report), &used,
+                    "ahb_double_buffer_frame_marker_%d=%s producer_frame=%llu checksum_low16=%04llx marker_status=%d checksum_status=%d\n",
+                    frame,
+                    identity_pass && marker_status == 0 ? "pass" : "fail",
+                    (unsigned long long)producer_frame,
+                    (unsigned long long)(checksum & 0xffffu), marker_status,
+                    checksum_status);
+            }
+            if (!identity_pass || (frame_marker && marker_status != 0)) {
                 if (acquire_fence_fd >= 0) {
                     close(acquire_fence_fd);
                 }

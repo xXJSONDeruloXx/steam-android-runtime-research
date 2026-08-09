@@ -14,6 +14,7 @@ AHB_TRACE=${NOVA_AHB_TRACE:-0}
 AHB_SOCKET_TRACE=${NOVA_AHB_SOCKET_TRACE:-0}
 AHB_SCHEDULER_TRACE=${NOVA_AHB_SCHEDULER_TRACE:-0}
 AHB_FRAME_IDENTITY=${NOVA_AHB_FRAME_IDENTITY:-0}
+AHB_FRAME_MARKER=${NOVA_AHB_FRAME_MARKER:-0}
 ACK_POLL_TIMEOUT_MS=${NOVA_AHB_ACK_POLL_TIMEOUT_MS:-0}
 BINARY=${NOVA_GAMESCOPE_HEADLESS:-$BUILD_DIR/gamescope-headless-build/src/gamescope}
 APK="$BUILD_DIR/nova-lab-debug.apk"
@@ -34,6 +35,7 @@ DEVICE_CONTROL="$DEVICE_DRIVER_DIR/gamescope-headless-ahb-control.sh"
 DEVICE_NETWORK_COMPAT="$DEVICE_DRIVER_DIR/nova-steam-network-api-compat.sh"
 DEVICE_STEAMOS_UPDATE_COMPAT="$DEVICE_ROOT/usr/bin/steamos-polkit-helpers/steamos-update"
 DEVICE_TOUCH_HELPER="$DEVICE_DRIVER_DIR/nova-libei-input-bridge"
+FRAME_MARKER_DECODER="$SCRIPT_DIR/decode-nova-ahb-frame-marker.py"
 REPORT="$BUILD_DIR/device-gamescope-headless-ahb-report.txt"
 LOGCAT="$BUILD_DIR/device-gamescope-headless-ahb-logcat.txt"
 APP_REPORT="$BUILD_DIR/device-gamescope-headless-ahb-app-report.txt"
@@ -42,6 +44,7 @@ ANDROID_TOUCH_REPORT="$BUILD_DIR/android-touch-bridge-report.txt"
 SCREENSHOT="$BUILD_DIR/device-gamescope-headless-ahb-screenshot.png"
 METADATA="$BUILD_DIR/device-gamescope-headless-ahb-metadata.txt"
 PREFLIGHT="$BUILD_DIR/device-gamescope-headless-ahb-preflight.txt"
+FRAME_MARKER_CAPTURE="$BUILD_DIR/ahb-frame-marker-screenshot.txt"
 REQUIRE_TARGET=${NOVA_GAMESCOPE_AHB_REQUIRE_TARGET:-1}
 REQUIRE_RUN_MANIFEST=${NOVA_REQUIRE_RUN_MANIFEST:-0}
 RUN_PROFILE=${NOVA_RUN_PROFILE:-unclassified}
@@ -85,6 +88,15 @@ case "$AHB_FRAME_IDENTITY" in
         ;;
 esac
 
+case "$AHB_FRAME_MARKER" in
+    0|1)
+        ;;
+    *)
+        echo "NOVA_AHB_FRAME_MARKER must be 0 or 1" >&2
+        exit 2
+        ;;
+esac
+
 case "$ACK_POLL_TIMEOUT_MS" in
     ''|*[!0-9]*)
         echo "NOVA_AHB_ACK_POLL_TIMEOUT_MS must be a non-negative integer" >&2
@@ -124,6 +136,7 @@ if [ -n "$RUN_DIR" ]; then
     SCREENSHOT="$RUN_DIR/device-gamescope-headless-ahb-screenshot.png"
     METADATA="$RUN_DIR/device-gamescope-headless-ahb-metadata.txt"
     PREFLIGHT="$RUN_DIR/device-gamescope-headless-ahb-preflight.txt"
+    FRAME_MARKER_CAPTURE="$RUN_DIR/ahb-frame-marker-screenshot.txt"
     if [ "$REQUIRE_RUN_MANIFEST" = "1" ]; then
         for run_artifact in "$REPORT" "$LOGCAT" "$APP_REPORT" "$SCREENSHOT" "$METADATA" "$PREFLIGHT"; do
             if [ -e "$run_artifact" ]; then
@@ -139,6 +152,10 @@ if [ -n "$RUN_DIR" ]; then
             echo "Nova run artifact already exists; use a fresh run id: $ANDROID_TOUCH_REPORT" >&2
             exit 2
         fi
+        if [ "$AHB_FRAME_MARKER" = "1" ] && [ -e "$FRAME_MARKER_CAPTURE" ]; then
+            echo "Nova run artifact already exists; use a fresh run id: $FRAME_MARKER_CAPTURE" >&2
+            exit 2
+        fi
     fi
 fi
 
@@ -152,6 +169,20 @@ done
 if [ -n "$X11_CLIENT" ] && [ ! -f "$X11_CLIENT" ]; then
     echo "missing X11 client: $X11_CLIENT" >&2
     exit 1
+fi
+if [ "$AHB_FRAME_MARKER" = "1" ]; then
+    if [ ! -f "$FRAME_MARKER_DECODER" ]; then
+        echo "missing frame-marker decoder: $FRAME_MARKER_DECODER" >&2
+        exit 1
+    fi
+    if ! command -v python3 >/dev/null 2>&1; then
+        echo "frame-marker capture requires python3" >&2
+        exit 1
+    fi
+    if ! command -v ffmpeg >/dev/null 2>&1; then
+        echo "frame-marker capture requires ffmpeg" >&2
+        exit 1
+    fi
 fi
 
 "$SCRIPT_DIR/build.sh" >/dev/null
@@ -234,7 +265,7 @@ residual_runtime_check() {
     echo "headless_ahb_residual_processes=pass"
 }
 cleanup_on_exit() {
-    local original_status=$? cleanup_status residual_status app_files_status trace_status socket_trace_status scheduler_trace_status frame_identity_status ack_poll_status
+    local original_status=$? cleanup_status residual_status app_files_status trace_status socket_trace_status scheduler_trace_status frame_identity_status frame_marker_status ack_poll_status
     trap - EXIT
     set +e
     cleanup_runtime
@@ -251,6 +282,8 @@ cleanup_on_exit() {
     scheduler_trace_status=$?
     set_ahb_frame_identity_state 0
     frame_identity_status=$?
+    set_ahb_frame_marker_state 0
+    frame_marker_status=$?
     set_ahb_ack_poll_timeout_state 0
     ack_poll_status=$?
     if [ "$original_status" -ne 0 ]; then
@@ -260,6 +293,7 @@ cleanup_on_exit() {
         [ "$app_files_status" -ne 0 ] || [ "$trace_status" -ne 0 ] || \
         [ "$socket_trace_status" -ne 0 ] || [ "$scheduler_trace_status" -ne 0 ] || \
         [ "$frame_identity_status" -ne 0 ] || \
+        [ "$frame_marker_status" -ne 0 ] || \
         [ "$ack_poll_status" -ne 0 ]; then
         exit 1
     fi
@@ -311,6 +345,12 @@ set_ahb_frame_identity_state() {
         >/dev/null 2>&1 || status=$?
     return "$status"
 }
+set_ahb_frame_marker_state() {
+    local value=$1 status=0
+    "$ADB" shell setprop debug.nova.ahb_frame_marker "$value" \
+        >/dev/null 2>&1 || status=$?
+    return "$status"
+}
 set_ahb_ack_poll_timeout_state() {
     local value=$1 status=0
     "$ADB" shell setprop debug.nova.ahb_ack_poll_timeout_ms "$value" \
@@ -327,9 +367,10 @@ run_preflight_gate() {
     local socket_trace_status=0
     local scheduler_trace_status=0
     local frame_identity_status=0
+    local frame_marker_status=0
     local ack_poll_status=0
     local cleanup_output residual_output app_files_output
-    local trace_prop trace_file socket_trace_prop socket_trace_file scheduler_trace_prop scheduler_trace_file frame_identity_prop ack_poll_prop
+    local trace_prop trace_file socket_trace_prop socket_trace_file scheduler_trace_prop scheduler_trace_file frame_identity_prop frame_marker_prop ack_poll_prop
     local attempt
 
     {
@@ -345,6 +386,7 @@ run_preflight_gate() {
         echo "preflight_remote_socket_trace_reset=adb shell setprop debug.nova.ahb_socket_trace 0; adb shell su -c 'printf 0 > $DEVICE_ROOT/opt/nova-steam/ahb-socket-trace'"
         echo "preflight_remote_scheduler_trace_reset=adb shell setprop debug.nova.ahb_scheduler_trace 0; adb shell su -c 'printf 0 > $DEVICE_ROOT/opt/nova-steam/ahb-scheduler-trace'"
         echo "preflight_remote_frame_identity_reset=adb shell setprop debug.nova.ahb_frame_identity 0"
+        echo "preflight_remote_frame_marker_reset=adb shell setprop debug.nova.ahb_frame_marker 0"
         echo "preflight_remote_ack_poll_timeout_reset=adb shell setprop debug.nova.ahb_ack_poll_timeout_ms 0"
         echo "preflight_expected_artifact=$BINARY"
         echo "preflight_expected_artifact=$APK"
@@ -418,6 +460,8 @@ run_preflight_gate() {
         set_ahb_scheduler_trace_state 0 || scheduler_trace_status=$?
         frame_identity_status=0
         set_ahb_frame_identity_state 0 || frame_identity_status=$?
+        frame_marker_status=0
+        set_ahb_frame_marker_state 0 || frame_marker_status=$?
         ack_poll_status=0
         set_ahb_ack_poll_timeout_state 0 || ack_poll_status=$?
         trace_prop=$({ "$ADB" shell getprop debug.nova.ahb_trace || true; } | tr -d '\r' | tail -n 1)
@@ -427,11 +471,13 @@ run_preflight_gate() {
         scheduler_trace_prop=$({ "$ADB" shell getprop debug.nova.ahb_scheduler_trace || true; } | tr -d '\r' | tail -n 1)
         scheduler_trace_file=$({ "$ADB" shell su -c "cat $DEVICE_ROOT/opt/nova-steam/ahb-scheduler-trace" || true; } | tr -d '\r' | tail -n 1)
         frame_identity_prop=$({ "$ADB" shell getprop debug.nova.ahb_frame_identity || true; } | tr -d '\r' | tail -n 1)
+        frame_marker_prop=$({ "$ADB" shell getprop debug.nova.ahb_frame_marker || true; } | tr -d '\r' | tail -n 1)
         ack_poll_prop=$({ "$ADB" shell getprop debug.nova.ahb_ack_poll_timeout_ms || true; } | tr -d '\r' | tail -n 1)
         echo "preflight_ahb_trace_reset_status=$trace_status prop=$trace_prop file=$trace_file" >>"$PREFLIGHT"
         echo "preflight_socket_trace_reset_status=$socket_trace_status prop=$socket_trace_prop file=$socket_trace_file" >>"$PREFLIGHT"
         echo "preflight_scheduler_trace_reset_status=$scheduler_trace_status prop=$scheduler_trace_prop file=$scheduler_trace_file" >>"$PREFLIGHT"
         echo "preflight_frame_identity_reset_status=$frame_identity_status prop=$frame_identity_prop" >>"$PREFLIGHT"
+        echo "preflight_frame_marker_reset_status=$frame_marker_status prop=$frame_marker_prop" >>"$PREFLIGHT"
         echo "preflight_ack_poll_timeout_reset_status=$ack_poll_status prop=$ack_poll_prop" >>"$PREFLIGHT"
         if [ "$trace_status" -ne 0 ] || [ "$trace_prop" != "0" ] || [ "$trace_file" != "0" ]; then
             gate_status=1
@@ -456,6 +502,12 @@ run_preflight_gate() {
             echo "preflight_frame_identity_reset=fail attempt=$attempt" >>"$PREFLIGHT"
         else
             echo "preflight_frame_identity_reset=pass attempt=$attempt" >>"$PREFLIGHT"
+        fi
+        if [ "$frame_marker_status" -ne 0 ] || [ "$frame_marker_prop" != "0" ]; then
+            gate_status=1
+            echo "preflight_frame_marker_reset=fail attempt=$attempt" >>"$PREFLIGHT"
+        else
+            echo "preflight_frame_marker_reset=pass attempt=$attempt" >>"$PREFLIGHT"
         fi
         if [ "$ack_poll_status" -ne 0 ] || [ "$ack_poll_prop" != "0" ]; then
             gate_status=1
@@ -517,6 +569,7 @@ trap cleanup_on_exit EXIT
     echo "nova_ahb_socket_trace=$AHB_SOCKET_TRACE"
     echo "nova_ahb_scheduler_trace=$AHB_SCHEDULER_TRACE"
     echo "nova_ahb_frame_identity=$AHB_FRAME_IDENTITY"
+    echo "nova_ahb_frame_marker=$AHB_FRAME_MARKER"
     echo "nova_ahb_ack_poll_timeout_ms=$ACK_POLL_TIMEOUT_MS"
     echo "steam_client_timeout=${NOVA_STEAM_CLIENT_TIMEOUT:-unset}"
     echo "steam_gamescope_timeout=${NOVA_STEAM_GAMESCOPE_TIMEOUT:-unset}"
@@ -544,7 +597,7 @@ fi
 
 run_preflight_gate
 
-rm -f "$REPORT" "$LOGCAT" "$APP_REPORT" "$ANDROID_INPUT_REPORT" "$ANDROID_TOUCH_REPORT" "$SCREENSHOT"
+rm -f "$REPORT" "$LOGCAT" "$APP_REPORT" "$ANDROID_INPUT_REPORT" "$ANDROID_TOUCH_REPORT" "$SCREENSHOT" "$FRAME_MARKER_CAPTURE"
 
 "$ADB" logcat -c
 cleanup_runtime
@@ -564,6 +617,10 @@ if ! set_ahb_scheduler_trace_state "$AHB_SCHEDULER_TRACE"; then
 fi
 if ! set_ahb_frame_identity_state "$AHB_FRAME_IDENTITY"; then
     echo "failed to configure Nova AHB frame identity state" >&2
+    exit 1
+fi
+if ! set_ahb_frame_marker_state "$AHB_FRAME_MARKER"; then
+    echo "failed to configure Nova AHB frame marker state" >&2
     exit 1
 fi
 if ! set_ahb_ack_poll_timeout_state "$ACK_POLL_TIMEOUT_MS"; then
@@ -654,6 +711,21 @@ for artifact in "$REPORT" "$LOGCAT" "$APP_REPORT" "$ANDROID_INPUT_REPORT" "$ANDR
         mv "$artifact_tmp" "$artifact"
     fi
 done
+if [ "$AHB_FRAME_MARKER" = "1" ]; then
+    if ! python3 "$FRAME_MARKER_DECODER" "$SCREENSHOT" >"$FRAME_MARKER_CAPTURE"; then
+        echo "frame-marker screenshot decode failed; inspect $FRAME_MARKER_CAPTURE" >&2
+        exit 1
+    fi
+    marker_frame=$(sed -n 's/^nova_frame_marker_frame=//p' "$FRAME_MARKER_CAPTURE")
+    marker_checksum_low16=$(sed -n 's/^nova_frame_marker_checksum_low16=//p' "$FRAME_MARKER_CAPTURE")
+    if [ -z "$marker_frame" ] || [ -z "$marker_checksum_low16" ] || \
+        ! rg -q "^ahb_double_buffer_frame_marker_${marker_frame}=pass .*producer_frame=${marker_frame} checksum_low16=${marker_checksum_low16} marker_status=0 checksum_status=0$" "$APP_REPORT"; then
+        echo "frame-marker screenshot did not correlate with the app report" >&2
+        cat "$FRAME_MARKER_CAPTURE" >&2
+        exit 1
+    fi
+    echo "ahb_frame_marker_capture=pass frame=$marker_frame checksum_low16=$marker_checksum_low16"
+fi
 cleanup_runtime
 residual_runtime_check
 clear_app_runtime_files
@@ -712,6 +784,12 @@ if [ "$AHB_FRAME_IDENTITY" = "1" ]; then
     logcat_markers+=(
         'ahb_double_buffer_frame_identity=enabled'
         'ahb_double_buffer_frame_identity_0=pass'
+    )
+fi
+if [ "$AHB_FRAME_MARKER" = "1" ]; then
+    logcat_markers+=(
+        'ahb_double_buffer_frame_marker=enabled'
+        'ahb_double_buffer_frame_marker_0=pass'
     )
 fi
 for marker in "${logcat_markers[@]}"; do
