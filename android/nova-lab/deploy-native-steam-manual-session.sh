@@ -106,6 +106,9 @@ clear_ahb_trace_state() {
     "$ADB" shell setprop debug.nova.ahb_frame_identity 0 >/dev/null 2>&1 || status=$?
     "$ADB" shell setprop debug.nova.ahb_frame_marker 0 >/dev/null 2>&1 || status=$?
     "$ADB" shell setprop debug.nova.ahb_content_probe 0 >/dev/null 2>&1 || status=$?
+    "$ADB" shell setprop debug.nova.ahb_layout_width 0 >/dev/null 2>&1 || status=$?
+    "$ADB" shell setprop debug.nova.ahb_layout_height 0 >/dev/null 2>&1 || status=$?
+    "$ADB" shell setprop debug.nova.ahb_layout_usage 0 >/dev/null 2>&1 || status=$?
     "$ADB" shell setprop debug.nova.ahb_ack_poll_timeout_ms 0 >/dev/null 2>&1 || status=$?
     if ! "$ADB" shell \
         "su -c 'mkdir -p $DEVICE_ROOT/opt/nova-steam; printf \"0\\n\" > $DEVICE_ROOT/opt/nova-steam/ahb-trace; printf \"0\\n\" > $DEVICE_ROOT/opt/nova-steam/ahb-socket-trace; printf \"0\\n\" > $DEVICE_ROOT/opt/nova-steam/ahb-scheduler-trace'" \
@@ -116,11 +119,13 @@ clear_ahb_trace_state() {
         echo "native_steam_ahb_trace_reset=pass"
         echo "native_steam_ahb_scheduler_trace_reset=pass"
         echo "native_steam_ahb_content_probe_reset=pass"
+        echo "native_steam_ahb_layout_probe_reset=pass"
         echo "native_steam_ahb_ack_poll_timeout_reset=pass"
     else
         echo "native_steam_ahb_trace_reset=fail" >&2
         echo "native_steam_ahb_scheduler_trace_reset=fail" >&2
         echo "native_steam_ahb_content_probe_reset=fail" >&2
+        echo "native_steam_ahb_layout_probe_reset=fail" >&2
         echo "native_steam_ahb_ack_poll_timeout_reset=fail" >&2
     fi
     return "$status"

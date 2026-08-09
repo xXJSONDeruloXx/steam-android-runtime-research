@@ -176,6 +176,26 @@ else
     echo "post_stop_content_probe_state=fail status=$content_probe_status" >&2
     failures=$((failures + 1))
 fi
+
+layout_width_output=$($ADB shell getprop debug.nova.ahb_layout_width 2>&1)
+layout_width_output=$(printf '%s\n' "$layout_width_output" | tr -d '\r')
+layout_width_value=$(printf '%s\n' "$layout_width_output" | tail -n 1)
+layout_height_output=$($ADB shell getprop debug.nova.ahb_layout_height 2>&1)
+layout_height_output=$(printf '%s\n' "$layout_height_output" | tr -d '\r')
+layout_height_value=$(printf '%s\n' "$layout_height_output" | tail -n 1)
+layout_usage_output=$($ADB shell getprop debug.nova.ahb_layout_usage 2>&1)
+layout_usage_output=$(printf '%s\n' "$layout_usage_output" | tr -d '\r')
+layout_usage_value=$(printf '%s\n' "$layout_usage_output" | tail -n 1)
+echo "debug.nova.ahb_layout_width=$layout_width_value"
+echo "debug.nova.ahb_layout_height=$layout_height_value"
+echo "debug.nova.ahb_layout_usage=$layout_usage_value"
+if [ "$layout_width_value" = "0" ] && [ "$layout_height_value" = "0" ] && \
+    [ "$layout_usage_value" = "0" ]; then
+    echo "post_stop_android_vulkan_layout_state=pass"
+else
+    echo "post_stop_android_vulkan_layout_state=fail" >&2
+    failures=$((failures + 1))
+fi
 ack_poll_output=$(printf '%s\n' "$ack_poll_output" | tr -d '\r')
 ack_poll_value=$(printf '%s\n' "$ack_poll_output" | tail -n 1)
 echo "debug.nova.ahb_ack_poll_timeout_ms=$ack_poll_value"

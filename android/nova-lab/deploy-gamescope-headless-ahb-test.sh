@@ -16,6 +16,10 @@ AHB_SCHEDULER_TRACE=${NOVA_AHB_SCHEDULER_TRACE:-0}
 AHB_FRAME_IDENTITY=${NOVA_AHB_FRAME_IDENTITY:-0}
 AHB_FRAME_MARKER=${NOVA_AHB_FRAME_MARKER:-0}
 AHB_CONTENT_PROBE=${NOVA_AHB_CONTENT_PROBE:-0}
+ANDROID_VULKAN_LAYOUT_PROBE=${NOVA_ANDROID_VULKAN_LAYOUT_PROBE:-0}
+ANDROID_VULKAN_LAYOUT_WIDTH=${NOVA_ANDROID_VULKAN_LAYOUT_WIDTH:-$BUFFER_WIDTH}
+ANDROID_VULKAN_LAYOUT_HEIGHT=${NOVA_ANDROID_VULKAN_LAYOUT_HEIGHT:-$BUFFER_HEIGHT}
+ANDROID_VULKAN_LAYOUT_USAGE=${NOVA_ANDROID_VULKAN_LAYOUT_USAGE:-0x333}
 ACK_POLL_TIMEOUT_MS=${NOVA_AHB_ACK_POLL_TIMEOUT_MS:-0}
 BINARY=${NOVA_GAMESCOPE_HEADLESS:-$BUILD_DIR/gamescope-headless-build/src/gamescope}
 APK="$BUILD_DIR/nova-lab-debug.apk"
@@ -42,6 +46,7 @@ LOGCAT="$BUILD_DIR/device-gamescope-headless-ahb-logcat.txt"
 APP_REPORT="$BUILD_DIR/device-gamescope-headless-ahb-app-report.txt"
 ANDROID_INPUT_REPORT="$BUILD_DIR/android-input-bridge-report.txt"
 ANDROID_TOUCH_REPORT="$BUILD_DIR/android-touch-bridge-report.txt"
+ANDROID_VULKAN_REPORT="$BUILD_DIR/android-vulkan-layout-report.txt"
 SCREENSHOT="$BUILD_DIR/device-gamescope-headless-ahb-screenshot.png"
 METADATA="$BUILD_DIR/device-gamescope-headless-ahb-metadata.txt"
 PREFLIGHT="$BUILD_DIR/device-gamescope-headless-ahb-preflight.txt"
@@ -113,6 +118,41 @@ case "$AHB_CONTENT_PROBE" in
         ;;
 esac
 
+case "$ANDROID_VULKAN_LAYOUT_PROBE" in
+    0|1)
+        ;;
+    *)
+        echo "NOVA_ANDROID_VULKAN_LAYOUT_PROBE must be 0 or 1" >&2
+        exit 2
+        ;;
+esac
+
+case "$ANDROID_VULKAN_LAYOUT_WIDTH" in
+    ''|*[!0-9]*)
+        echo "NOVA_ANDROID_VULKAN_LAYOUT_WIDTH must be a positive integer" >&2
+        exit 2
+        ;;
+esac
+case "$ANDROID_VULKAN_LAYOUT_HEIGHT" in
+    ''|*[!0-9]*)
+        echo "NOVA_ANDROID_VULKAN_LAYOUT_HEIGHT must be a positive integer" >&2
+        exit 2
+        ;;
+esac
+if [ "$ANDROID_VULKAN_LAYOUT_WIDTH" -lt 1 ] || [ "$ANDROID_VULKAN_LAYOUT_WIDTH" -gt 4096 ] || \
+    [ "$ANDROID_VULKAN_LAYOUT_HEIGHT" -lt 1 ] || [ "$ANDROID_VULKAN_LAYOUT_HEIGHT" -gt 4096 ]; then
+    echo "Android Vulkan layout probe dimensions must be between 1 and 4096" >&2
+    exit 2
+fi
+case "$ANDROID_VULKAN_LAYOUT_USAGE" in
+    0x[0-9a-fA-F]*|0X[0-9a-fA-F]*|[0-9]*)
+        ;;
+    *)
+        echo "NOVA_ANDROID_VULKAN_LAYOUT_USAGE must be decimal or hexadecimal" >&2
+        exit 2
+        ;;
+esac
+
 case "$ACK_POLL_TIMEOUT_MS" in
     ''|*[!0-9]*)
         echo "NOVA_AHB_ACK_POLL_TIMEOUT_MS must be a non-negative integer" >&2
@@ -158,6 +198,7 @@ if [ -n "$RUN_DIR" ]; then
     APP_REPORT="$RUN_DIR/device-gamescope-headless-ahb-app-report.txt"
     ANDROID_INPUT_REPORT="$RUN_DIR/android-input-bridge-report.txt"
     ANDROID_TOUCH_REPORT="$RUN_DIR/android-touch-bridge-report.txt"
+    ANDROID_VULKAN_REPORT="$RUN_DIR/android-vulkan-layout-report.txt"
     SCREENSHOT="$RUN_DIR/device-gamescope-headless-ahb-screenshot.png"
     METADATA="$RUN_DIR/device-gamescope-headless-ahb-metadata.txt"
     PREFLIGHT="$RUN_DIR/device-gamescope-headless-ahb-preflight.txt"
@@ -180,6 +221,10 @@ if [ -n "$RUN_DIR" ]; then
         fi
         if [ "${NOVA_ANDROID_TOUCH_BRIDGE:-0}" = "1" ] && [ -e "$ANDROID_TOUCH_REPORT" ]; then
             echo "Nova run artifact already exists; use a fresh run id: $ANDROID_TOUCH_REPORT" >&2
+            exit 2
+        fi
+        if [ "$ANDROID_VULKAN_LAYOUT_PROBE" = "1" ] && [ -e "$ANDROID_VULKAN_REPORT" ]; then
+            echo "Nova run artifact already exists; use a fresh run id: $ANDROID_VULKAN_REPORT" >&2
             exit 2
         fi
         if [ "$AHB_FRAME_MARKER" = "1" ] && [ -e "$FRAME_MARKER_CAPTURE" ]; then
@@ -303,7 +348,7 @@ residual_runtime_check() {
     echo "headless_ahb_residual_processes=pass"
 }
 cleanup_on_exit() {
-    local original_status=$? cleanup_status residual_status app_files_status trace_status socket_trace_status scheduler_trace_status frame_identity_status frame_marker_status content_probe_status ack_poll_status
+    local original_status=$? cleanup_status residual_status app_files_status trace_status socket_trace_status scheduler_trace_status frame_identity_status frame_marker_status content_probe_status android_vulkan_layout_status ack_poll_status
     trap - EXIT
     set +e
     cleanup_runtime
@@ -324,6 +369,8 @@ cleanup_on_exit() {
     frame_marker_status=$?
     set_ahb_content_probe_state 0
     content_probe_status=$?
+    set_android_vulkan_layout_state 0
+    android_vulkan_layout_status=$?
     set_ahb_ack_poll_timeout_state 0
     ack_poll_status=$?
     if [ "$original_status" -ne 0 ]; then
@@ -334,7 +381,7 @@ cleanup_on_exit() {
         [ "$socket_trace_status" -ne 0 ] || [ "$scheduler_trace_status" -ne 0 ] || \
         [ "$frame_identity_status" -ne 0 ] || \
         [ "$frame_marker_status" -ne 0 ] || [ "$content_probe_status" -ne 0 ] || \
-        [ "$ack_poll_status" -ne 0 ]; then
+        [ "$android_vulkan_layout_status" -ne 0 ] || [ "$ack_poll_status" -ne 0 ]; then
         exit 1
     fi
     exit 0
@@ -395,6 +442,22 @@ set_ahb_content_probe_state() {
     local value=$1 status=0
     "$ADB" shell setprop debug.nova.ahb_content_probe "$value" \
         >/dev/null 2>&1 || status=$?
+    return "$status"
+}
+set_android_vulkan_layout_state() {
+    local value=$1 status=0
+    if [ "$value" = "1" ]; then
+        "$ADB" shell setprop debug.nova.ahb_layout_width "$ANDROID_VULKAN_LAYOUT_WIDTH" \
+            >/dev/null 2>&1 || status=$?
+        "$ADB" shell setprop debug.nova.ahb_layout_height "$ANDROID_VULKAN_LAYOUT_HEIGHT" \
+            >/dev/null 2>&1 || status=$?
+        "$ADB" shell setprop debug.nova.ahb_layout_usage "$ANDROID_VULKAN_LAYOUT_USAGE" \
+            >/dev/null 2>&1 || status=$?
+    else
+        "$ADB" shell setprop debug.nova.ahb_layout_width 0 >/dev/null 2>&1 || status=$?
+        "$ADB" shell setprop debug.nova.ahb_layout_height 0 >/dev/null 2>&1 || status=$?
+        "$ADB" shell setprop debug.nova.ahb_layout_usage 0 >/dev/null 2>&1 || status=$?
+    fi
     return "$status"
 }
 set_ahb_ack_poll_timeout_state() {
@@ -541,9 +604,10 @@ run_preflight_gate() {
     local frame_identity_status=0
     local frame_marker_status=0
     local content_probe_status=0
+    local android_vulkan_layout_status=0
     local ack_poll_status=0
     local cleanup_output residual_output app_files_output
-    local trace_prop trace_file socket_trace_prop socket_trace_file scheduler_trace_prop scheduler_trace_file frame_identity_prop frame_marker_prop content_probe_prop ack_poll_prop
+    local trace_prop trace_file socket_trace_prop socket_trace_file scheduler_trace_prop scheduler_trace_file frame_identity_prop frame_marker_prop content_probe_prop android_vulkan_layout_width_prop android_vulkan_layout_height_prop android_vulkan_layout_usage_prop ack_poll_prop
     local attempt
 
     {
@@ -561,6 +625,7 @@ run_preflight_gate() {
         echo "preflight_remote_frame_identity_reset=adb shell setprop debug.nova.ahb_frame_identity 0"
         echo "preflight_remote_frame_marker_reset=adb shell setprop debug.nova.ahb_frame_marker 0"
         echo "preflight_remote_content_probe_reset=adb shell setprop debug.nova.ahb_content_probe 0"
+        echo "preflight_remote_android_vulkan_layout_reset=adb shell setprop debug.nova.ahb_layout_width 0; setprop debug.nova.ahb_layout_height 0; setprop debug.nova.ahb_layout_usage 0"
         echo "preflight_remote_ack_poll_timeout_reset=adb shell setprop debug.nova.ahb_ack_poll_timeout_ms 0"
         echo "preflight_expected_artifact=$BINARY"
         echo "preflight_expected_artifact=$APK"
@@ -638,6 +703,8 @@ run_preflight_gate() {
         set_ahb_frame_marker_state 0 || frame_marker_status=$?
         content_probe_status=0
         set_ahb_content_probe_state 0 || content_probe_status=$?
+        android_vulkan_layout_status=0
+        set_android_vulkan_layout_state 0 || android_vulkan_layout_status=$?
         ack_poll_status=0
         set_ahb_ack_poll_timeout_state 0 || ack_poll_status=$?
         trace_prop=$({ "$ADB" shell getprop debug.nova.ahb_trace || true; } | tr -d '\r' | tail -n 1)
@@ -649,6 +716,9 @@ run_preflight_gate() {
         frame_identity_prop=$({ "$ADB" shell getprop debug.nova.ahb_frame_identity || true; } | tr -d '\r' | tail -n 1)
         frame_marker_prop=$({ "$ADB" shell getprop debug.nova.ahb_frame_marker || true; } | tr -d '\r' | tail -n 1)
         content_probe_prop=$({ "$ADB" shell getprop debug.nova.ahb_content_probe || true; } | tr -d '\r' | tail -n 1)
+        android_vulkan_layout_width_prop=$({ "$ADB" shell getprop debug.nova.ahb_layout_width || true; } | tr -d '\r' | tail -n 1)
+        android_vulkan_layout_height_prop=$({ "$ADB" shell getprop debug.nova.ahb_layout_height || true; } | tr -d '\r' | tail -n 1)
+        android_vulkan_layout_usage_prop=$({ "$ADB" shell getprop debug.nova.ahb_layout_usage || true; } | tr -d '\r' | tail -n 1)
         ack_poll_prop=$({ "$ADB" shell getprop debug.nova.ahb_ack_poll_timeout_ms || true; } | tr -d '\r' | tail -n 1)
         echo "preflight_ahb_trace_reset_status=$trace_status prop=$trace_prop file=$trace_file" >>"$PREFLIGHT"
         echo "preflight_socket_trace_reset_status=$socket_trace_status prop=$socket_trace_prop file=$socket_trace_file" >>"$PREFLIGHT"
@@ -656,6 +726,7 @@ run_preflight_gate() {
         echo "preflight_frame_identity_reset_status=$frame_identity_status prop=$frame_identity_prop" >>"$PREFLIGHT"
         echo "preflight_frame_marker_reset_status=$frame_marker_status prop=$frame_marker_prop" >>"$PREFLIGHT"
         echo "preflight_content_probe_reset_status=$content_probe_status prop=$content_probe_prop" >>"$PREFLIGHT"
+        echo "preflight_android_vulkan_layout_reset_status=$android_vulkan_layout_status width=$android_vulkan_layout_width_prop height=$android_vulkan_layout_height_prop usage=$android_vulkan_layout_usage_prop" >>"$PREFLIGHT"
         echo "preflight_ack_poll_timeout_reset_status=$ack_poll_status prop=$ack_poll_prop" >>"$PREFLIGHT"
         if [ "$trace_status" -ne 0 ] || [ "$trace_prop" != "0" ] || [ "$trace_file" != "0" ]; then
             gate_status=1
@@ -692,6 +763,15 @@ run_preflight_gate() {
             echo "preflight_content_probe_reset=fail attempt=$attempt" >>"$PREFLIGHT"
         else
             echo "preflight_content_probe_reset=pass attempt=$attempt" >>"$PREFLIGHT"
+        fi
+        if [ "$android_vulkan_layout_status" -ne 0 ] || \
+            [ "$android_vulkan_layout_width_prop" != "0" ] || \
+            [ "$android_vulkan_layout_height_prop" != "0" ] || \
+            [ "$android_vulkan_layout_usage_prop" != "0" ]; then
+            gate_status=1
+            echo "preflight_android_vulkan_layout_reset=fail attempt=$attempt" >>"$PREFLIGHT"
+        else
+            echo "preflight_android_vulkan_layout_reset=pass attempt=$attempt" >>"$PREFLIGHT"
         fi
         if [ "$ack_poll_status" -ne 0 ] || [ "$ack_poll_prop" != "0" ]; then
             gate_status=1
@@ -755,6 +835,8 @@ trap cleanup_on_exit EXIT
     echo "nova_ahb_frame_identity=$AHB_FRAME_IDENTITY"
     echo "nova_ahb_frame_marker=$AHB_FRAME_MARKER"
     echo "nova_ahb_content_probe=$AHB_CONTENT_PROBE"
+    echo "android_vulkan_layout_probe=$ANDROID_VULKAN_LAYOUT_PROBE"
+    echo "android_vulkan_layout_profile=${ANDROID_VULKAN_LAYOUT_WIDTH}x${ANDROID_VULKAN_LAYOUT_HEIGHT} usage=$ANDROID_VULKAN_LAYOUT_USAGE"
     echo "nova_ahb_ack_poll_timeout_ms=$ACK_POLL_TIMEOUT_MS"
     echo "presentation_diagnostics=$PRESENTATION_DIAGNOSTICS"
     echo "steam_client_timeout=${NOVA_STEAM_CLIENT_TIMEOUT:-unset}"
@@ -783,7 +865,7 @@ fi
 
 run_preflight_gate
 
-rm -f "$REPORT" "$LOGCAT" "$APP_REPORT" "$ANDROID_INPUT_REPORT" "$ANDROID_TOUCH_REPORT" "$SCREENSHOT" "$FRAME_MARKER_CAPTURE"
+rm -f "$REPORT" "$LOGCAT" "$APP_REPORT" "$ANDROID_INPUT_REPORT" "$ANDROID_TOUCH_REPORT" "$ANDROID_VULKAN_REPORT" "$SCREENSHOT" "$FRAME_MARKER_CAPTURE"
 if [ "$PRESENTATION_DIAGNOSTICS" = "1" ]; then
     rm -f "$CLIENT_LOG" "$CLIENT_STDOUT" "$CLIENT_STDERR" "$STEAM_LOG_DIAGNOSTICS" "$SURFACEFLINGER_DIAGNOSTICS"
 fi
@@ -816,6 +898,10 @@ if ! set_ahb_content_probe_state "$AHB_CONTENT_PROBE"; then
     echo "failed to configure Nova AHB content probe state" >&2
     exit 1
 fi
+if ! set_android_vulkan_layout_state "$ANDROID_VULKAN_LAYOUT_PROBE"; then
+    echo "failed to configure Android Vulkan layout probe state" >&2
+    exit 1
+fi
 if ! set_ahb_ack_poll_timeout_state "$ACK_POLL_TIMEOUT_MS"; then
     echo "failed to configure Nova AHB ACK poll timeout" >&2
     exit 1
@@ -826,6 +912,9 @@ activity_args=(
     --ei dmabuf_double_buffer_width "$BUFFER_WIDTH"
     --ei dmabuf_double_buffer_height "$BUFFER_HEIGHT"
 )
+if [ "$ANDROID_VULKAN_LAYOUT_PROBE" = "1" ]; then
+    activity_args+=(--ez run_android_vulkan true)
+fi
 if [ -n "${NOVA_FORCE_GPU_COMPOSITION:-}" ]; then
     case "$NOVA_FORCE_GPU_COMPOSITION" in
         1|true|TRUE|yes|YES)
@@ -905,6 +994,16 @@ for artifact in "$REPORT" "$LOGCAT" "$APP_REPORT" "$ANDROID_INPUT_REPORT" "$ANDR
         mv "$artifact_tmp" "$artifact"
     fi
 done
+if [ "$ANDROID_VULKAN_LAYOUT_PROBE" = "1" ]; then
+    rg 'android_vulkan_hardware_buffer_probe|android_vulkan_probe_version=|ahardwarebuffer\.(profile|supported|allocate_status|describe)|vk(CreateImage|GetAndroidHardwareBufferProperties|AllocateMemory|BindImageMemory)_status=|android_vulkan_image_modifier_status=|vulkan_clear_pixel=|android_vulkan_ahardwarebuffer=|android_vulkan_probe=' \
+        "$LOGCAT" >"$ANDROID_VULKAN_REPORT" || :
+    android_vulkan_report_tmp="$ANDROID_VULKAN_REPORT.tmp"
+    {
+        echo "nova_run_id=$RUN_ID"
+        cat "$ANDROID_VULKAN_REPORT"
+    } >"$android_vulkan_report_tmp"
+    mv "$android_vulkan_report_tmp" "$ANDROID_VULKAN_REPORT"
+fi
 if [ "$AHB_FRAME_MARKER" = "1" ]; then
     if ! python3 "$FRAME_MARKER_DECODER" "$SCREENSHOT" >"$FRAME_MARKER_CAPTURE"; then
         echo "frame-marker screenshot decode failed; inspect $FRAME_MARKER_CAPTURE" >&2
@@ -927,6 +1026,9 @@ clear_app_runtime_files
 echo "report:     $REPORT"
 echo "app logcat: $LOGCAT"
 echo "app report: $APP_REPORT"
+if [ "$ANDROID_VULKAN_LAYOUT_PROBE" = "1" ]; then
+    echo "android Vulkan report: $ANDROID_VULKAN_REPORT"
+fi
 echo "screenshot: $SCREENSHOT"
 if [ "$probe_status" -ne 0 ]; then
     echo "headless gamescope AHardwareBuffer probe failed; inspect $REPORT and $LOGCAT" >&2
@@ -996,6 +1098,14 @@ if [ "$AHB_CONTENT_PROBE" = "1" ]; then
             "ahb_double_buffer_frame_content_$((FRAME_COUNT - 1))=pass"
         )
     fi
+fi
+if [ "$ANDROID_VULKAN_LAYOUT_PROBE" = "1" ]; then
+    logcat_markers+=(
+        'android_vulkan_probe_version=1'
+        "ahardwarebuffer.profile=${ANDROID_VULKAN_LAYOUT_WIDTH}x${ANDROID_VULKAN_LAYOUT_HEIGHT}"
+        'android_vulkan_image_modifier_status='
+        'android_vulkan_ahardwarebuffer=pass'
+    )
 fi
 for marker in "${logcat_markers[@]}"; do
     if ! rg -q -- "$marker" "$LOGCAT" "$APP_REPORT"; then

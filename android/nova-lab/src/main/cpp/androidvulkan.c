@@ -9,6 +9,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/system_properties.h>
 #include <unistd.h>
 
 #include <vulkan/vulkan.h>
@@ -88,6 +89,38 @@ choose_memory_type(VkPhysicalDevice physical_device, uint32_t type_bits,
     return 0;
 }
 
+static uint32_t
+probe_property_u32(const char *name, uint32_t fallback, uint32_t maximum)
+{
+    char value[PROP_VALUE_MAX] = "";
+    int length = __system_property_get(name, value);
+    if (length <= 0) {
+        return fallback;
+    }
+    char *end = NULL;
+    unsigned long parsed = strtoul(value, &end, 0);
+    if (end == value || *end != '\0' || parsed == 0 || parsed > maximum) {
+        return fallback;
+    }
+    return (uint32_t)parsed;
+}
+
+static uint64_t
+probe_property_u64(const char *name, uint64_t fallback)
+{
+    char value[PROP_VALUE_MAX] = "";
+    int length = __system_property_get(name, value);
+    if (length <= 0) {
+        return fallback;
+    }
+    char *end = NULL;
+    unsigned long long parsed = strtoull(value, &end, 0);
+    if (end == value || *end != '\0') {
+        return fallback;
+    }
+    return (uint64_t)parsed;
+}
+
 JNIEXPORT jstring JNICALL
 Java_com_xjsonderulo_steamandroid_novalab_MainActivity_nativeRunAndroidVulkanHardwareBufferProbe(
     JNIEnv *env, jobject object)
@@ -108,20 +141,29 @@ Java_com_xjsonderulo_steamandroid_novalab_MainActivity_nativeRunAndroidVulkanHar
     VkFence fence = VK_NULL_HANDLE;
     int success = 0;
 
-    const uint64_t buffer_usage = AHARDWAREBUFFER_USAGE_CPU_READ_OFTEN |
-                                  AHARDWAREBUFFER_USAGE_GPU_SAMPLED_IMAGE |
-                                  AHARDWAREBUFFER_USAGE_GPU_FRAMEBUFFER;
+    const uint32_t buffer_width = probe_property_u32(
+        "debug.nova.ahb_layout_width", 64, 4096);
+    const uint32_t buffer_height = probe_property_u32(
+        "debug.nova.ahb_layout_height", 64, 4096);
+    const uint64_t default_usage = AHARDWAREBUFFER_USAGE_CPU_READ_OFTEN |
+                                    AHARDWAREBUFFER_USAGE_GPU_SAMPLED_IMAGE |
+                                    AHARDWAREBUFFER_USAGE_GPU_FRAMEBUFFER;
+    const uint64_t buffer_usage = probe_property_u64(
+        "debug.nova.ahb_layout_usage", default_usage);
     AHardwareBuffer_Desc buffer_description = {
-        .width = 64,
-        .height = 64,
+        .width = buffer_width,
+        .height = buffer_height,
         .layers = 1,
         .format = AHARDWAREBUFFER_FORMAT_R8G8B8A8_UNORM,
         .usage = buffer_usage,
     };
     int status = AHardwareBuffer_isSupported(&buffer_description);
     append_line(report, sizeof(report), &used,
-                "ahardwarebuffer.supported=%d usage=0x%llx\n", status,
+                "ahardwarebuffer.profile=%ux%u format=0x%x usage=0x%llx\n",
+                buffer_width, buffer_height, buffer_description.format,
                 (unsigned long long)buffer_usage);
+    append_line(report, sizeof(report), &used,
+                "ahardwarebuffer.supported=%d\n", status);
     if (!status) {
         goto done;
     }
@@ -131,6 +173,13 @@ Java_com_xjsonderulo_steamandroid_novalab_MainActivity_nativeRunAndroidVulkanHar
     if (status != 0 || hardware_buffer == NULL) {
         goto done;
     }
+    AHardwareBuffer_Desc described = {0};
+    AHardwareBuffer_describe(hardware_buffer, &described);
+    append_line(report, sizeof(report), &used,
+                "ahardwarebuffer.describe=%ux%u stride=%u layers=%u format=0x%x usage=0x%llx\n",
+                described.width, described.height, described.stride,
+                described.layers, described.format,
+                (unsigned long long)described.usage);
 
     VkApplicationInfo application_info = {
         .sType = VK_STRUCTURE_TYPE_APPLICATION_INFO,
@@ -295,7 +344,7 @@ Java_com_xjsonderulo_steamandroid_novalab_MainActivity_nativeRunAndroidVulkanHar
         .pNext = &external_image_info,
         .imageType = VK_IMAGE_TYPE_2D,
         .format = VK_FORMAT_R8G8B8A8_UNORM,
-        .extent = {64, 64, 1},
+        .extent = {buffer_width, buffer_height, 1},
         .mipLevels = 1,
         .arrayLayers = 1,
         .samples = VK_SAMPLE_COUNT_1_BIT,
@@ -303,13 +352,14 @@ Java_com_xjsonderulo_steamandroid_novalab_MainActivity_nativeRunAndroidVulkanHar
         .usage = VK_IMAGE_USAGE_TRANSFER_DST_BIT |
                  VK_IMAGE_USAGE_TRANSFER_SRC_BIT |
                  VK_IMAGE_USAGE_SAMPLED_BIT |
-                 VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
+                 VK_IMAGE_USAGE_STORAGE_BIT,
         .sharingMode = VK_SHARING_MODE_EXCLUSIVE,
         .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
     };
     result = vkCreateImage(device, &image_info, NULL, &image);
-    append_line(report, sizeof(report), &used, "vkCreateImage_status=%d\n",
-                result);
+    append_line(report, sizeof(report), &used,
+                "vkCreateImage_status=%d tiling=%d usage=0x%x\n", result,
+                image_info.tiling, image_info.usage);
     if (result != VK_SUCCESS) {
         goto done;
     }
@@ -365,6 +415,9 @@ Java_com_xjsonderulo_steamandroid_novalab_MainActivity_nativeRunAndroidVulkanHar
             append_line(report, sizeof(report), &used,
                         "android_vulkan_image_modifier_status=unavailable\n");
         }
+    } else {
+        append_line(report, sizeof(report), &used,
+                    "android_vulkan_image_modifier_status=extension_missing\n");
     }
 
     VkQueue queue;
