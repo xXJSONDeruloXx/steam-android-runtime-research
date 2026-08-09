@@ -222,7 +222,7 @@ else
         >"$APP_REPORT" 2>/dev/null || true
     echo "touch_report_source=device_app"
 fi
-"$ADB" logcat -d -v threadtime NovaLab:I '*:S' >"$APP_LOG"
+"$ADB" logcat -d -v threadtime -s NovaLab:I '*:S' >"$APP_LOG"
 "$ADB" shell "su -c 'cat $DEVICE_ROOT/tmp/nova-eis-touch.log'" \
     >"$EIS_LOG" 2>/dev/null || true
 
