@@ -289,6 +289,7 @@ the gamescope frames on its own surface.
 - [Termux:X11 native Steam login API probe result](docs/171-termux-x11-native-steam-login-api-probe-result-2026-08-09.md)
 - [Termux:X11 networking phase plan](docs/172-termux-x11-networking-phase-plan-2026-08-09.md)
 - [Termux:X11 network and Steam bridge inventory experiment](docs/173-termux-x11-network-inventory-experiment-2026-08-09.md)
+- [Termux:X11 network inventory window-wait result](docs/174-termux-x11-network-inventory-window-wait-result-2026-08-09.md)
 - [Retroid Pocket Nova flashing kit](tools/retroid-pocket-nova/README.md)
 
 ## Evidence standard
