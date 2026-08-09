@@ -115,7 +115,7 @@ if [ "$socket_ready" -eq 1 ]; then
     probe_status=$?
     set -e
     for _ in $(seq 1 50); do
-        "$ADB" logcat -d -v threadtime -s NovaLab:I '*:S' >"$APP_LOG"
+        "$ADB" logcat -d -v threadtime -s NovaLab:I >"$APP_LOG"
         "$ADB" shell run-as "$PACKAGE" cat files/android-input-bridge-report.txt \
             >"$APP_REPORT" 2>/dev/null || true
         if rg -q -- 'android_input_key_forwarded=pass' "$APP_REPORT"; then
@@ -127,7 +127,7 @@ fi
 
 cat "$HELPER_LOG" 2>/dev/null || true
 cat "$RUN_LOG"
-"$ADB" logcat -d -v threadtime -s NovaLab:I '*:S' >"$APP_LOG"
+"$ADB" logcat -d -v threadtime -s NovaLab:I >"$APP_LOG"
 "$ADB" shell run-as "$PACKAGE" cat files/android-input-bridge-report.txt \
     >"$APP_REPORT" 2>/dev/null || true
 cat "$APP_LOG"

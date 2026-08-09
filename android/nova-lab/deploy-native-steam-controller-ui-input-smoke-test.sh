@@ -696,7 +696,7 @@ cat "$HELPER_LOG" 2>/dev/null || true
 cat "$FD_LOG" 2>/dev/null || true
 cat "$RUN_LOG"
 if [ "$INPUT_MODE" = "android-keyevent" ]; then
-    "$ADB" logcat -d -v threadtime -s NovaLab:I '*:S' >"$APP_LOG"
+    "$ADB" logcat -d -v threadtime -s NovaLab:I >"$APP_LOG"
     if [ -n "$RUN_DIR" ] && [ -s "$RUN_DIR/android-input-bridge-report.txt" ]; then
         cp "$RUN_DIR/android-input-bridge-report.txt" "$APP_REPORT"
         echo "controller_ui_android_input_report_source=run_artifact"

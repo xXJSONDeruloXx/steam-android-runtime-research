@@ -968,7 +968,7 @@ set -e
 cp "$BUILD_DIR/holo-glibc-report.txt" "$REPORT"
 capture_presentation_diagnostics
 "$ADB" shell sleep 1
-"$ADB" logcat -d -v threadtime -s NovaLab:I '*:S' > "$LOGCAT"
+"$ADB" logcat -d -v threadtime -s NovaLab:I > "$LOGCAT"
 "$ADB" shell run-as "$PACKAGE" cat files/dmabuf-double-buffer-report.txt \
     > "$APP_REPORT" 2>/dev/null || true
 if [ "${NOVA_ANDROID_INPUT_BRIDGE:-0}" = "1" ]; then

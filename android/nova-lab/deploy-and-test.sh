@@ -25,7 +25,7 @@ DEVICE_WORK=/data/local/tmp/nova-lab-root-probe-work
 "$ADB" shell am start -W -n "$PACKAGE/.MainActivity" \
     --ez run_native true --ez run_android_vulkan true >/dev/null
 "$ADB" shell sleep 3
-"$ADB" logcat -d -v threadtime -s NovaLab:I '*:S' > "$BUILD_DIR/device-logcat.txt"
+"$ADB" logcat -d -v threadtime -s NovaLab:I > "$BUILD_DIR/device-logcat.txt"
 "$ADB" exec-out screencap -p > "$BUILD_DIR/device-screenshot.png"
 
 echo "root report: $BUILD_DIR/root_probe_report.txt"

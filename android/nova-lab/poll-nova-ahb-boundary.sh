@@ -68,7 +68,7 @@ marker=
 deadline=$((SECONDS + POLL_TIMEOUT_SECONDS))
 
 while [ "$SECONDS" -lt "$deadline" ]; do
-    "$ADB" logcat -d -v threadtime -s NovaLab:I '*:S' >"$ALL_LOG"
+    "$ADB" logcat -d -v threadtime -s NovaLab:I >"$ALL_LOG"
     rg "(^|[[:space:]])${ANDROID_PID}([[:space:]]|\))" "$ALL_LOG" \
         >"$FILTERED_LOG" || true
 

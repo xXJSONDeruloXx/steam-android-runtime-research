@@ -36,7 +36,7 @@ set -e
 
 "$ADB" shell sleep 3
 
-"$ADB" logcat -d -v threadtime -s NovaLab:I '*:S' > "$BUILD_DIR/device-ahb-double-buffer-logcat.txt"
+"$ADB" logcat -d -v threadtime -s NovaLab:I > "$BUILD_DIR/device-ahb-double-buffer-logcat.txt"
 "$ADB" exec-out screencap -p > "$BUILD_DIR/device-ahb-double-buffer-screenshot.png"
 
 echo "holo report: $BUILD_DIR/holo-glibc-report.txt"
