@@ -75,6 +75,45 @@ ahb_frame_marker_enabled(void)
     return enabled;
 }
 
+static int
+ahb_content_probe_enabled(void)
+{
+    static int enabled = -1;
+    if (enabled < 0) {
+        char value[PROP_VALUE_MAX] = {0};
+        int length = __system_property_get("debug.nova.ahb_content_probe",
+                                           value);
+        enabled = length > 0 && value[0] == '1' ? 1 : 0;
+    }
+    return enabled;
+}
+
+struct ahb_content_probe_result {
+    uint32_t description_width;
+    uint32_t description_height;
+    uint32_t description_stride;
+    uint32_t description_layers;
+    uint32_t description_format;
+    uint64_t description_usage;
+    uint64_t pixel_count;
+    uint64_t raw_checksum;
+    uint32_t red_min;
+    uint32_t red_max;
+    uint32_t green_min;
+    uint32_t green_max;
+    uint32_t blue_min;
+    uint32_t blue_max;
+    uint32_t alpha_min;
+    uint32_t alpha_max;
+    uint64_t red_sum;
+    uint64_t green_sum;
+    uint64_t blue_sum;
+    uint64_t alpha_sum;
+    uint32_t luma_min;
+    uint32_t luma_max;
+    uint64_t luma_sum;
+};
+
 static unsigned long long
 ahb_monotonic_ns(void)
 {
@@ -1006,11 +1045,17 @@ write_frame_marker(uint8_t *pixels, size_t stride_bytes, int width, int height,
 static int
 checksum_ahardware_buffer(AHardwareBuffer *buffer, int width, int height,
                           int acquire_fence_fd, int marker_enabled, int frame,
+                          int content_probe_enabled,
+                          struct ahb_content_probe_result *content_probe,
                           uint64_t *checksum, int *marker_status)
 {
     if (buffer == NULL || checksum == NULL || width <= 0 || height <= 0 ||
-        acquire_fence_fd < 0) {
+        acquire_fence_fd < 0 ||
+        (content_probe_enabled && content_probe == NULL)) {
         return -1;
+    }
+    if (content_probe != NULL) {
+        memset(content_probe, 0, sizeof(*content_probe));
     }
     if (marker_status != NULL) {
         *marker_status = marker_enabled ? -1 : 0;
@@ -1031,6 +1076,19 @@ checksum_ahardware_buffer(AHardwareBuffer *buffer, int width, int height,
 
     AHardwareBuffer_Desc description = {0};
     AHardwareBuffer_describe(buffer, &description);
+    if (content_probe != NULL) {
+        content_probe->description_width = description.width;
+        content_probe->description_height = description.height;
+        content_probe->description_stride = description.stride;
+        content_probe->description_layers = description.layers;
+        content_probe->description_format = description.format;
+        content_probe->description_usage = description.usage;
+        content_probe->red_min = 255;
+        content_probe->green_min = 255;
+        content_probe->blue_min = 255;
+        content_probe->alpha_min = 255;
+        content_probe->luma_min = 255;
+    }
     if (description.format != AHARDWAREBUFFER_FORMAT_R8G8B8A8_UNORM ||
         description.width < (uint32_t)width ||
         description.height < (uint32_t)height ||
@@ -1047,16 +1105,59 @@ checksum_ahardware_buffer(AHardwareBuffer *buffer, int width, int height,
         return -1;
     }
 
-    const size_t row_bytes = (size_t)width * 4u;
     const size_t stride_bytes = (size_t)description.stride * 4u;
     uint64_t hash = 1469598103934665603ULL;
     const uint8_t *pixels = (const uint8_t *)mapped;
     for (int row = 0; row < height; ++row) {
         const uint8_t *line = pixels + (size_t)row * stride_bytes;
-        for (size_t column = 0; column < row_bytes; ++column) {
-            hash ^= line[column];
-            hash *= 1099511628211ULL;
+        for (int column = 0; column < width; ++column) {
+            const uint8_t *pixel = line + (size_t)column * 4u;
+            for (int channel = 0; channel < 4; ++channel) {
+                hash ^= pixel[channel];
+                hash *= 1099511628211ULL;
+            }
+            if (content_probe != NULL) {
+                const uint32_t red = pixel[0];
+                const uint32_t green = pixel[1];
+                const uint32_t blue = pixel[2];
+                const uint32_t alpha = pixel[3];
+                const uint32_t luma =
+                    (77u * red + 150u * green + 29u * blue + 128u) >> 8;
+                content_probe->red_min =
+                    red < content_probe->red_min ? red : content_probe->red_min;
+                content_probe->red_max =
+                    red > content_probe->red_max ? red : content_probe->red_max;
+                content_probe->green_min = green < content_probe->green_min
+                                                ? green
+                                                : content_probe->green_min;
+                content_probe->green_max = green > content_probe->green_max
+                                                ? green
+                                                : content_probe->green_max;
+                content_probe->blue_min =
+                    blue < content_probe->blue_min ? blue : content_probe->blue_min;
+                content_probe->blue_max =
+                    blue > content_probe->blue_max ? blue : content_probe->blue_max;
+                content_probe->alpha_min = alpha < content_probe->alpha_min
+                                                ? alpha
+                                                : content_probe->alpha_min;
+                content_probe->alpha_max = alpha > content_probe->alpha_max
+                                                ? alpha
+                                                : content_probe->alpha_max;
+                content_probe->red_sum += red;
+                content_probe->green_sum += green;
+                content_probe->blue_sum += blue;
+                content_probe->alpha_sum += alpha;
+                content_probe->luma_min =
+                    luma < content_probe->luma_min ? luma : content_probe->luma_min;
+                content_probe->luma_max =
+                    luma > content_probe->luma_max ? luma : content_probe->luma_max;
+                content_probe->luma_sum += luma;
+            }
         }
+    }
+    if (content_probe != NULL) {
+        content_probe->pixel_count = (uint64_t)width * (uint64_t)height;
+        content_probe->raw_checksum = hash;
     }
 
     if (marker_enabled) {
@@ -1656,6 +1757,7 @@ Java_com_xjsonderulo_steamandroid_novalab_MainActivity_nativeRunDmaBufDoubleBuff
     const int continuous = frame_count_argument < 0;
     const int frame_identity = ahb_frame_identity_enabled();
     const int frame_marker = ahb_frame_marker_enabled();
+    const int content_probe = ahb_content_probe_enabled();
     const int buffer_width =
         frame_width_argument > 0 && frame_width_argument <= 4096
             ? frame_width_argument
@@ -1842,6 +1944,9 @@ Java_com_xjsonderulo_steamandroid_novalab_MainActivity_nativeRunDmaBufDoubleBuff
                 frame_marker ? "enabled" : "disabled", AHB_FRAME_MARKER_X,
                 AHB_FRAME_MARKER_Y, AHB_FRAME_MARKER_CELL,
                 AHB_FRAME_MARKER_COLUMNS, AHB_FRAME_MARKER_ROWS);
+    append_line(report, sizeof(report), &used,
+                "ahb_double_buffer_content_probe=%s sample_policy=first3_every30_final\n",
+                content_probe ? "enabled" : "disabled");
     for (int frame = 0; continuous || frame < total_frames; ++frame) {
         int index = frame % 3;
         char acknowledgement[256] = {0};
@@ -1891,7 +1996,7 @@ Java_com_xjsonderulo_steamandroid_novalab_MainActivity_nativeRunDmaBufDoubleBuff
             goto double_buffer_done;
         }
 
-        if (frame_identity || frame_marker) {
+        if (frame_identity || frame_marker || content_probe) {
             uint64_t producer_frame = 0;
             uint64_t focus_commit = 0;
             uint64_t override_commit = 0;
@@ -1905,14 +2010,54 @@ Java_com_xjsonderulo_steamandroid_novalab_MainActivity_nativeRunDmaBufDoubleBuff
                 producer_frame == (uint64_t)frame;
             uint64_t checksum = 0;
             int marker_status = frame_marker ? -1 : 0;
+            const int content_probe_capture =
+                content_probe &&
+                (frame < 3 || (frame % 30) == 0 ||
+                 (!continuous && frame == total_frames - 1));
+            struct ahb_content_probe_result content = {0};
             int checksum_status = metadata_pass
                                        ? checksum_ahardware_buffer(
                                              buffers[index], buffer_width,
                                              buffer_height, acquire_fence_fd,
-                                             frame_marker, frame, &checksum,
-                                             &marker_status)
+                                             frame_marker, frame,
+                                             content_probe_capture,
+                                             content_probe_capture ? &content : NULL,
+                                             &checksum, &marker_status)
                                        : -1;
             int identity_pass = metadata_pass && checksum_status == 0;
+            if (content_probe && content_probe_capture) {
+                if (checksum_status == 0) {
+                    const uint64_t pixel_count = content.pixel_count;
+                    append_line(
+                        report, sizeof(report), &used,
+                        "ahb_double_buffer_frame_content_%d=pass producer_frame=%llu desc=%ux%u stride=%u layers=%u format=0x%08x usage=0x%llx pixels=%llu raw_fnv1a64=%016llx rgba_min=%u,%u,%u,%u rgba_max=%u,%u,%u,%u rgba_avg_milli=%llu,%llu,%llu,%llu luma_min=%u luma_max=%u luma_avg_milli=%llu\n",
+                        frame, (unsigned long long)producer_frame,
+                        content.description_width, content.description_height,
+                        content.description_stride, content.description_layers,
+                        content.description_format,
+                        (unsigned long long)content.description_usage,
+                        (unsigned long long)pixel_count,
+                        (unsigned long long)content.raw_checksum,
+                        content.red_min, content.green_min, content.blue_min,
+                        content.alpha_min, content.red_max, content.green_max,
+                        content.blue_max, content.alpha_max,
+                        (unsigned long long)(content.red_sum * 1000u /
+                                             pixel_count),
+                        (unsigned long long)(content.green_sum * 1000u /
+                                             pixel_count),
+                        (unsigned long long)(content.blue_sum * 1000u /
+                                             pixel_count),
+                        (unsigned long long)(content.alpha_sum * 1000u /
+                                             pixel_count),
+                        content.luma_min, content.luma_max,
+                        (unsigned long long)(content.luma_sum * 1000u /
+                                             pixel_count));
+                } else {
+                    append_line(report, sizeof(report), &used,
+                                "ahb_double_buffer_frame_content_%d=fail checksum_status=%d\n",
+                                frame, checksum_status);
+                }
+            }
             if (frame_identity) {
                 append_line(
                     report, sizeof(report), &used,

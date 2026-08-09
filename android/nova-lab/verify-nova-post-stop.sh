@@ -161,6 +161,21 @@ else
     echo "post_stop_frame_marker_state=fail status=$frame_marker_status" >&2
     failures=$((failures + 1))
 fi
+
+if content_probe_output=$($ADB shell getprop debug.nova.ahb_content_probe 2>&1); then
+    content_probe_status=0
+else
+    content_probe_status=$?
+fi
+content_probe_output=$(printf '%s\n' "$content_probe_output" | tr -d '\r')
+content_probe_value=$(printf '%s\n' "$content_probe_output" | tail -n 1)
+echo "debug.nova.ahb_content_probe=$content_probe_value"
+if [ "$content_probe_status" -eq 0 ] && [ "$content_probe_value" = "0" ]; then
+    echo "post_stop_content_probe_state=pass"
+else
+    echo "post_stop_content_probe_state=fail status=$content_probe_status" >&2
+    failures=$((failures + 1))
+fi
 ack_poll_output=$(printf '%s\n' "$ack_poll_output" | tr -d '\r')
 ack_poll_value=$(printf '%s\n' "$ack_poll_output" | tail -n 1)
 echo "debug.nova.ahb_ack_poll_timeout_ms=$ack_poll_value"
