@@ -797,6 +797,68 @@ The next read-only probe will request the vendor MCU version and capture its
 native logs. It will not invoke MCU power control, test-data sending, or
 firmware update.
 
+### `input-20260809T222236Z-mcu-version`
+
+This was a read-only vendor-diagnostic experiment performed while no physical
+control was available. Before the probe, the exact Nova cleanup returned
+`pass`, no Nova Steam runtime was running, and the test APK plus Termux:X11
+were force-stopped. The device remained on `persist.sys.handle.mode=1`,
+`persist.sys.gamepad.type=1`, and `persist.sys.mcu.checkerrs=2`.
+
+The vendor `MCUActivity` was launched only to exercise its existing
+`getMCUVersion()` path. The device was already locked/asleep, so Android
+paused the activity immediately (`visibleRequested=false`); this is not a UI
+acceptance result and no physical or synthetic button was sent. No MCU power
+control, test-data command, firmware update, or calibration write was used.
+
+The native response succeeded:
+
+```text
+rsinput: getMcuVersion(34)mcuVersion=V02.11.001.01 2026-01-05 14:55:30
+```
+
+That version and timestamp match the vendor `versioninfo.txt` and the
+firmware image metadata captured earlier. This proves that the mapper can
+open its `/dev/rscom` path and complete at least this UART request/response;
+it does not prove that live control frames are being decoded or forwarded.
+
+The same activity emitted the vendor's frame-status event:
+
+```text
+cmd = 6,,data = loss:1 all:79886 fps:6.0 166.7 h0err:1 c_err:0 l_err:0 h_err:0 fail:0 suc:0 pos:0 fd:75
+```
+
+These are recorded as vendor-reported counters, not as a decoded diagnosis.
+`loss:1` and `h0err:1` are nevertheless the strongest current clue that the
+MCU frame stream or its parser is not clean. The successful version response,
+the stable `/dev/rscom` alias timing, and the existing virtual Xbox device
+keep the remaining boundary below Steam and below the relay: MCU frame
+traffic, frame parsing, or the mapper's source-state forwarding.
+
+The run artifacts are under
+`android/nova-lab/build/mapper-test/input-20260809T222236Z-mcu-version/`:
+
+* `activity-start.txt`:
+  `34e79d4cb133261e5768bada7201b34c1711a9b549e91147bf42c6166a4a41b9`;
+* `after-activity.png` (1280x960):
+  `7dbd21d81cc1f0b69872bd82424469fa84f6e8145e231fdb39dbe7965ed95f00`;
+* `mcu-dmesg-filtered.txt`:
+  `72e2be174a44e2caa19bcd1e95404f6fb07ad1a175e1455d0bc243abc7024442`;
+* `mcu-logcat-filtered.txt`:
+  `4255a89b8cd8134d0162ad30fcfe759d8b0a0c8c5d17a162cccf57d47d72f37c`;
+* `post-activity-state.txt`:
+  `ee12a0176107f5cfd8661c59c28d2367e203bea663107a663cd6e38f4540c0e3`;
+* `preflight-cleanup.txt`:
+  `1bb8add9bfa2a0ad115fa08807f1927364b44300ae706823e12964cc74539be8`;
+* `preflight-state.txt`:
+  `5be65f92589c9cee0def69a79ba537c1ff7db04631fb118e1ca03ba9822d2243`.
+
+The next source-side step is to trace the `cmd = 6` status event and its
+`loss`/header-error fields through the decompiled vendor Java/native path. A
+new physical-control experiment should wait until the operator can press one
+known control and the raw source can be correlated with the virtual Xbox
+event stream.
+
 ## Cleanup
 
 Every attempt ended without a Nova Steam runtime. The exact helper returned
