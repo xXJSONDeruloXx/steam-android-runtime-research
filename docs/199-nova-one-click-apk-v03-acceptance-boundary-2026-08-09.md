@@ -31,6 +31,7 @@ keystore, and verified by `apksigner`.
 | single-controller namespace refinement, device-tested | `3681167` | `25d389dddc26cff7cbb53f39f6169cbbfc05eed68336dab53d09a4e4197d2ef0` | 0.3 |
 | relay-event allowlist refinement, device-tested | `21ad85a` | `d52d966749a4e6cc5b23c4548adce8c0161cea7c66aba5392fa2167bc191a356` | 0.3 |
 | notification-action product build, build-tested | `7ae566d` | `0ea67e39b3e0068eb78386cf3ddaac68e643ba2053361f23f0b3faf0213be4e8` | 0.3 |
+| notification lifecycle, device-tested without input | `b68943d` | `0ea67e39b3e0068eb78386cf3ddaac68e643ba2053361f23f0b3faf0213be4e8` | 0.3 |
 
 The runtime inputs for these attempts were the direct launcher mode: Termux:X11
 APK `/data/app/~~EaHbYh5LSrJyPyjYrj44Wg==/com.termux.x11-Yy3Sfe-6FUYa5hx2OcDldw==/base.apk`,
@@ -1275,6 +1276,58 @@ passed, and `aapt2 dump badging` reported package
 SDK 35. No device launch was performed for this source/build experiment, so
 it does not change the device acceptance boundary. The built APK SHA-256 is
 `0ea67e39b3e0068eb78386cf3ddaac68e643ba2053361f23f0b3faf0213be4e8`.
+
+### `apk-20260809T231700Z-notification-lifecycle`
+
+This was the first device lifecycle run of the notification-action build. The
+APK installed successfully and `LauncherActivity` started with no input or
+screen unlock. A privileged explicit service start was used because the
+operator was away; it exercises the same `LauncherService` and root launcher
+path without pretending that an Android UI tap occurred.
+
+The service reached the full direct product launch boundary:
+
+```text
+nova_launcher_gamepad=pass
+nova_launcher_input_allow=event9
+nova_launcher_x11_pid=19554
+nova_launcher_steam_pid=19587
+nova_launcher_ready=pass display=:0 geometry=1280x960
+```
+
+`dumpsys activity services` confirmed the service was foreground and its
+foreground notification contained one action:
+
+```text
+isForeground=true foregroundId=17 ... actions=1 vis=PRIVATE
+```
+
+However, Android 13 had notification permission denied for this fresh install:
+the notification service record existed, while notification state reported
+`com.xjsonderulo.steamandroid.novalab` at `importance=NONE` and the app's
+notification aggregate reported `blocked=1`. Therefore the Stop action was
+constructed correctly but was not visible in the notification shade in this
+run. The first-use launcher flow must request `POST_NOTIFICATIONS` and delay
+starting Steam until the user grants it; otherwise the product can still be
+stopped from its Activity but not reliably from the shade after Termux:X11
+becomes foreground.
+
+The direct root-side stop returned `nova_launcher_stop=pass`; the follow-up
+exact runtime cleanup also returned `pass`, with no matching process and no
+service remaining. Artifacts are under
+`android/nova-lab/build/manual-runs/apk-20260809T231700Z-notification-lifecycle/`:
+
+* APK install: `cf8806a75d7e8d5d2c9a6936c2f2aeff52844bf5d57270e0d80d707adda75061`;
+* Activity start: `ebfaa72c6df161d94c7e137f2e15653a140ca780cf41dc43f9652afc71c8cdd7`;
+* service start: `20880d4a8989e1003fa55bf03b42ca1165dac87bf2e3cb5445aef8cb0acf091b`;
+* root launcher log: `9e460e72b19ecf6c9ea6c01da41d46375110b3bd42fbd51a018a620ba56b54f3`;
+* service state with foreground notification action:
+  `7f8f9febf41b7ff5c73f496cfbb32c5a8f4f49f7046ab09b91ce2dd1a52b4bc6`;
+* notification permission/state dump:
+  `5736cbbece643bd27b5c0b33aa5d64432a3a646e9c6cae1eeb30107b8d914032`;
+* launcher stop: `1ba025a7da75c64669bbfd7ff7a11e25275d8edad6798b71f4aef468e8015ee2`;
+* final exact cleanup: `4acf12e3cd7083f7fae2c5f82858813e754676109963deae703bcabe98cf9250`;
+* post-stop process inventory: `1039ba37e7ac80be04866345240e392fcfebb3ef752f9fa258b66a36afb6994d`.
 
 ## Cleanup
 
