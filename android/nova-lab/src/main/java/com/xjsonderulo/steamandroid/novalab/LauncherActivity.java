@@ -30,6 +30,8 @@ public final class LauncherActivity extends Activity {
     private static final String TERMUX_X11_PACKAGE = "com.termux.x11";
     private static final String DEFAULT_ROOTFS = "/data/local/tmp/nova-holo-rootfs";
     private static final String LAUNCHER_DIR = "launcher";
+    private static final String EXTRA_RUN_AUDIO_BRIDGE_STEAM =
+            "run_audio_bridge_steam";
     private static final int REQUEST_POST_NOTIFICATIONS = 42;
     private static final String[] REQUIRED_ASSETS = {
             "nova-one-click-root-launcher.sh",
@@ -47,7 +49,8 @@ public final class LauncherActivity extends Activity {
             "libsysv-sem-shim.so",
             "libffmpeg-avutil-compat.so",
             "libsdl3-compat.so",
-            "libposix-sync-trace.so"
+            "libposix-sync-trace.so",
+            "libnova-alsa-audiotrack-bridge.so"
     };
 
     private final Handler handler = new Handler(Looper.getMainLooper());
@@ -137,6 +140,8 @@ public final class LauncherActivity extends Activity {
             stopAudioBridgeOnly();
         } else if (getIntent().getBooleanExtra("run_audio_bridge_only", false)) {
             startAudioBridgeOnly();
+        } else if (getIntent().getBooleanExtra(EXTRA_RUN_AUDIO_BRIDGE_STEAM, false)) {
+            startSteamSession();
         }
     }
 
@@ -186,6 +191,11 @@ public final class LauncherActivity extends Activity {
         service.putExtra(LauncherService.EXTRA_ASSET_DIRECTORY,
                 assetDirectory.getAbsolutePath());
         service.putExtra(LauncherService.EXTRA_TERMUX_APK, x11Info.sourceDir);
+        if (getIntent().getBooleanExtra(EXTRA_RUN_AUDIO_BRIDGE_STEAM, false)) {
+            service.putExtra(LauncherService.EXTRA_AUDIO_BRIDGE, true);
+            service.putExtra(LauncherService.EXTRA_AUDIO_BRIDGE_PORT,
+                    AudioPcmBridge.DEFAULT_PORT);
+        }
         if (Build.VERSION.SDK_INT >= 26) {
             startForegroundService(service);
         } else {

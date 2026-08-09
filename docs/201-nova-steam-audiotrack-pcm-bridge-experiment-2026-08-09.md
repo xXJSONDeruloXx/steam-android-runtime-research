@@ -130,6 +130,22 @@ same software Steam profile with the bridge enabled, checking whether the
 actual client reaches the endpoint and whether its existing UI readiness
 boundary remains intact.
 
+## Combined Steam-session run contract
+
+Before the next device launch, the APK now exposes the opt-in diagnostic extra
+`run_audio_bridge_steam=true`. It uses the normal one-click launcher and
+notification lifecycle, copies the bridge preload into the app-owned launcher
+asset directory, starts the loopback `AudioTrack` service before the root-side
+Steam command, and passes the bridge flag and port through the existing
+launcher environment. A normal launcher start remains bridge-disabled.
+
+The run will use the known software presentation profile and will not sample
+physical or synthetic input. The result is a transport/lifecycle check only:
+the useful pass is a Steam-owned bridge connection with nonzero PCM frames,
+the existing UI readiness boundary, and exact cleanup. A Steam crash, no
+connection, or `AudioTrack` error will be recorded without changing the
+default profile.
+
 ## Acceptance gates
 
 The bounded device run must establish, in order:
