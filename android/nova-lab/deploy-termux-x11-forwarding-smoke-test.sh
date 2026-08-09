@@ -21,6 +21,8 @@ X11_ROOTFS_DEVICES_HELPER="$SCRIPT_DIR/device/nova-termux-x11-rootfs-devices.sh"
 DEVICE_RUNTIME_CLEANUP=/data/local/tmp/nova-runtime-cleanup.sh
 CLIENT_FRAMES=${NOVA_TERMUX_X11_CLIENT_FRAMES:-600}
 ALLOW_X11_CAPTURE_FAILURE=${NOVA_TERMUX_X11_ALLOW_X11_CAPTURE_FAILURE:-0}
+STEAM_UID=${NOVA_TERMUX_X11_STEAM_UID:-501}
+STEAM_GID=${NOVA_TERMUX_X11_STEAM_GID:-20}
 RUN_ID=${NOVA_RUN_ID:-termux-x11-$(date -u +%Y%m%dT%H%M%SZ)-display-${DISPLAY_NUMBER}}
 RUN_DIR=${NOVA_RUN_DIR:-$BUILD_DIR/manual-runs/$RUN_ID}
 XKB_CONFIG_ROOT_RELATIVE=/usr/share/xkeyboard-config-2
@@ -85,6 +87,12 @@ if [ "$WINDOW_WAIT_SECONDS" -lt 1 ]; then
     echo "NOVA_TERMUX_X11_WINDOW_WAIT_SECONDS must be at least 1" >&2
     exit 2
 fi
+case "$STEAM_UID:$STEAM_GID" in
+    ''|*[!0-9:]*|*:*:*)
+        echo "NOVA_TERMUX_X11_STEAM_UID/GID must be numeric" >&2
+        exit 2
+        ;;
+esac
 
 if [ ! -f "$APK" ]; then
     echo "missing Termux:X11 APK: $APK" >&2
@@ -282,6 +290,7 @@ adb shell am start --user 0 -n com.termux.x11/com.termux.x11.MainActivity >"$RUN
     echo "client_launch=foreground adb shell su command with host-side background"
     echo "client_frames=$CLIENT_FRAMES"
     echo "allow_x11_capture_failure=$ALLOW_X11_CAPTURE_FAILURE"
+    echo "steam_uid=$STEAM_UID:$STEAM_GID"
     echo "x11_window_name=${X11_WINDOW_NAME-any viewable depth-1 child}"
     echo "x11_window_wait_seconds=$WINDOW_WAIT_SECONDS"
     echo "presentation=Termux:X11 Android SurfaceView"
@@ -323,7 +332,7 @@ echo "termux_x11_server=pass display=$DISPLAY_VALUE socket=$REMOTE_X11_SOCKET"
 adb shell "echo client_begin_run_id=$RUN_ID display=$DISPLAY_VALUE >$REMOTE_CLIENT_LOG"
 adb shell "echo 1 >$REMOTE_STATE_DIR/client-active"
 adb shell su -c \
-    "$REMOTE_CLIENT_LAUNCHER $REMOTE_PRIVATE_NAMESPACE_HELPER $REMOTE_CLIENT_STDOUT $REMOTE_CLIENT_STDERR $DEVICE_ROOT /usr/bin/env -i PATH=/usr/bin:/bin HOME=/tmp XDG_RUNTIME_DIR=/tmp TMPDIR=/tmp DISPLAY=$DISPLAY_VALUE XKB_CONFIG_ROOT=$XKB_CONFIG_ROOT_RELATIVE $CHROOT_CLIENT $CLIENT_FRAMES 1280 720" \
+    "$REMOTE_CLIENT_LAUNCHER $REMOTE_PRIVATE_NAMESPACE_HELPER $REMOTE_CLIENT_STDOUT $REMOTE_CLIENT_STDERR $DEVICE_ROOT /usr/bin/env -i PATH=/usr/bin:/bin HOME=/tmp XDG_RUNTIME_DIR=/tmp TMPDIR=/tmp DISPLAY=$DISPLAY_VALUE XKB_CONFIG_ROOT=$XKB_CONFIG_ROOT_RELATIVE NOVA_TERMUX_X11_STEAM_UID=$STEAM_UID NOVA_TERMUX_X11_STEAM_GID=$STEAM_GID $CHROOT_CLIENT $CLIENT_FRAMES 1280 720" \
     >"$RUN_DIR/client-launch-command.txt" 2>&1 &
 REMOTE_CLIENT_HOST_PID=$!
 printf '%s\n' "$REMOTE_CLIENT_HOST_PID" >"$RUN_DIR/client-host-pid.txt"

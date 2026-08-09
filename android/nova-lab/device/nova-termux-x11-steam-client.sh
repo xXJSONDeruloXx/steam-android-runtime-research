@@ -9,10 +9,17 @@ CLIENT_LOG=/tmp/nova-steam-client.log
 CLIENT_STDOUT=/tmp/nova-steam-client.stdout
 CLIENT_STDERR=/tmp/nova-steam-client.stderr
 RUNTIME_DIR=/tmp/nova-steam-runtime
-STEAM_UID=501
-STEAM_GID=20
+STEAM_UID=${NOVA_TERMUX_X11_STEAM_UID:-501}
+STEAM_GID=${NOVA_TERMUX_X11_STEAM_GID:-20}
 CLIENT_TIMEOUT=60
 client_pid=
+
+case "$STEAM_UID:$STEAM_GID" in
+    ''|*[!0-9:]*|*:*:*)
+        echo "invalid Steam uid/gid: $STEAM_UID:$STEAM_GID" >&2
+        exit 2
+        ;;
+esac
 
 log() {
     echo "$1" >>"$CLIENT_LOG"
