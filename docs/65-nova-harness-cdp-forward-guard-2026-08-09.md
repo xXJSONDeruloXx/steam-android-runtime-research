@@ -1,7 +1,7 @@
 # Nova manual-capture harness guards — 2026-08-09
 
-Status: repaired after two invalid observation attempts; no device evidence
-from either invalid run is used.
+Status: repaired after three invalid observation attempts; no device evidence
+from any invalid run is used.
 
 ## Incident
 
@@ -24,6 +24,12 @@ not present/writable on this build, so the helper failed before producing the
 PPM. That run was also stopped through the guarded teardown and its verifier
 passed; it is likewise not a transport result.
 
+The next replacement reached the same X11 tree and rootfs staging path, but the
+window-ID extraction used `sed | head -n 1` under `set -o pipefail`. Finding the
+first matching window caused `sed` to receive `SIGPIPE` and the helper to exit
+141 before the PPM capture. That run was also cleaned and verified, and is not
+transport evidence.
+
 ## Repair
 
 `capture-nova-manual-evidence.sh` now snapshots `adb forward --list` into the
@@ -35,6 +41,9 @@ forward-manifest path, making the precondition auditable.
 `$DEVICE_ROOT/tmp/nova-x11-capture-run`, which is the writable device path
 corresponding to `/tmp/nova-x11-capture-run` inside the chroot. It no longer
 assumes that the device's global `/tmp` exists or is writable.
+
+The window-ID parser now uses one `sed` process with an explicit early exit,
+so a successful first match cannot be converted into a failure by `pipefail`.
 
 The correct order for the next run is now explicit:
 

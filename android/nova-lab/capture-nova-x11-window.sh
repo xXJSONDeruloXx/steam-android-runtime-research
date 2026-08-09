@@ -75,9 +75,12 @@ trap on_exit EXIT
     "/system/bin/chroot $DEVICE_ROOT /usr/bin/env DISPLAY=:0 $DEVICE_X11_CAPTURE --tree" \
     >"$TREE"
 
-window_id=$(sed -n \
-    's/.*nova_x11_window id=\(0x[0-9A-Fa-f][0-9A-Fa-f]*\).*name="Steam Big Picture Mode".*/\1/p' \
-    "$TREE" | head -n 1)
+window_id=$(sed -n '
+    /name="Steam Big Picture Mode"/ {
+        s/.*nova_x11_window id=\(0x[0-9A-Fa-f][0-9A-Fa-f]*\).*name="Steam Big Picture Mode".*/\1/p
+        q
+    }
+' "$TREE")
 if [[ ! "$window_id" =~ ^0x[0-9A-Fa-f]+$ ]]; then
     echo "Steam Big Picture X11 window was not discovered in $TREE" >&2
     exit 1
