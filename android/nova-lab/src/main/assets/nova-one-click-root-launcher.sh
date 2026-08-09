@@ -11,6 +11,8 @@ DISPLAY_NUMBER="${NOVA_ANDROID_LAUNCHER_DISPLAY:-0}"
 DISPLAY_VALUE=":$DISPLAY_NUMBER"
 HARDWARE_ACCEL="${NOVA_ANDROID_LAUNCHER_HARDWARE_ACCEL:-0}"
 VULKAN_ICD="${NOVA_ANDROID_LAUNCHER_VULKAN_ICD:-/opt/nova-kgsl-driver/freedreno-kgsl.icd.json}"
+AUDIO_BRIDGE="${NOVA_ANDROID_LAUNCHER_AUDIO_BRIDGE:-0}"
+AUDIO_BRIDGE_PORT="${NOVA_ANDROID_LAUNCHER_AUDIO_BRIDGE_PORT:-29100}"
 X11_SOCKET="$ROOT/tmp/.X11-unix/X$DISPLAY_NUMBER"
 PRIVATE_HELPER="$APP_DIR/nova-x11-private-namespace.sh"
 CLEANUP_HELPER="$APP_DIR/nova-termux-x11-cleanup.sh"
@@ -38,6 +40,24 @@ case "$VULKAN_ICD" in
         exit 2
         ;;
 esac
+case "$AUDIO_BRIDGE" in
+    0|1)
+        ;;
+    *)
+        echo "invalid NOVA_ANDROID_LAUNCHER_AUDIO_BRIDGE: $AUDIO_BRIDGE" >&2
+        exit 2
+        ;;
+esac
+case "$AUDIO_BRIDGE_PORT" in
+    ''|*[!0-9]*)
+        echo "invalid NOVA_ANDROID_LAUNCHER_AUDIO_BRIDGE_PORT: $AUDIO_BRIDGE_PORT" >&2
+        exit 2
+        ;;
+esac
+if [ "$AUDIO_BRIDGE_PORT" -lt 1024 ] || [ "$AUDIO_BRIDGE_PORT" -gt 65535 ]; then
+    echo "NOVA_ANDROID_LAUNCHER_AUDIO_BRIDGE_PORT out of range: $AUDIO_BRIDGE_PORT" >&2
+    exit 2
+fi
 
 if [ ! -x "$MOUNT_PRIVATE" ]; then
     if [ -x /data/local/tmp/nova-mount-private ]; then
@@ -161,7 +181,8 @@ for driver_asset in \
     libsysv-sem-shim.so \
     libffmpeg-avutil-compat.so \
     libsdl3-compat.so \
-    libposix-sync-trace.so; do
+    libposix-sync-trace.so \
+    libnova-alsa-audiotrack-bridge.so; do
     if [ -f "$APP_DIR/$driver_asset" ]; then
         /system/bin/cp "$APP_DIR/$driver_asset" "$DRIVER_DIR/$driver_asset"
         /system/bin/chmod 755 "$DRIVER_DIR/$driver_asset"
@@ -200,6 +221,8 @@ printf '%s\n' "1" >"$STATE/client-active"
 printf '%s\n' "$session" >"$STATE/session"
 log "nova_launcher_hardware_accel=$HARDWARE_ACCEL"
 log "nova_launcher_vulkan_icd=$VULKAN_ICD"
+log "nova_launcher_audio_bridge=$AUDIO_BRIDGE"
+log "nova_launcher_audio_bridge_port=$AUDIO_BRIDGE_PORT"
 
 if [ -x "$RELAY_BINARY" ]; then
     allow_input_events=
@@ -289,6 +312,8 @@ fi
     NOVA_TERMUX_X11_STEAM_FULLDESKTOPRES=1 \
     NOVA_TERMUX_X11_STEAM_HARDWARE_ACCEL="$HARDWARE_ACCEL" \
     NOVA_TERMUX_X11_STEAM_VULKAN_ICD="$VULKAN_ICD" \
+    NOVA_TERMUX_X11_STEAM_AUDIO_BRIDGE="$AUDIO_BRIDGE" \
+    NOVA_TERMUX_X11_STEAM_AUDIO_BRIDGE_PORT="$AUDIO_BRIDGE_PORT" \
     NOVA_X11_ALLOW_INPUT_EVENTS="$allow_input_events" \
     NOVA_X11_HIDE_INPUT_EVENTS="$hide_input_events" \
     "$PRIVATE_HELPER" chroot-dev "$MOUNT_PRIVATE" "$ROOT" \

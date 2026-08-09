@@ -21,9 +21,13 @@ import java.util.concurrent.Executors;
 public final class LauncherService extends Service {
     public static final String ACTION_START = "com.xjsonderulo.steamandroid.novalab.START";
     public static final String ACTION_STOP = "com.xjsonderulo.steamandroid.novalab.STOP";
+    public static final String ACTION_AUDIO_ONLY =
+            "com.xjsonderulo.steamandroid.novalab.AUDIO_ONLY";
     public static final String EXTRA_ROOTFS = "rootfs";
     public static final String EXTRA_ASSET_DIRECTORY = "asset_directory";
     public static final String EXTRA_TERMUX_APK = "termux_apk";
+    public static final String EXTRA_AUDIO_BRIDGE = "audio_bridge";
+    public static final String EXTRA_AUDIO_BRIDGE_PORT = "audio_bridge_port";
     private static final String TAG = "NovaLauncher";
     private static final String CHANNEL_ID = "nova-steam-session";
     private static final int NOTIFICATION_ID = 17;
@@ -35,6 +39,10 @@ public final class LauncherService extends Service {
     private String rootfs;
     private String assetDirectory;
     private String termuxApk;
+    private AudioPcmBridge audioBridge;
+    private boolean audioBridgeEnabled;
+    private int audioBridgePort = AudioPcmBridge.DEFAULT_PORT;
+    private boolean audioOnly;
 
     public static String getStatus() {
         return status;
@@ -57,19 +65,49 @@ public final class LauncherService extends Service {
             stopSession();
             return START_NOT_STICKY;
         }
-        if (intent == null || !ACTION_START.equals(intent.getAction())) {
+        if (intent == null) {
+            return START_NOT_STICKY;
+        }
+
+        if (ACTION_AUDIO_ONLY.equals(intent.getAction())) {
+            synchronized (processLock) {
+                if (launcherProcess != null || audioBridge != null) {
+                    setStatus("Nova audio bridge is already starting or running");
+                    return START_NOT_STICKY;
+                }
+                audioOnly = true;
+                audioBridgeEnabled = true;
+                audioBridgePort = requestedAudioPort(intent);
+                startForeground(NOTIFICATION_ID, buildNotification("Starting audio bridge"));
+                if (!startAudioBridgeLocked()) {
+                    audioOnly = false;
+                    stopForeground(STOP_FOREGROUND_REMOVE);
+                    stopSelf();
+                }
+            }
+            return START_NOT_STICKY;
+        }
+        if (!ACTION_START.equals(intent.getAction())) {
             return START_NOT_STICKY;
         }
 
         synchronized (processLock) {
-            if (launcherProcess != null) {
+            if (launcherProcess != null || audioBridge != null) {
                 setStatus("Nova session is already starting or running");
                 return START_NOT_STICKY;
             }
             rootfs = intent.getStringExtra(EXTRA_ROOTFS);
             assetDirectory = intent.getStringExtra(EXTRA_ASSET_DIRECTORY);
             termuxApk = intent.getStringExtra(EXTRA_TERMUX_APK);
+            audioOnly = false;
+            audioBridgeEnabled = intent.getBooleanExtra(EXTRA_AUDIO_BRIDGE, false);
+            audioBridgePort = requestedAudioPort(intent);
             startForeground(NOTIFICATION_ID, buildNotification("Starting Steam"));
+            if (!startAudioBridgeLocked()) {
+                stopForeground(STOP_FOREGROUND_REMOVE);
+                stopSelf();
+                return START_NOT_STICKY;
+            }
             executor.execute(new Runnable() {
                 @Override
                 public void run() {
@@ -90,6 +128,7 @@ public final class LauncherService extends Service {
         if (process != null) {
             process.destroy();
         }
+        stopAudioBridge();
         executor.shutdownNow();
         super.onDestroy();
     }
@@ -101,7 +140,11 @@ public final class LauncherService extends Service {
 
     private void runLauncher() {
         File script = new File(assetDirectory, "nova-one-click-root-launcher.sh");
-        String command = "/system/bin/sh " + shellQuote(script.getAbsolutePath())
+        String command = "NOVA_ANDROID_LAUNCHER_AUDIO_BRIDGE="
+                + shellQuote(audioBridgeEnabled ? "1" : "0")
+                + " NOVA_ANDROID_LAUNCHER_AUDIO_BRIDGE_PORT="
+                + shellQuote(Integer.toString(audioBridgePort))
+                + " /system/bin/sh " + shellQuote(script.getAbsolutePath())
                 + " start " + shellQuote(rootfs)
                 + " " + shellQuote(sessionStateDirectory())
                 + " " + shellQuote(termuxApk)
@@ -132,6 +175,7 @@ public final class LauncherService extends Service {
             synchronized (processLock) {
                 launcherProcess = null;
             }
+            stopAudioBridge();
         }
     }
 
@@ -142,12 +186,22 @@ public final class LauncherService extends Service {
                 ? new File(getFilesDir(), "launcher").getAbsolutePath() : assetDirectory;
         final String currentTermuxApk = termuxApk == null ? "" : termuxApk;
         Process process;
+        boolean audioOnlyRun;
         synchronized (processLock) {
             process = launcherProcess;
             launcherProcess = null;
+            audioOnlyRun = audioOnly;
+            audioOnly = false;
         }
         if (process != null) {
             process.destroy();
+        }
+        stopAudioBridge();
+        if (audioOnlyRun) {
+            setStatus("Nova audio bridge stopped");
+            stopForeground(STOP_FOREGROUND_REMOVE);
+            stopSelf();
+            return;
         }
         setStatus("Stopping Nova session");
         executor.execute(new Runnable() {
@@ -185,6 +239,41 @@ public final class LauncherService extends Service {
 
     private String sessionStateDirectory() {
         return "/data/local/tmp/nova-android-launcher";
+    }
+
+    private boolean startAudioBridgeLocked() {
+        if (!audioBridgeEnabled) {
+            return true;
+        }
+        AudioPcmBridge bridge = new AudioPcmBridge(audioBridgePort);
+        if (!bridge.start()) {
+            setStatus("Nova audio bridge failed: " + bridge.getStatus());
+            return false;
+        }
+        audioBridge = bridge;
+        setStatus("Nova audio bridge ready port=" + audioBridgePort);
+        return true;
+    }
+
+    private void stopAudioBridge() {
+        AudioPcmBridge bridge;
+        synchronized (processLock) {
+            bridge = audioBridge;
+            audioBridge = null;
+            audioBridgeEnabled = false;
+        }
+        if (bridge != null) {
+            bridge.stop();
+        }
+    }
+
+    private int requestedAudioPort(Intent intent) {
+        int requested = intent.getIntExtra(
+                EXTRA_AUDIO_BRIDGE_PORT, AudioPcmBridge.DEFAULT_PORT);
+        if (requested < 1024 || requested > 65535) {
+            return AudioPcmBridge.DEFAULT_PORT;
+        }
+        return requested;
     }
 
     private Notification buildNotification(String text) {

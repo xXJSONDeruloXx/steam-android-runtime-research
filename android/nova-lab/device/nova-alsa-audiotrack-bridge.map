@@ -1,0 +1,9 @@
+{
+    global:
+        snd_pcm_open;
+        snd_pcm_set_params;
+        snd_pcm_writei;
+        snd_pcm_close;
+    local:
+        *;
+};

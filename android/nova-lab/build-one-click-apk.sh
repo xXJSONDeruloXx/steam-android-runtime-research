@@ -19,4 +19,8 @@ if [ ! -x "$BUILD_DIR/nova-uinput-gamepad-relay" ]; then
     fi
 fi
 
+if [ ! -f "$BUILD_DIR/libnova-alsa-audiotrack-bridge.so" ]; then
+    "$SCRIPT_DIR/build-alsa-audiotrack-bridge.sh" >/dev/null
+fi
+
 "$SCRIPT_DIR/build.sh"

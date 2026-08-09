@@ -22,6 +22,8 @@ STEAM_WIDTH=${NOVA_TERMUX_X11_STEAM_WIDTH:-}
 STEAM_HEIGHT=${NOVA_TERMUX_X11_STEAM_HEIGHT:-}
 STEAM_HARDWARE_ACCEL=${NOVA_TERMUX_X11_STEAM_HARDWARE_ACCEL:-0}
 STEAM_VULKAN_ICD=${NOVA_TERMUX_X11_STEAM_VULKAN_ICD:-/opt/nova-kgsl-driver/freedreno-kgsl.icd.json}
+AUDIO_BRIDGE=${NOVA_TERMUX_X11_STEAM_AUDIO_BRIDGE:-0}
+AUDIO_BRIDGE_PORT=${NOVA_TERMUX_X11_STEAM_AUDIO_BRIDGE_PORT:-29100}
 DBUS_SESSION_MODE=${NOVA_TERMUX_X11_DBUS_SESSION:-0}
 DBUS_SESSION_USER=${NOVA_TERMUX_X11_DBUS_SESSION_USER:-steam}
 DBUS_SESSION_UID_RECORD=${NOVA_TERMUX_X11_DBUS_SESSION_UID_RECORD:-0}
@@ -98,6 +100,24 @@ case "$STEAM_VULKAN_ICD" in
         exit 2
         ;;
 esac
+case "$AUDIO_BRIDGE" in
+    0|1)
+        ;;
+    *)
+        echo "invalid NOVA_TERMUX_X11_STEAM_AUDIO_BRIDGE: $AUDIO_BRIDGE" >&2
+        exit 2
+        ;;
+esac
+case "$AUDIO_BRIDGE_PORT" in
+    ''|*[!0-9]*)
+        echo "invalid NOVA_TERMUX_X11_STEAM_AUDIO_BRIDGE_PORT: $AUDIO_BRIDGE_PORT" >&2
+        exit 2
+        ;;
+esac
+if [ "$AUDIO_BRIDGE_PORT" -lt 1024 ] || [ "$AUDIO_BRIDGE_PORT" -gt 65535 ]; then
+    echo "NOVA_TERMUX_X11_STEAM_AUDIO_BRIDGE_PORT out of range: $AUDIO_BRIDGE_PORT" >&2
+    exit 2
+fi
 case "$DBUS_SESSION_MODE" in
     0|1)
         ;;
@@ -275,6 +295,8 @@ log "client_width=${STEAM_WIDTH:-unset}"
 log "client_height=${STEAM_HEIGHT:-unset}"
 log "client_hardware_accel=$STEAM_HARDWARE_ACCEL"
 log "client_vulkan_icd=$STEAM_VULKAN_ICD"
+log "client_audio_bridge=$AUDIO_BRIDGE"
+log "client_audio_bridge_port=$AUDIO_BRIDGE_PORT"
 log "client_uid=$STEAM_UID"
 log "client_gid=$STEAM_GID"
 log "client_audio_gid=$STEAM_AUDIO_GID"
@@ -364,9 +386,25 @@ else
     log "client_vk_icd=unset"
 fi
 export LD_LIBRARY_PATH="$STEAM_ROOT/steamrtarm64:$STEAM_ROOT/lib/aarch64-linux-gnu:/usr/lib${steam_runtime_files_bin:+:${steam_runtime_files_bin%/bin}/lib/aarch64-linux-gnu}${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+preload_paths=
+if [ "$AUDIO_BRIDGE" -eq 1 ]; then
+    if [ ! -f /opt/nova-kgsl-driver/libnova-alsa-audiotrack-bridge.so ]; then
+        log "client_started=fail"
+        log "client_error=missing_audio_bridge_library"
+        exit 1
+    fi
+    preload_paths=/opt/nova-kgsl-driver/libnova-alsa-audiotrack-bridge.so
+fi
 if [ -f /opt/nova-kgsl-driver/libsysv-sem-shim.so ]; then
-    export LD_PRELOAD=/opt/nova-kgsl-driver/libsysv-sem-shim.so
-    log "client_preload=/opt/nova-kgsl-driver/libsysv-sem-shim.so"
+    if [ -n "$preload_paths" ]; then
+        preload_paths="$preload_paths:/opt/nova-kgsl-driver/libsysv-sem-shim.so"
+    else
+        preload_paths=/opt/nova-kgsl-driver/libsysv-sem-shim.so
+    fi
+fi
+if [ -n "$preload_paths" ]; then
+    export LD_PRELOAD="$preload_paths"
+    log "client_preload=$LD_PRELOAD"
 else
     unset LD_PRELOAD
     log "client_preload=missing_libsysv_sem_shim"

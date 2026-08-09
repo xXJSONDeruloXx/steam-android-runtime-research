@@ -57,7 +57,8 @@ for optional_helper in \
     libsysv-sem-shim.so \
     libffmpeg-avutil-compat.so \
     libsdl3-compat.so \
-    libposix-sync-trace.so; do
+    libposix-sync-trace.so \
+    libnova-alsa-audiotrack-bridge.so; do
     if [ -f "$BUILD_DIR/$optional_helper" ]; then
         cp "$BUILD_DIR/$optional_helper" "$APK_ASSET_DIR/$optional_helper"
     fi

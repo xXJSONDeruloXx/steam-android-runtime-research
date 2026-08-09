@@ -31,6 +31,13 @@ The initial protocol is 48 kHz, two-channel, signed 16-bit little-endian PCM,
 with a fixed magic/version header and one client per session. The server binds
 only to `127.0.0.1`; it is not an Android network-service feature.
 
+The implementation is now present but remains opt-in and untested on the
+device. `AudioPcmBridge` is owned by the foreground `LauncherService`, the
+root launcher passes `NOVA_ANDROID_LAUNCHER_AUDIO_BRIDGE` and its port, and
+`build-alsa-audiotrack-bridge.sh` produces the ARM64 preload. Local validation
+passed: shell syntax, ARM64 shared-library compilation, exported ALSA symbol
+inspection, Java compilation, APK signing, and APK build.
+
 ## Acceptance gates
 
 The bounded device run must establish, in order:
