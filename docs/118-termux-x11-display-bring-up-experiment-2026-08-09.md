@@ -50,6 +50,12 @@ chroot `/tmp` can be written with `adb push`, so the harness stages the client
 and capture helper as direct `/tmp/nova-x11-*-<run-id>` files and removes those
 exact files during cleanup. No bind mount is part of this experiment.
 
+The first post-staging rerun also showed that directories created by the
+restricted `su` shell become `root:root` and cannot receive its own log/PID
+writes. The harness therefore creates a run-specific state directory through
+the regular shell transport, makes only that directory writable, and records
+its path in `run-metadata.txt`.
+
 ## Procedure and gates
 
 `android/nova-lab/deploy-termux-x11-forwarding-smoke-test.sh` must:
