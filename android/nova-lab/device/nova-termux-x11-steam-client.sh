@@ -15,6 +15,7 @@ CLIENT_TIMEOUT=${NOVA_TERMUX_X11_STEAM_TIMEOUT_SECONDS:-60}
 DBUS_SESSION_MODE=${NOVA_TERMUX_X11_DBUS_SESSION:-0}
 DBUS_SESSION_USER=${NOVA_TERMUX_X11_DBUS_SESSION_USER:-steam}
 DBUS_SESSION_UID_RECORD=${NOVA_TERMUX_X11_DBUS_SESSION_UID_RECORD:-0}
+DBUS_SYSTEM_MODE=${NOVA_TERMUX_X11_DBUS_SYSTEM:-0}
 client_pid=
 dbus_session_pid=
 dbus_session_dir=
@@ -24,6 +25,14 @@ dbus_session_log=
 dbus_session_probe_log=
 dbus_passwd_backup=
 dbus_passwd_changed=0
+dbus_system_pid=
+dbus_system_dir=
+dbus_system_socket=
+dbus_system_pid_file=
+dbus_system_log=
+dbus_system_probe_log=
+dbus_system_dir_created=0
+dbus_system_started=0
 
 case "$STEAM_UID:$STEAM_GID" in
     ''|*[!0-9:]*|*:*:*)
@@ -62,6 +71,14 @@ case "$DBUS_SESSION_UID_RECORD" in
         ;;
     *)
         echo "invalid NOVA_TERMUX_X11_DBUS_SESSION_UID_RECORD: $DBUS_SESSION_UID_RECORD" >&2
+        exit 2
+        ;;
+esac
+case "$DBUS_SYSTEM_MODE" in
+    0|1)
+        ;;
+    *)
+        echo "invalid NOVA_TERMUX_X11_DBUS_SYSTEM: $DBUS_SYSTEM_MODE" >&2
         exit 2
         ;;
 esac
@@ -116,6 +133,27 @@ stop_dbus_session() {
     fi
 }
 
+stop_dbus_system() {
+    if [ -n "${dbus_system_pid:-}" ] && /usr/bin/kill -0 "$dbus_system_pid" 2>/dev/null; then
+        /usr/bin/kill "$dbus_system_pid" 2>/dev/null || true
+    fi
+    if [ -n "${dbus_system_pid:-}" ]; then
+        /usr/bin/wait "$dbus_system_pid" 2>/dev/null || true
+    fi
+    if [ "$dbus_system_started" -eq 1 ]; then
+        if [ -n "${dbus_system_socket:-}" ]; then
+            /bin/rm -f "$dbus_system_socket"
+        fi
+        if [ -n "${dbus_system_pid_file:-}" ]; then
+            /bin/rm -f "$dbus_system_pid_file"
+        fi
+        if [ "$dbus_system_dir_created" -eq 1 ] && [ -n "${dbus_system_dir:-}" ]; then
+            /bin/rmdir "$dbus_system_dir" 2>/dev/null || true
+        fi
+        log "dbus_system_cleanup=pass socket=${dbus_system_socket:-unset}"
+    fi
+}
+
 restore_dbus_passwd_record() {
     if [ "$dbus_passwd_changed" -ne 1 ] || [ -z "$dbus_passwd_backup" ]; then
         return 0
@@ -140,6 +178,12 @@ finish() {
         /usr/bin/kill "$client_pid" 2>/dev/null || true
         /usr/bin/sleep 0.2
         /usr/bin/kill -9 "$client_pid" 2>/dev/null || true
+    fi
+    stop_dbus_system
+    if [ -n "${dbus_system_log:-}" ] && [ -f "$dbus_system_log" ]; then
+        log "dbus_system_daemon_output_begin"
+        /bin/cat "$dbus_system_log" >>"$CLIENT_LOG"
+        log "dbus_system_daemon_output_end"
     fi
     stop_dbus_session
     if [ -n "${dbus_session_log:-}" ] && [ -f "$dbus_session_log" ]; then
@@ -181,6 +225,7 @@ log "client_runtime_dir=$RUNTIME_DIR"
 log "client_dbus_session_mode=$DBUS_SESSION_MODE"
 log "client_dbus_session_user=$DBUS_SESSION_USER"
 log "client_dbus_session_uid_record=$DBUS_SESSION_UID_RECORD"
+log "client_dbus_system_mode=$DBUS_SYSTEM_MODE"
 
 if [ ! -x "$STEAM_EXECUTABLE" ]; then
     log "client_started=fail"
@@ -365,6 +410,85 @@ start_dbus_session() {
     return 0
 }
 
+start_dbus_system() {
+    if [ "$DBUS_SYSTEM_MODE" -eq 0 ]; then
+        log "client_dbus_system=disabled"
+        return 0
+    fi
+
+    log "client_dbus_system=enabled"
+    if [ ! -x /usr/bin/dbus-daemon ]; then
+        log "client_dbus_system_status=fail reason=missing_dbus_daemon"
+        return 1
+    fi
+    DBUS_SYSTEM_CONFIG=/usr/share/dbus-1/system.conf
+    if [ ! -r "$DBUS_SYSTEM_CONFIG" ]; then
+        log "client_dbus_system_status=fail reason=missing_system_config"
+        return 1
+    fi
+
+    dbus_system_dir=/run/dbus
+    dbus_system_socket=$dbus_system_dir/system_bus_socket
+    dbus_system_pid_file=$dbus_system_dir/pid
+    dbus_system_log="$RUNTIME_DIR/dbus-system.log"
+    dbus_system_probe_log="$RUNTIME_DIR/dbus-system-probe.log"
+    if [ -e "$dbus_system_socket" ]; then
+        log "client_dbus_system_status=fail reason=stale_socket"
+        return 1
+    fi
+    if [ ! -d "$dbus_system_dir" ]; then
+        if ! /bin/mkdir -p "$dbus_system_dir"; then
+            log "client_dbus_system_status=fail reason=system_dir_setup"
+            return 1
+        fi
+        dbus_system_dir_created=1
+    fi
+    /bin/rm -f "$dbus_system_pid_file"
+    : >"$dbus_system_log"
+    dbus_system_started=1
+    /usr/bin/env -u LD_PRELOAD /usr/bin/dbus-daemon \
+        --config-file="$DBUS_SYSTEM_CONFIG" --nofork \
+        >"$dbus_system_log" 2>&1 &
+    dbus_system_pid=$!
+    log "client_dbus_system_config=$DBUS_SYSTEM_CONFIG"
+    log "client_dbus_system_pid=$dbus_system_pid"
+    log "client_dbus_system_socket=$dbus_system_socket"
+
+    dbus_system_ready=0
+    dbus_system_attempt=0
+    while [ "$dbus_system_attempt" -lt 50 ]; do
+        if [ -S "$dbus_system_socket" ]; then
+            dbus_system_ready=1
+            break
+        fi
+        if ! /usr/bin/kill -0 "$dbus_system_pid" 2>/dev/null; then
+            break
+        fi
+        /usr/bin/sleep 0.1
+        dbus_system_attempt=$((dbus_system_attempt + 1))
+    done
+    if [ "$dbus_system_ready" -ne 1 ]; then
+        log "client_dbus_system_status=fail reason=socket_not_ready"
+        return 1
+    fi
+    log "client_dbus_system_status=pass"
+    if run_as_steam /usr/bin/env -u LD_PRELOAD /usr/bin/dbus-send \
+        --system --print-reply --dest=org.freedesktop.DBus \
+        /org/freedesktop/DBus org.freedesktop.DBus.ListNames \
+        >"$dbus_system_probe_log" 2>&1; then
+        log "client_dbus_system_client_probe=pass"
+    else
+        log "client_dbus_system_client_probe=fail"
+    fi
+    log "dbus_system_client_probe_output_begin"
+    /bin/cat "$dbus_system_probe_log" >>"$CLIENT_LOG"
+    log "dbus_system_client_probe_output_end"
+    return 0
+}
+
+if ! start_dbus_system; then
+    exit 1
+fi
 if ! start_dbus_session; then
     exit 1
 fi
