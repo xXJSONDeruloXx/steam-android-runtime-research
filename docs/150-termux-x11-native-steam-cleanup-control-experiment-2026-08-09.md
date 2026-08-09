@@ -1,6 +1,6 @@
 # Termux:X11 native ARM64 Steam cleanup-control experiment — 2026-08-09
 
-Status: predeclared experiment; no device launch has run for this profile.
+Status: completed; see the [device result](151-termux-x11-native-steam-cleanup-control-result-2026-08-09.md).
 
 ## Purpose
 
