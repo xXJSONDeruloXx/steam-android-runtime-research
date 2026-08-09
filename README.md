@@ -196,6 +196,7 @@ the gamescope frames on its own surface.
 - [Nova AHB frame identity device result](docs/79-nova-ahb-frame-identity-result-2026-08-09.md)
 - [Nova AHB downstream surface-marker experiment](docs/80-nova-ahb-surface-marker-experiment-2026-08-09.md)
 - [Nova AHB downstream surface-marker result](docs/81-nova-ahb-surface-marker-result-2026-08-09.md)
+- [Nova origin/main repaint-trigger result](docs/82-nova-origin-main-repaint-trigger-result-2026-08-09.md)
 - [Retroid Pocket Nova flashing kit](tools/retroid-pocket-nova/README.md)
 
 ## Evidence standard
