@@ -192,6 +192,7 @@ the gamescope frames on its own surface.
 - [Nova continuous AHB quiet-scene fix](docs/75-nova-continuous-ahb-quiet-scene-fix-2026-08-09.md)
 - [Nova AHB explicit cancellation](docs/76-nova-ahb-explicit-cancellation-2026-08-09.md)
 - [Nova Gamescope scheduler-trace integration](docs/77-nova-gamescope-scheduler-trace-integration-2026-08-09.md)
+- [Nova Gamescope scheduler-trace device result](docs/78-nova-gamescope-scheduler-trace-result-2026-08-09.md)
 - [Retroid Pocket Nova flashing kit](tools/retroid-pocket-nova/README.md)
 
 ## Evidence standard
