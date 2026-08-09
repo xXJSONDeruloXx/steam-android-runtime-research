@@ -206,6 +206,7 @@ the gamescope frames on its own surface.
 - [Nova AHB valid-content cadence experiment](docs/89-nova-ahb-valid-content-cadence-experiment-2026-08-09.md)
 - [Nova AHB valid-content cadence result](docs/90-nova-ahb-valid-content-cadence-result-2026-08-09.md)
 - [Nova AHB valid-content timeout-split experiment](docs/91-nova-ahb-valid-content-timeout-split-experiment-2026-08-09.md)
+- [Nova AHB valid-content timeout-split result](docs/92-nova-ahb-valid-content-timeout-split-result-2026-08-09.md)
 - [Retroid Pocket Nova flashing kit](tools/retroid-pocket-nova/README.md)
 
 ## Evidence standard
