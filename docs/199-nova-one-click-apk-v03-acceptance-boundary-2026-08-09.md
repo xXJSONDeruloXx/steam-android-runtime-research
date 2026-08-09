@@ -351,6 +351,37 @@ bounded physical capture. A fresh session must therefore capture all input
 nodes while the operator presses the built-in controls and correlate those
 events with the mapper's MCU log before changing Steam input code.
 
+### `launcher-20260809T204121Z-apk-v04-physical-input`
+
+This fresh direct-APK run used commit `ec69b2e4ff924eeda15542ce632d0a58a27ffe79`
+and APK SHA-256
+`398412c0f2c711ffcb3d11a86a8038daa7474660ef9cf58fce3b4a0660d661b2`.
+The client started with the restored default command line (fullscreen and
+full-desktop-resolution only), the relay reported source event7 and output
+event9, and Steam opened one 045e/028e Xbox-compatible controller.
+
+During the operator-directed 30-second synchronized capture, neither the
+physical mapper source nor the relay output produced an event:
+
+```text
+---SOURCE_EVENT7---
+---RELAY_EVENT9---
+```
+
+The combined trace hash is
+`f62b2aed4fada12a9e1a9e900c16d37005981e913d9105ec6a280bf8e1eb4d78`.
+The Steam UI remained live with 198X selected, so this is not a display or
+Steam-readiness failure. It also means the earlier synthetic `sendevent`
+success cannot be used as evidence that the Nova's physical buttons are
+working. The mapper logs during this run showed additional event9/event10
+creation/removal churn and the same `rsinput`/mapping-service behavior; the
+relay itself remained ready throughout.
+
+This moves the next input experiment below the Nova relay: inspect and restore
+the Retroid `com.rp.mapping` gamepad profile/MCU path, including why Bluetooth
+is off and why the mapper transitions to an empty configuration. Do not change
+Steam's event mapping until a real event appears on event7.
+
 ## Cleanup
 
 Every attempt ended without a Nova Steam runtime. The exact helper returned
@@ -371,9 +402,8 @@ single-controller namespace gate is accepted, but physical-controller
 forwarding is not yet accepted. The next run should focus on the remaining
 product boundaries, in order:
 
-1. capture a fresh bounded human-input window on both physical event7 and
-   relay event9, then fix source-node selection or Android/controller routing
-   if event7 is quiet;
+1. inspect and restore the Retroid mapper/MCU gamepad profile so a real event
+   appears on event7, then re-run the physical-event7-to-relay-event9 gate;
 2. test and fix the 1280x800 Steam window geometry against the 1280x960 Nova
    surface;
 3. establish whether the `default` Steam audio manager reaches an Android
