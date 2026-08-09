@@ -16,6 +16,7 @@ DEVICE_RUNTIME_CLEANUP=/data/local/tmp/nova-runtime-cleanup.sh
 CLIENT_FRAMES=${NOVA_TERMUX_X11_CLIENT_FRAMES:-600}
 RUN_ID=${NOVA_RUN_ID:-termux-x11-$(date -u +%Y%m%dT%H%M%SZ)-display-${DISPLAY_NUMBER}}
 RUN_DIR=${NOVA_RUN_DIR:-$BUILD_DIR/manual-runs/$RUN_ID}
+XKB_CONFIG_ROOT_RELATIVE=/usr/share/xkeyboard-config-2
 
 DISPLAY_VALUE=:$DISPLAY_NUMBER
 REMOTE_STATE_DIR=/data/local/tmp/nova-x11-forwarding-state-$RUN_ID
@@ -154,6 +155,16 @@ if adb shell su -c "test -S $REMOTE_X11_SOCKET" >/dev/null 2>&1; then
 fi
 adb shell am force-stop com.xjsonderulo.steamandroid.novalab >/dev/null 2>&1 || true
 adb install -r -g --no-streaming "$APK" >"$RUN_DIR/apk-install.txt"
+TERMUX_X11_CLASSPATH=$(adb shell pm path com.termux.x11 | tr -d '\r' | sed -n 's/^package://p' | head -n 1)
+case "$TERMUX_X11_CLASSPATH" in
+    /data/app/*/base.apk)
+        ;;
+    *)
+        echo "invalid Termux:X11 APK path: $TERMUX_X11_CLASSPATH" >&2
+        exit 1
+        ;;
+esac
+adb logcat -c
 adb shell am start --user 0 -n com.termux.x11/com.termux.x11.MainActivity >"$RUN_DIR/activity-start.txt" 2>&1 || true
 
 {
@@ -162,10 +173,12 @@ adb shell am start --user 0 -n com.termux.x11/com.termux.x11.MainActivity >"$RUN
     echo "adb_serial=$ADB_SERIAL"
     echo "device_root=$DEVICE_ROOT"
     echo "display=$DISPLAY_VALUE"
+    echo "xkb_config_root=$DEVICE_ROOT$XKB_CONFIG_ROOT_RELATIVE"
     echo "state_dir=$REMOTE_STATE_DIR"
     echo "staged_client=$REMOTE_CLIENT"
     echo "staged_capture=$REMOTE_CAPTURE"
     echo "termux_x11_apk=$APK"
+    echo "termux_x11_device_apk=$TERMUX_X11_CLASSPATH"
     echo "termux_x11_apk_sha256=$(sha256sum "$APK" | awk '{print $1}')"
     echo "x11_animate=$X11_ANIMATE"
     echo "x11_animate_sha256=$(sha256sum "$X11_ANIMATE" | awk '{print $1}')"
@@ -187,7 +200,7 @@ adb push "$X11_ANIMATE" "$REMOTE_CLIENT" >/dev/null
 adb push "$X11_CAPTURE" "$REMOTE_CAPTURE" >/dev/null
 
 adb shell su -c \
-    "CLASSPATH=\$(pm path com.termux.x11 | cut -d: -f2); /system/bin/env TMPDIR=$DEVICE_ROOT/tmp XKB_CONFIG_ROOT=$DEVICE_ROOT/usr/share/X11/xkb CLASSPATH=\$CLASSPATH TERMUX_X11_DEBUG=1 /system/bin/app_process / --nice-name=termux-x11 com.termux.x11.CmdEntryPoint $DISPLAY_VALUE >$REMOTE_SERVER_LOG 2>&1 & echo \$! >$REMOTE_SERVER_PID_FILE"
+    "/system/bin/env TMPDIR=$DEVICE_ROOT/tmp XKB_CONFIG_ROOT=$DEVICE_ROOT$XKB_CONFIG_ROOT_RELATIVE CLASSPATH=$TERMUX_X11_CLASSPATH TERMUX_X11_DEBUG=1 /system/bin/app_process / --nice-name=termux-x11 com.termux.x11.CmdEntryPoint $DISPLAY_VALUE >$REMOTE_SERVER_LOG 2>&1 & echo \$! >$REMOTE_SERVER_PID_FILE"
 
 socket_ready=0
 for attempt in $(seq 1 60); do
@@ -204,11 +217,11 @@ fi
 echo "termux_x11_server=pass display=$DISPLAY_VALUE socket=$REMOTE_X11_SOCKET"
 
 adb shell su -c \
-    "printf '%s\\n' 'client_begin run_id=$RUN_ID display=$DISPLAY_VALUE' >$REMOTE_CLIENT_LOG; chroot $DEVICE_ROOT /usr/bin/env DISPLAY=$DISPLAY_VALUE XKB_CONFIG_ROOT=/usr/share/X11/xkb $CHROOT_CLIENT $CLIENT_FRAMES 1280 720 >$REMOTE_CLIENT_STDOUT 2>$REMOTE_CLIENT_STDERR & echo \$! >$REMOTE_CLIENT_PID_FILE"
+    "printf '%s\\n' 'client_begin run_id=$RUN_ID display=$DISPLAY_VALUE' >$REMOTE_CLIENT_LOG; chroot $DEVICE_ROOT /usr/bin/env DISPLAY=$DISPLAY_VALUE XKB_CONFIG_ROOT=$XKB_CONFIG_ROOT_RELATIVE $CHROOT_CLIENT $CLIENT_FRAMES 1280 720 >$REMOTE_CLIENT_STDOUT 2>$REMOTE_CLIENT_STDERR & echo \$! >$REMOTE_CLIENT_PID_FILE"
 
 sleep 1
 adb shell su -c \
-    "chroot $DEVICE_ROOT /usr/bin/env DISPLAY=$DISPLAY_VALUE XKB_CONFIG_ROOT=/usr/share/X11/xkb $CHROOT_CAPTURE --tree" \
+    "chroot $DEVICE_ROOT /usr/bin/env DISPLAY=$DISPLAY_VALUE XKB_CONFIG_ROOT=$XKB_CONFIG_ROOT_RELATIVE $CHROOT_CAPTURE --tree" \
     >"$RUN_DIR/x11-tree.txt"
 
 window_id=$(sed -n 's/^nova_x11_window id=\([^ ]*\).*name="Nova animated Xwayland Gamescope probe".*/\1/p' "$RUN_DIR/x11-tree.txt" | head -n 1)
@@ -219,7 +232,7 @@ fi
 echo "termux_x11_window=pass id=$window_id"
 
 adb shell su -c \
-    "chroot $DEVICE_ROOT /usr/bin/env DISPLAY=$DISPLAY_VALUE XKB_CONFIG_ROOT=/usr/share/X11/xkb $CHROOT_CAPTURE --window-ppm $window_id $CHROOT_X11_PPM" \
+    "chroot $DEVICE_ROOT /usr/bin/env DISPLAY=$DISPLAY_VALUE XKB_CONFIG_ROOT=$XKB_CONFIG_ROOT_RELATIVE $CHROOT_CAPTURE --window-ppm $window_id $CHROOT_X11_PPM" \
     >"$RUN_DIR/x11-capture.txt"
 adb pull "$REMOTE_X11_PPM" "$RUN_DIR/x11-window.ppm" >"$RUN_DIR/x11-pull.txt" 2>&1
 [ -s "$RUN_DIR/x11-window.ppm" ]

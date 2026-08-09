@@ -63,6 +63,16 @@ to /tmp of a container.`: this device's `su -c` wrapper resets an in-shell
 rejects. The harness now applies `TMPDIR`, `XKB_CONFIG_ROOT`, and `CLASSPATH`
 with `/system/bin/env` on the `app_process` command itself.
 
+That environment fix then loaded `CmdEntryPoint` but reported the official
+commit and rejected the rootfs-visible XKB symlink: its
+`/usr/share/X11/xkb` target resolves to device `/usr/share/xkeyboard-config-2`.
+The real rootfs directory exists at `/usr/share/xkeyboard-config-2`, so the
+harness now uses that non-symlink path. The APK path is resolved with a
+separate `pm path` call before entering `su`; command substitution inside the
+`adb shell su -c` payload was empty on this device. The run also clears
+logcat immediately before Activity/server launch and records the device APK
+path, establishing a fresh log baseline.
+
 ## Procedure and gates
 
 `android/nova-lab/deploy-termux-x11-forwarding-smoke-test.sh` must:
