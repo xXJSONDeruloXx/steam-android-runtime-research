@@ -282,6 +282,8 @@ the gamescope frames on its own surface.
 - [Termux:X11 native Steam OOBE network-select experiment](docs/164-termux-x11-native-steam-oobe-network-select-experiment-2026-08-09.md)
 - [Termux:X11 native Steam OOBE login-wait result](docs/165-termux-x11-native-steam-oobe-login-wait-result-2026-08-09.md)
 - [Termux:X11 native Steam OOBE login settle experiment](docs/166-termux-x11-native-steam-oobe-login-settle-experiment-2026-08-09.md)
+- [Termux:X11 native Steam OOBE login-settle result](docs/167-termux-x11-native-steam-oobe-login-settle-result-2026-08-09.md)
+- [Termux:X11 native Steam OOBE login-lifetime experiment](docs/168-termux-x11-native-steam-oobe-login-lifetime-experiment-2026-08-09.md)
 - [Retroid Pocket Nova flashing kit](tools/retroid-pocket-nova/README.md)
 
 ## Evidence standard
