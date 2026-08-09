@@ -70,6 +70,7 @@ The useful results are split across several projects:
 - [Nova Android receive-wait experiment](docs/51-nova-ahb-app-receive-wait-experiment-2026-08-08.md) predeclares the next diagnostic-only app-side ACK wait boundary.
 - [Nova AHB transport observability result](docs/54-nova-ahb-transport-observability-result-2026-08-09.md) records stable peer identities, complete ACK/SCM_RIGHTS syscalls, and the reproduced frame-318 receive boundary.
 - [Parent session process-audit follow-up 5](docs/55-parent-session-process-audit-followup-2026-08-09.md) records Luna's latest two-hour audit and the required timeout, path, polling, teardown, and phase-barrier repairs.
+- [Nova manual harness guards](docs/56-nova-manual-harness-guards-2026-08-09.md) records the finite-timeout policy and fail-closed post-stop verifier added after Luna's audit.
 
 ## Recommended direction
 
@@ -144,6 +145,7 @@ the gamescope frames on its own surface.
 - [Nova AHB transport observability experiment](docs/53-nova-ahb-transport-observability-experiment-2026-08-09.md)
 - [Nova AHB transport observability result](docs/54-nova-ahb-transport-observability-result-2026-08-09.md)
 - [Parent session process-audit follow-up 5](docs/55-parent-session-process-audit-followup-2026-08-09.md)
+- [Nova manual harness guards](docs/56-nova-manual-harness-guards-2026-08-09.md)
 - [Retroid Pocket Nova flashing kit](tools/retroid-pocket-nova/README.md)
 
 ## Evidence standard
