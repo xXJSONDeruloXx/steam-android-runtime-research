@@ -168,6 +168,7 @@ the gamescope frames on its own surface.
 - [Nova manual-capture harness guards](docs/65-nova-harness-cdp-forward-guard-2026-08-09.md)
 - [Nova AHB poll/recvmsg boundary result](docs/66-nova-ahb-poll-recvmsg-boundary-result-2026-08-09.md)
 - [Nova blocking-stream ACK correlation experiment](docs/67-nova-ahb-blocking-stream-correlation-experiment-2026-08-09.md)
+- [Nova blocking-stream ACK correlation result](docs/68-nova-ahb-blocking-stream-correlation-result-2026-08-09.md)
 - [Retroid Pocket Nova flashing kit](tools/retroid-pocket-nova/README.md)
 
 ## Evidence standard

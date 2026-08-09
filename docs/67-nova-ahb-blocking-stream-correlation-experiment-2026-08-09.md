@@ -1,6 +1,7 @@
 # Nova blocking-stream ACK correlation experiment — 2026-08-09
 
-Status: predeclared; no device result yet.
+Status: executed; result documented in
+[`docs/68-nova-ahb-blocking-stream-correlation-result-2026-08-09.md`](68-nova-ahb-blocking-stream-correlation-result-2026-08-09.md).
 
 This run follows the valid timed boundary in
 [`docs/66-nova-ahb-poll-recvmsg-boundary-result-2026-08-09.md`](66-nova-ahb-poll-recvmsg-boundary-result-2026-08-09.md).

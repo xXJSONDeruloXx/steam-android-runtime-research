@@ -33,6 +33,10 @@ The report's strongest stream example was Android frame 245/buffer 2 at
 frame-247 release wait timeout. The repository's latest bounded stream run
 reproduced the same topology at frame 273/buffer 0; see
 [`docs/60-nova-ahb-receive-timeout-observability-result-2026-08-09.md`](60-nova-ahb-receive-timeout-observability-result-2026-08-09.md).
+The stronger blocking-stream correlation now reproduces it with a complete
+Gamescope `sendmsg()` for frame 124 while Android remains in the corresponding
+blocking receive; see
+[`docs/68-nova-ahb-blocking-stream-correlation-result-2026-08-09.md`](68-nova-ahb-blocking-stream-correlation-result-2026-08-09.md).
 
 The earlier `SOCK_SEQPACKET` run moved the failure to approximately frame 166
 instead of removing it. That makes ordinary stream record coalescing or
