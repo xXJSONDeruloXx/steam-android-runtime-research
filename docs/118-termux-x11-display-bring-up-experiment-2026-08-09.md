@@ -2,6 +2,8 @@
 
 Status: predeclared; the first device attempt produced a partial result and is
 recorded in [doc 119](119-termux-x11-display-bring-up-result-2026-08-09.md).
+The private-namespace retry is recorded separately in
+[doc 120](120-termux-x11-private-namespace-client-retry-2026-08-09.md).
 
 This is the first experiment in the open-ended X11/Termux track described by
 [`docs/117-x11-android-forwarding-experiment-plan-2026-08-09.md`](117-x11-android-forwarding-experiment-plan-2026-08-09.md).
@@ -122,6 +124,8 @@ termux-x11-server.log
 termux-x11-client.log
 termux-x11-client.stdout
 termux-x11-client.stderr
+client-launch-command.txt
+client-host-pid.txt
 x11-tree.txt
 x11-capture.txt
 x11-window.ppm

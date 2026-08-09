@@ -2,8 +2,8 @@
 
 set -u
 
-SERVER_COMM=termux-x11
-CLIENT_COMM=nova-x11-animate
+SERVER_CMDLINE=termux-x11
+CLIENT_TOKEN=nova-x11-animate
 
 read_file() {
     file="$1"
@@ -19,6 +19,13 @@ process_comm() {
     fi
 }
 
+process_cmdline() {
+    pid="$1"
+    if [ -r "/proc/$pid/cmdline" ]; then
+        tr '\000' ' ' <"/proc/$pid/cmdline" | tr -d '\r\n'
+    fi
+}
+
 process_parent() {
     pid="$1"
     if [ -r "/proc/$pid/status" ]; then
@@ -26,43 +33,64 @@ process_parent() {
     fi
 }
 
-named_pids() {
-    wanted="$1"
+server_pids() {
     for proc in /proc/[0-9]*; do
         pid="${proc##*/}"
         [ "$pid" = "$$" ] && continue
         comm="$(process_comm "$pid")"
-        if [ "$comm" = "$wanted" ]; then
+        cmdline="$(process_cmdline "$pid")"
+        if [ "$comm" = "main" ] && [ "$cmdline" = "$SERVER_CMDLINE" ]; then
             echo "$pid"
         fi
     done
 }
 
-kill_pid_if_comm() {
-    pid="$1"
-    wanted="$2"
-    signal="${3:-}"
-    comm="$(process_comm "$pid")"
-    if [ "$comm" = "$wanted" ]; then
-        if [ -n "$signal" ]; then
-            /system/bin/kill "$signal" "$pid" 2>/dev/null || true
-        else
-            /system/bin/kill "$pid" 2>/dev/null || true
-        fi
-    fi
-}
-
-kill_named() {
-    wanted="$1"
-    signal="${2:-}"
-    for pid in $(named_pids "$wanted"); do
-        kill_pid_if_comm "$pid" "$wanted" "$signal"
+client_pids() {
+    for proc in /proc/[0-9]*; do
+        pid="${proc##*/}"
+        [ "$pid" = "$$" ] && continue
+        comm="$(process_comm "$pid")"
+        case "$comm" in
+            sh|su|app_process)
+                continue
+                ;;
+        esac
+        cmdline="$(process_cmdline "$pid")"
+        case "$cmdline" in
+            *"$CLIENT_TOKEN"*)
+                echo "$pid"
+                ;;
+        esac
     done
 }
 
-verify_named_absent() {
-    wanted="$1"
-    if [ -n "$(named_pids "$wanted")" ]; then
+kill_pid() {
+    pid="$1"
+    signal="${2:-}"
+    if [ -n "$signal" ]; then
+        /system/bin/kill "$signal" "$pid" 2>/dev/null || true
+    else
+        /system/bin/kill "$pid" 2>/dev/null || true
+    fi
+}
+
+kill_servers() {
+    signal="${1:-}"
+    for pid in $(server_pids); do
+        kill_pid "$pid" "$signal"
+    done
+}
+
+kill_clients() {
+    signal="${1:-}"
+    for pid in $(client_pids); do
+        kill_pid "$pid" "$signal"
+    done
+}
+
+verify_absent() {
+    pids="$1"
+    if [ -n "$pids" ]; then
         return 1
     fi
     return 0
@@ -75,14 +103,14 @@ verify_mode() {
     client_state=absent
     parent_state=absent
     socket_state=absent
-    if ! verify_named_absent "$SERVER_COMM"; then
+    if ! verify_absent "$(server_pids)"; then
         server_state=present
     fi
-    if ! verify_named_absent "$CLIENT_COMM"; then
+    if ! verify_absent "$(client_pids)"; then
         client_state=present
     fi
     parent_pid="$(read_file "$state_dir/server-parent.pid")"
-    if [ -n "$parent_pid" ] && [ -e "/proc/$parent_pid" ]; then
+    if [ -n "$parent_pid" ] && [ "$parent_pid" != "1" ] && [ -e "/proc/$parent_pid" ]; then
         parent_state=present
     fi
     if [ -S "$socket" ]; then
@@ -98,6 +126,8 @@ verify_mode() {
 
 if [ "${1:-}" = "verify" ]; then
     shift
+    SERVER_CMDLINE="${3:-$SERVER_CMDLINE}"
+    CLIENT_TOKEN="${4:-$CLIENT_TOKEN}"
     verify_mode "$@"
     exit $?
 fi
@@ -115,6 +145,8 @@ ppm="${4:-}"
 socket="${5:-}"
 lock="${6:-}"
 private_helper="${7:-}"
+SERVER_CMDLINE="${8:-$SERVER_CMDLINE}"
+CLIENT_TOKEN="${9:-$CLIENT_TOKEN}"
 if [ -z "$state_dir" ] || [ -z "$private_helper" ]; then
     echo "x11_cleanup_error=missing_arguments" >&2
     exit 2
@@ -123,30 +155,34 @@ fi
 server_pid="$(read_file "$state_dir/server.pid")"
 server_parent_pid=
 if [ -n "$server_pid" ] && [ -e "/proc/$server_pid" ]; then
-    server_parent_pid="$(process_parent "$server_pid")"
+    server_pid_comm="$(process_comm "$server_pid")"
+    server_pid_cmdline="$(process_cmdline "$server_pid")"
+    if [ "$server_pid_comm" = "main" ] && [ "$server_pid_cmdline" = "$SERVER_CMDLINE" ]; then
+        server_parent_pid="$(process_parent "$server_pid")"
+    fi
 fi
 if [ -z "$server_parent_pid" ]; then
-    for live_server_pid in $(named_pids "$SERVER_COMM"); do
+    for live_server_pid in $(server_pids); do
         server_parent_pid="$(process_parent "$live_server_pid")"
         break
     done
 fi
-if [ -n "$server_parent_pid" ]; then
+if [ -n "$server_parent_pid" ] && [ "$server_parent_pid" != "1" ]; then
     echo "$server_parent_pid" >"$state_dir/server-parent.pid"
 else
     /system/bin/rm -f "$state_dir/server-parent.pid"
 fi
 
-echo "pre_cleanup_server_pids=$(named_pids "$SERVER_COMM" | tr '\n' ',')"
-echo "pre_cleanup_client_pids=$(named_pids "$CLIENT_COMM" | tr '\n' ',')"
+echo "pre_cleanup_server_pids=$(server_pids | tr '\n' ',')"
+echo "pre_cleanup_client_pids=$(client_pids | tr '\n' ',')"
 if [ -S "$socket" ]; then
     echo "pre_cleanup_socket_state=present" >"$state_dir/cleanup-state"
 else
     echo "pre_cleanup_socket_state=absent" >"$state_dir/cleanup-state"
 fi
 
-kill_named "$CLIENT_COMM"
-kill_named "$SERVER_COMM"
+kill_clients
+kill_servers
 if [ -n "$server_parent_pid" ]; then
     parent_comm="$(process_comm "$server_parent_pid")"
     parent_cmdline=""
@@ -154,7 +190,7 @@ if [ -n "$server_parent_pid" ]; then
         parent_cmdline="$(tr '\000' ' ' <"/proc/$server_parent_pid/cmdline")"
     fi
     case "$parent_cmdline" in
-        *termux-x11*)
+        *"$SERVER_CMDLINE"*)
             if [ "$parent_comm" = "sh" ] || [ "$parent_comm" = "app_process" ]; then
                 /system/bin/kill "$server_parent_pid" 2>/dev/null || true
             fi
@@ -163,8 +199,8 @@ if [ -n "$server_parent_pid" ]; then
 fi
 
 /system/bin/sleep 0.2
-kill_named "$CLIENT_COMM" -9
-kill_named "$SERVER_COMM" -9
+kill_clients -9
+kill_servers -9
 if [ -n "$server_parent_pid" ] && [ -e "/proc/$server_parent_pid" ]; then
     parent_comm="$(process_comm "$server_parent_pid")"
     if [ "$parent_comm" = "sh" ] || [ "$parent_comm" = "app_process" ]; then

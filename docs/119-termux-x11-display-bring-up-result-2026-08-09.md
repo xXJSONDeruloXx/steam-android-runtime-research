@@ -7,6 +7,11 @@ from the restricted `su` shell returned `Operation not permitted`. No claim is
 made yet for a mapped synthetic X11 window, an X11 pixel capture, Steam, OOBE,
 or QR login.
 
+The first private-namespace retry is documented in
+[doc 120](120-termux-x11-private-namespace-client-retry-2026-08-09.md); it
+found a second Android-shell launch/identity issue and is also not a rendering
+acceptance.
+
 This is the first result in the open-ended X11/Termux track. The result and
 the private-namespace/teardown harness repair must be pushed before repeating
 the synthetic client or launching Steam.

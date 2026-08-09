@@ -38,6 +38,9 @@ CHROOT_CAPTURE=/tmp/nova-x11-capture-$RUN_ID
 CHROOT_X11_PPM=/tmp/nova-x11-forwarding-$RUN_ID.ppm
 REMOTE_PRIVATE_NAMESPACE_HELPER=/data/local/tmp/nova-x11-private-namespace-$RUN_ID.sh
 REMOTE_X11_CLEANUP_HELPER=/data/local/tmp/nova-termux-x11-cleanup-$RUN_ID.sh
+SERVER_PROCESS_TOKEN=termux-x11
+CLIENT_PROCESS_TOKEN=nova-x11-animate-$RUN_ID
+REMOTE_CLIENT_HOST_PID=
 
 case "$RUN_ID" in
     ''|*[!A-Za-z0-9._-]*)
@@ -89,6 +92,7 @@ for artifact in \
     nova-x11-capture.sha256 nova-x11-private-namespace.sha256 \
     nova-termux-x11-cleanup.sha256 termux-x11-server.log \
     termux-x11-client.log termux-x11-client.stdout termux-x11-client.stderr \
+    client-launch-command.txt client-host-pid.txt \
     x11-tree.txt x11-capture.txt x11-window.ppm android-screenshot.png \
     android-window-state.txt android-logcat.txt nova-runtime-cleanup.txt \
     nova-runtime-cleanup-preflight.txt post-stop-verification.txt; do
@@ -133,7 +137,7 @@ cleanup_remote() {
     local cleanup_output status=0
     prepare_remote_state >/dev/null 2>&1 || true
     cleanup_output=$(adb shell su -c \
-        "$REMOTE_X11_CLEANUP_HELPER cleanup $REMOTE_STATE_DIR $REMOTE_CLIENT $REMOTE_CAPTURE $REMOTE_X11_PPM $REMOTE_X11_SOCKET $REMOTE_X11_LOCK $REMOTE_PRIVATE_NAMESPACE_HELPER" 2>&1) || status=$?
+        "$REMOTE_X11_CLEANUP_HELPER cleanup $REMOTE_STATE_DIR $REMOTE_CLIENT $REMOTE_CAPTURE $REMOTE_X11_PPM $REMOTE_X11_SOCKET $REMOTE_X11_LOCK $REMOTE_PRIVATE_NAMESPACE_HELPER $SERVER_PROCESS_TOKEN $CLIENT_PROCESS_TOKEN" 2>&1) || status=$?
     cleanup_output=$(printf '%s\n' "$cleanup_output" | tr -d '\r')
     printf '%s\n' "$cleanup_output"
     return "$status"
@@ -142,7 +146,7 @@ cleanup_remote() {
 post_stop_verify() {
     local output status=0
     output=$(adb shell su -c \
-        "$REMOTE_X11_CLEANUP_HELPER verify $REMOTE_STATE_DIR $REMOTE_X11_SOCKET" 2>&1) || status=$?
+        "$REMOTE_X11_CLEANUP_HELPER verify $REMOTE_STATE_DIR $REMOTE_X11_SOCKET $SERVER_PROCESS_TOKEN $CLIENT_PROCESS_TOKEN" 2>&1) || status=$?
     output=$(printf '%s\n' "$output" | tr -d '\r')
     printf '%s\n' "$output" >"$RUN_DIR/post-stop-verification.txt"
     if [ "$status" -eq 0 ] && printf '%s\n' "$output" | rg -q 'server_state=absent client_state=absent server_parent_state=absent socket_state=absent'; then
@@ -166,6 +170,9 @@ on_exit() {
         cleanup_remote >"$RUN_DIR/cleanup-output.txt" || status=1
         post_stop_verify || status=1
         cleanup_nova_runtime >"$RUN_DIR/nova-runtime-cleanup.txt" || status=1
+        if [ -n "${REMOTE_CLIENT_HOST_PID:-}" ]; then
+            wait "$REMOTE_CLIENT_HOST_PID" >/dev/null 2>&1 || true
+        fi
     fi
     exit "$status"
 }
@@ -215,6 +222,9 @@ adb shell am start --user 0 -n com.termux.x11/com.termux.x11.MainActivity >"$RUN
     echo "x11_cleanup_helper_sha256=$(sha256sum "$X11_CLEANUP_HELPER" | awk '{print $1}')"
     echo "remote_private_namespace_helper=$REMOTE_PRIVATE_NAMESPACE_HELPER"
     echo "remote_cleanup_helper=$REMOTE_X11_CLEANUP_HELPER"
+    echo "server_process_token=$SERVER_PROCESS_TOKEN"
+    echo "client_process_token=$CLIENT_PROCESS_TOKEN"
+    echo "client_launch=foreground adb shell su command with host-side background"
     echo "client_frames=$CLIENT_FRAMES"
     echo "presentation=Termux:X11 Android SurfaceView"
     echo "gamescope=not_used"
@@ -250,7 +260,10 @@ fi
 echo "termux_x11_server=pass display=$DISPLAY_VALUE socket=$REMOTE_X11_SOCKET"
 
 adb shell su -c \
-    "echo client_begin_run_id=$RUN_ID display=$DISPLAY_VALUE >$REMOTE_CLIENT_LOG; $REMOTE_PRIVATE_NAMESPACE_HELPER chroot $DEVICE_ROOT /usr/bin/env -i PATH=/usr/bin:/bin HOME=/tmp XDG_RUNTIME_DIR=/tmp TMPDIR=/tmp DISPLAY=$DISPLAY_VALUE XKB_CONFIG_ROOT=$XKB_CONFIG_ROOT_RELATIVE $CHROOT_CLIENT $CLIENT_FRAMES 1280 720 >$REMOTE_CLIENT_STDOUT 2>$REMOTE_CLIENT_STDERR & echo \$! >$REMOTE_CLIENT_PID_FILE"
+    "echo client_begin_run_id=$RUN_ID display=$DISPLAY_VALUE >$REMOTE_CLIENT_LOG; $REMOTE_PRIVATE_NAMESPACE_HELPER chroot $DEVICE_ROOT /usr/bin/env -i PATH=/usr/bin:/bin HOME=/tmp XDG_RUNTIME_DIR=/tmp TMPDIR=/tmp DISPLAY=$DISPLAY_VALUE XKB_CONFIG_ROOT=$XKB_CONFIG_ROOT_RELATIVE $CHROOT_CLIENT $CLIENT_FRAMES 1280 720 >$REMOTE_CLIENT_STDOUT 2>$REMOTE_CLIENT_STDERR" \
+    >"$RUN_DIR/client-launch-command.txt" 2>&1 &
+REMOTE_CLIENT_HOST_PID=$!
+printf '%s\n' "$REMOTE_CLIENT_HOST_PID" >"$RUN_DIR/client-host-pid.txt"
 
 sleep 1
 adb shell su -c \
