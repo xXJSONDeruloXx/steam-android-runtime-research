@@ -7,6 +7,8 @@
 
 #include <jni.h>
 
+#include <fcntl.h>
+
 #include <errno.h>
 #include <poll.h>
 #include <pthread.h>
@@ -88,6 +90,39 @@ ahb_content_probe_enabled(void)
     return enabled;
 }
 
+static int
+ahb_raw_capture_enabled(void)
+{
+    static int enabled = -1;
+    if (enabled < 0) {
+        char value[PROP_VALUE_MAX] = {0};
+        int length = __system_property_get("debug.nova.ahb_raw_capture",
+                                           value);
+        enabled = length > 0 && value[0] == '1' ? 1 : 0;
+    }
+    return enabled;
+}
+
+static int
+ahb_raw_capture_frame(void)
+{
+    char value[PROP_VALUE_MAX] = {0};
+    int length = __system_property_get("debug.nova.ahb_raw_capture_frame",
+                                       value);
+    if (length <= 0) {
+        return -1;
+    }
+
+    char *end = NULL;
+    errno = 0;
+    long parsed = strtol(value, &end, 10);
+    if (errno == ERANGE || end == value || *end != '\0' || parsed < 0 ||
+        parsed > 600) {
+        return -1;
+    }
+    return (int)parsed;
+}
+
 struct ahb_content_probe_result {
     uint32_t description_width;
     uint32_t description_height;
@@ -113,6 +148,77 @@ struct ahb_content_probe_result {
     uint32_t luma_max;
     uint64_t luma_sum;
 };
+
+static int
+write_all_bytes(int fd, const uint8_t *bytes, size_t length)
+{
+    size_t written = 0;
+    while (written < length) {
+        ssize_t result = write(fd, bytes + written, length - written);
+        if (result < 0 && errno == EINTR) {
+            continue;
+        }
+        if (result <= 0) {
+            return -1;
+        }
+        written += (size_t)result;
+    }
+    return 0;
+}
+
+static int
+capture_raw_ahb_frame(const char *path, const uint8_t *pixels,
+                      size_t stride_bytes, int width, int height)
+{
+    if (path == NULL || path[0] == '\0' || pixels == NULL || width <= 0 ||
+        height <= 0) {
+        return -1;
+    }
+
+    int file = open(path, O_WRONLY | O_CREAT | O_TRUNC | O_CLOEXEC, 0600);
+    if (file < 0) {
+        return -1;
+    }
+
+    const size_t row_bytes = (size_t)width * 4u;
+    int status = 0;
+    for (int row = 0; row < height; ++row) {
+        const uint8_t *line = pixels + (size_t)row * stride_bytes;
+        if (write_all_bytes(file, line, row_bytes) != 0) {
+            status = -1;
+            break;
+        }
+    }
+    if (status == 0 && fsync(file) != 0) {
+        status = -1;
+    }
+    if (close(file) != 0) {
+        status = -1;
+    }
+    return status;
+}
+
+static int
+build_raw_ahb_capture_path(const char *socket_path, char *path,
+                            size_t capacity)
+{
+    if (socket_path == NULL || path == NULL || capacity == 0) {
+        return -1;
+    }
+    const char *separator = strrchr(socket_path, '/');
+    if (separator == NULL) {
+        return -1;
+    }
+    size_t directory_length = (size_t)(separator - socket_path);
+    int written;
+    if (directory_length == 0) {
+        written = snprintf(path, capacity, "/nova-ahb-raw-frame.rgba");
+    } else {
+        written = snprintf(path, capacity, "%.*s/nova-ahb-raw-frame.rgba",
+                           (int)directory_length, socket_path);
+    }
+    return written >= 0 && (size_t)written < capacity ? 0 : -1;
+}
 
 static unsigned long long
 ahb_monotonic_ns(void)
@@ -1047,11 +1153,21 @@ checksum_ahardware_buffer(AHardwareBuffer *buffer, int width, int height,
                           int acquire_fence_fd, int marker_enabled, int frame,
                           int content_probe_enabled,
                           struct ahb_content_probe_result *content_probe,
-                          uint64_t *checksum, int *marker_status)
+                          const char *raw_capture_path,
+                          int raw_capture_enabled, int raw_capture_frame,
+                          uint64_t *checksum, int *marker_status,
+                          int *raw_capture_status)
 {
     if (buffer == NULL || checksum == NULL || width <= 0 || height <= 0 ||
         acquire_fence_fd < 0 ||
-        (content_probe_enabled && content_probe == NULL)) {
+        (content_probe_enabled && content_probe == NULL) ||
+        (raw_capture_enabled && raw_capture_status == NULL)) {
+        return -1;
+    }
+    const int raw_capture_requested =
+        raw_capture_enabled && frame == raw_capture_frame;
+    if (raw_capture_requested &&
+        (raw_capture_path == NULL || raw_capture_path[0] == '\0')) {
         return -1;
     }
     if (content_probe != NULL) {
@@ -1059,6 +1175,9 @@ checksum_ahardware_buffer(AHardwareBuffer *buffer, int width, int height,
     }
     if (marker_status != NULL) {
         *marker_status = marker_enabled ? -1 : 0;
+    }
+    if (raw_capture_status != NULL) {
+        *raw_capture_status = raw_capture_requested ? -1 : 0;
     }
 
     struct pollfd fence_poll = {
@@ -1160,6 +1279,14 @@ checksum_ahardware_buffer(AHardwareBuffer *buffer, int width, int height,
         content_probe->raw_checksum = hash;
     }
 
+    if (raw_capture_requested) {
+        *raw_capture_status = capture_raw_ahb_frame(
+            raw_capture_path, pixels, stride_bytes, width, height);
+        if (*raw_capture_status != 0) {
+            status = -1;
+        }
+    }
+
     if (marker_enabled) {
         if (marker_status == NULL) {
             status = -1;
@@ -1173,9 +1300,12 @@ checksum_ahardware_buffer(AHardwareBuffer *buffer, int width, int height,
     }
 
     int32_t unlock_fence = -1;
-    status = AHardwareBuffer_unlock(buffer, &unlock_fence);
+    int unlock_status = AHardwareBuffer_unlock(buffer, &unlock_fence);
     if (unlock_fence >= 0) {
         close(unlock_fence);
+    }
+    if (unlock_status != 0) {
+        status = -1;
     }
     if (status != 0) {
         return -1;
@@ -1758,6 +1888,15 @@ Java_com_xjsonderulo_steamandroid_novalab_MainActivity_nativeRunDmaBufDoubleBuff
     const int frame_identity = ahb_frame_identity_enabled();
     const int frame_marker = ahb_frame_marker_enabled();
     const int content_probe = ahb_content_probe_enabled();
+    const int raw_capture = ahb_raw_capture_enabled();
+    const int raw_capture_target_frame =
+        raw_capture ? ahb_raw_capture_frame() : -1;
+    char raw_capture_path[256] = {0};
+    if (raw_capture && raw_capture_target_frame >= 0 &&
+        build_raw_ahb_capture_path(socket_path, raw_capture_path,
+                                    sizeof(raw_capture_path)) != 0) {
+        raw_capture_path[0] = '\0';
+    }
     const int buffer_width =
         frame_width_argument > 0 && frame_width_argument <= 4096
             ? frame_width_argument
@@ -1947,6 +2086,19 @@ Java_com_xjsonderulo_steamandroid_novalab_MainActivity_nativeRunDmaBufDoubleBuff
     append_line(report, sizeof(report), &used,
                 "ahb_double_buffer_content_probe=%s sample_policy=first3_every30_final\n",
                 content_probe ? "enabled" : "disabled");
+    if (raw_capture && raw_capture_target_frame >= 0 &&
+        raw_capture_path[0] != '\0') {
+        append_line(report, sizeof(report), &used,
+                    "ahb_double_buffer_raw_capture=enabled target_frame=%d path=%s format=rgba8 layout=logical_rows pre_marker=1\n",
+                    raw_capture_target_frame, raw_capture_path);
+    } else if (raw_capture) {
+        append_line(report, sizeof(report), &used,
+                    "ahb_double_buffer_raw_capture=invalid target_frame=%d\n",
+                    raw_capture_target_frame);
+    } else {
+        append_line(report, sizeof(report), &used,
+                    "ahb_double_buffer_raw_capture=disabled\n");
+    }
     for (int frame = 0; continuous || frame < total_frames; ++frame) {
         int index = frame % 3;
         char acknowledgement[256] = {0};
@@ -1996,7 +2148,11 @@ Java_com_xjsonderulo_steamandroid_novalab_MainActivity_nativeRunDmaBufDoubleBuff
             goto double_buffer_done;
         }
 
-        if (frame_identity || frame_marker || content_probe) {
+        const int raw_capture_capture =
+            raw_capture && raw_capture_path[0] != '\0' &&
+            frame == raw_capture_target_frame;
+        if (frame_identity || frame_marker || content_probe ||
+            raw_capture_capture) {
             uint64_t producer_frame = 0;
             uint64_t focus_commit = 0;
             uint64_t override_commit = 0;
@@ -2011,10 +2167,11 @@ Java_com_xjsonderulo_steamandroid_novalab_MainActivity_nativeRunDmaBufDoubleBuff
             uint64_t checksum = 0;
             int marker_status = frame_marker ? -1 : 0;
             const int content_probe_capture =
-                content_probe &&
-                (frame < 3 || (frame % 30) == 0 ||
+                (content_probe || raw_capture_capture) &&
+                (raw_capture_capture || frame < 3 || (frame % 30) == 0 ||
                  (!continuous && frame == total_frames - 1));
             struct ahb_content_probe_result content = {0};
+            int raw_capture_status = raw_capture_capture ? -1 : 0;
             int checksum_status = metadata_pass
                                        ? checksum_ahardware_buffer(
                                              buffers[index], buffer_width,
@@ -2022,7 +2179,10 @@ Java_com_xjsonderulo_steamandroid_novalab_MainActivity_nativeRunDmaBufDoubleBuff
                                              frame_marker, frame,
                                              content_probe_capture,
                                              content_probe_capture ? &content : NULL,
-                                             &checksum, &marker_status)
+                                             raw_capture_path,
+                                             raw_capture_capture,
+                                             raw_capture_target_frame, &checksum,
+                                             &marker_status, &raw_capture_status)
                                        : -1;
             int identity_pass = metadata_pass && checksum_status == 0;
             if (content_probe && content_probe_capture) {
@@ -2077,6 +2237,27 @@ Java_com_xjsonderulo_steamandroid_novalab_MainActivity_nativeRunDmaBufDoubleBuff
                     (unsigned long long)producer_frame,
                     (unsigned long long)(checksum & 0xffffu), marker_status,
                     checksum_status);
+            }
+            if (raw_capture_capture) {
+                if (checksum_status == 0 && raw_capture_status == 0) {
+                    append_line(
+                        report, sizeof(report), &used,
+                        "ahb_double_buffer_raw_capture_%d=pass producer_frame=%llu desc=%ux%u stride=%u layers=%u format=0x%08x usage=0x%llx bytes=%llu path=%s pre_marker=1 raw_fnv1a64=%016llx\n",
+                        frame, (unsigned long long)producer_frame,
+                        content.description_width, content.description_height,
+                        content.description_stride, content.description_layers,
+                        content.description_format,
+                        (unsigned long long)content.description_usage,
+                        (unsigned long long)((uint64_t)buffer_width *
+                                             (uint64_t)buffer_height * 4u),
+                        raw_capture_path, (unsigned long long)checksum);
+                } else {
+                    append_line(
+                        report, sizeof(report), &used,
+                        "ahb_double_buffer_raw_capture_%d=fail producer_frame=%llu status=%d checksum_status=%d path=%s\n",
+                        frame, (unsigned long long)producer_frame,
+                        raw_capture_status, checksum_status, raw_capture_path);
+                }
             }
             if (!identity_pass || (frame_marker && marker_status != 0)) {
                 if (acquire_fence_fd >= 0) {

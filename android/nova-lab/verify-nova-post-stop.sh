@@ -68,7 +68,7 @@ fi
 
 app_files_output=
 if app_files_output=$($ADB shell \
-    "run-as $PACKAGE sh -c 'for path in files/nova-input.sock files/nova-touch.sock files/nova-lab-ahb-double-buffer.sock.* files/dmabuf-double-buffer-report.txt files/android-vulkan-layout-report.txt files/android-input-bridge-report.txt files/android-touch-bridge-report.txt; do if [ -e \"\$path\" ]; then echo \"\$path\"; fi; done'" \
+    "run-as $PACKAGE sh -c 'for path in files/nova-input.sock files/nova-touch.sock files/nova-lab-ahb-double-buffer.sock.* files/nova-ahb-raw-frame.rgba files/dmabuf-double-buffer-report.txt files/android-vulkan-layout-report.txt files/android-input-bridge-report.txt files/android-touch-bridge-report.txt; do if [ -e \"\$path\" ]; then echo \"\$path\"; fi; done'" \
     2>&1); then
     app_files_status=0
 else
@@ -174,6 +174,30 @@ if [ "$content_probe_status" -eq 0 ] && [ "$content_probe_value" = "0" ]; then
     echo "post_stop_content_probe_state=pass"
 else
     echo "post_stop_content_probe_state=fail status=$content_probe_status" >&2
+    failures=$((failures + 1))
+fi
+
+if raw_capture_output=$($ADB shell getprop debug.nova.ahb_raw_capture 2>&1); then
+    raw_capture_status=0
+else
+    raw_capture_status=$?
+fi
+raw_capture_output=$(printf '%s\n' "$raw_capture_output" | tr -d '\r')
+raw_capture_value=$(printf '%s\n' "$raw_capture_output" | tail -n 1)
+if raw_capture_frame_output=$($ADB shell getprop debug.nova.ahb_raw_capture_frame 2>&1); then
+    raw_capture_frame_status=0
+else
+    raw_capture_frame_status=$?
+fi
+raw_capture_frame_output=$(printf '%s\n' "$raw_capture_frame_output" | tr -d '\r')
+raw_capture_frame_value=$(printf '%s\n' "$raw_capture_frame_output" | tail -n 1)
+echo "debug.nova.ahb_raw_capture=$raw_capture_value"
+echo "debug.nova.ahb_raw_capture_frame=$raw_capture_frame_value"
+if [ "$raw_capture_status" -eq 0 ] && [ "$raw_capture_value" = "0" ] && \
+    [ "$raw_capture_frame_status" -eq 0 ] && [ "$raw_capture_frame_value" = "0" ]; then
+    echo "post_stop_raw_capture_state=pass"
+else
+    echo "post_stop_raw_capture_state=fail" >&2
     failures=$((failures + 1))
 fi
 

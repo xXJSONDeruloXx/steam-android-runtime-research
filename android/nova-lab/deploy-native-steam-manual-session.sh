@@ -89,7 +89,7 @@ cleanup_remote_runtime() {
 }
 
 clear_app_runtime_files() {
-    if "$ADB" shell "run-as $PACKAGE sh -c 'rm -f files/nova-input.sock files/nova-touch.sock files/nova-lab-ahb-double-buffer.sock.* files/dmabuf-double-buffer-report.txt files/android-vulkan-layout-report.txt files/android-input-bridge-report.txt files/android-touch-bridge-report.txt'" \
+    if "$ADB" shell "run-as $PACKAGE sh -c 'rm -f files/nova-input.sock files/nova-touch.sock files/nova-lab-ahb-double-buffer.sock.* files/nova-ahb-raw-frame.rgba files/dmabuf-double-buffer-report.txt files/android-vulkan-layout-report.txt files/android-input-bridge-report.txt files/android-touch-bridge-report.txt'" \
         >/dev/null 2>&1; then
         echo "native_steam_app_files_cleanup=pass"
     else
@@ -106,6 +106,8 @@ clear_ahb_trace_state() {
     "$ADB" shell setprop debug.nova.ahb_frame_identity 0 >/dev/null 2>&1 || status=$?
     "$ADB" shell setprop debug.nova.ahb_frame_marker 0 >/dev/null 2>&1 || status=$?
     "$ADB" shell setprop debug.nova.ahb_content_probe 0 >/dev/null 2>&1 || status=$?
+    "$ADB" shell setprop debug.nova.ahb_raw_capture 0 >/dev/null 2>&1 || status=$?
+    "$ADB" shell setprop debug.nova.ahb_raw_capture_frame 0 >/dev/null 2>&1 || status=$?
     "$ADB" shell setprop debug.nova.ahb_layout_width 0 >/dev/null 2>&1 || status=$?
     "$ADB" shell setprop debug.nova.ahb_layout_height 0 >/dev/null 2>&1 || status=$?
     "$ADB" shell setprop debug.nova.ahb_layout_usage 0 >/dev/null 2>&1 || status=$?
