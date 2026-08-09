@@ -38,6 +38,7 @@ case "$mode" in
         fi
         mounted=1
         shm_mounted=0
+        shm_dir_created=0
         input_mounted=0
         proc_mounted=0
         cleanup_mount() {
@@ -53,12 +54,23 @@ case "$mode" in
                 /system/bin/umount -l "$root/dev/shm" >/dev/null 2>&1 || true
                 shm_mounted=0
             fi
+            if [ "$shm_dir_created" -eq 1 ]; then
+                /system/bin/rmdir "$root/dev/shm" >/dev/null 2>&1 || true
+                shm_dir_created=0
+            fi
             if [ "$mounted" -eq 1 ]; then
                 /system/bin/umount -l "$root/dev" >/dev/null 2>&1 || true
                 mounted=0
             fi
         }
         trap cleanup_mount EXIT INT TERM
+        if [ ! -d "$root/dev/shm" ]; then
+            if ! /system/bin/mkdir -p "$root/dev/shm"; then
+                echo "x11_namespace_error=mkdir_shm" >&2
+                exit 1
+            fi
+            shm_dir_created=1
+        fi
         if ! /system/bin/mount -t tmpfs -o mode=1777 tmpfs "$root/dev/shm"; then
             echo "x11_namespace_error=mount_shm" >&2
             exit 1

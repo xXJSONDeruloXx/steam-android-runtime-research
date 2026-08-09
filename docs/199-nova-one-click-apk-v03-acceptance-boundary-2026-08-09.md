@@ -462,6 +462,41 @@ observed physical source event. Do not claim controller support or add more
 Steam-side mappings until the `keydetect`/MCU or Retroid takeover path emits a
 real input event.
 
+### `launcher-20260809T210746Z-apk-v04-shm-after-reboot`
+
+After the device reboot required by the takeover experiment, the existing
+installed APK (`398412c0f2c711ffcb3d11a86a8038daa7474660ef9cf58fce3b4a0660d661b2`)
+was launched from the product UI. The relay still reached
+`nova_launcher_gamepad=pass` with output `event9`, and Termux:X11 reached a
+fresh 1280x960 surface, but the Steam client exited before starting. Its fresh
+client log recorded:
+
+```text
+mount_private=pass path=/
+mount: 'tmpfs'->'/data/local/tmp/nova-holo-rootfs/dev/shm': No such file or directory
+x11_namespace_error=mount_shm
+```
+
+The failure is caused by the private namespace helper binding Android
+`/dev` over the rootfs `dev` directory before mounting shared memory. Android
+`/dev/shm` is absent, so the bind hides the rootfs target and the mount
+silently becomes a missing-target failure after reboot. The first automatic
+stop caught a server-parent exit race (`nova_x11_cleanup=fail`); pressing the
+product stop button immediately repeated the exact cleanup and returned
+`nova_x11_cleanup=pass`, with no matching runtime process left behind.
+Fresh failed-run artifacts are retained locally under
+`android/nova-lab/build/mapper-test/input-20260809T210313Z-handle-takeover/nova-run-failed/`;
+the client, relay, server, and activity log hashes are
+`a778d3dbdc6bc19d512c9181097446cd43780ff02e84334c19caef5714518f4c`,
+`3f0de19e55830f8bf026ffa971122158eee6e12d1254e71d2ffc0257fd9ab85c`,
+`a1f9fcf219238ec5e82d75fdc67615b169f4266c10b75d4f9f1453051f650df7`, and
+`b8d2b40f621cebe988c6724c3e4d6a83233ba3a3ec98dc5da5ac02b0384207a9`.
+
+The helper now creates the missing target only after the `/dev` bind and
+removes that directory during namespace cleanup. The rebuilt APK containing
+this fix is `45bc0dc0dce83141b21b6d386c1c8ac43e34448b90a824d833126dbc345c348f`;
+it has not yet been installed or accepted on the Nova.
+
 ## Cleanup
 
 Every attempt ended without a Nova Steam runtime. The exact helper returned
