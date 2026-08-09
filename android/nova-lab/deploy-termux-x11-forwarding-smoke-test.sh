@@ -249,6 +249,9 @@ on_exit() {
     local status=$?
     trap - EXIT INT TERM
     if [ "${RUN_STARTED:-0}" = "1" ]; then
+        if [ -n "${REMOTE_CLIENT_HOST_PID:-}" ]; then
+            wait "$REMOTE_CLIENT_HOST_PID" >/dev/null 2>&1 || true
+        fi
         adb shell su -c "cat $REMOTE_SERVER_LOG" >"$RUN_DIR/termux-x11-server.log" 2>/dev/null || true
         adb shell su -c "cat $REMOTE_CLIENT_LOG" >"$RUN_DIR/termux-x11-client.log" 2>/dev/null || true
         adb shell su -c "cat $REMOTE_CLIENT_STDOUT" >"$RUN_DIR/termux-x11-client.stdout" 2>/dev/null || true
@@ -262,9 +265,6 @@ on_exit() {
         cleanup_nova_runtime >"$RUN_DIR/nova-runtime-cleanup.txt" || status=1
         if [ "$BIND_ANDROID_DEV" -eq 1 ]; then
             adb shell su -c "/system/bin/rm -f $REMOTE_MOUNT_PRIVATE" >/dev/null 2>&1 || status=1
-        fi
-        if [ -n "${REMOTE_CLIENT_HOST_PID:-}" ]; then
-            wait "$REMOTE_CLIENT_HOST_PID" >/dev/null 2>&1 || true
         fi
     fi
     exit "$status"

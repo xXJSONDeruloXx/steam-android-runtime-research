@@ -13,18 +13,18 @@ read_file() {
     fi
 }
 
-process_cmdline() {
+server_parent_for_pid() {
     pid="$1"
-    if [ -r "/proc/$pid/cmdline" ]; then
-        tr '\000' ' ' <"/proc/$pid/cmdline" | tr -d '\r\n' | /system/bin/sed 's/[[:space:]]*$//'
-    fi
+    /system/bin/ps -A -o PID,PPID,USER,ARGS 2>/dev/null |
+        /system/bin/awk -v pid="$pid" -v token="$SERVER_CMDLINE" \
+            'NR > 1 && $1 == pid && $4 == token { print $2; exit }'
 }
 
-process_parent() {
+process_has_server_token() {
     pid="$1"
-    if [ -r "/proc/$pid/status" ]; then
-        /system/bin/sed -n 's/^PPid:[[:space:]]*//p' "/proc/$pid/status"
-    fi
+    /system/bin/ps -A -o PID,PPID,USER,ARGS 2>/dev/null |
+        /system/bin/awk -v pid="$pid" -v token="$SERVER_CMDLINE" \
+            'NR > 1 && $1 == pid && index($0, token) > 0 { found = 1 } END { exit found ? 0 : 1 }'
 }
 
 server_pids() {
@@ -160,17 +160,12 @@ esac
 
 server_pid="$(read_file "$state_dir/server.pid")"
 server_parent_pid=
-if [ -n "$server_pid" ] && [ -e "/proc/$server_pid" ]; then
-    server_pid_cmdline="$(process_cmdline "$server_pid")"
-    case "$server_pid_cmdline" in
-        "$SERVER_CMDLINE"*)
-        server_parent_pid="$(process_parent "$server_pid")"
-            ;;
-    esac
+if [ -n "$server_pid" ]; then
+    server_parent_pid="$(server_parent_for_pid "$server_pid")"
 fi
 if [ -z "$server_parent_pid" ]; then
     for live_server_pid in $(server_pids); do
-        server_parent_pid="$(process_parent "$live_server_pid")"
+        server_parent_pid="$(server_parent_for_pid "$live_server_pid")"
         break
     done
 fi
@@ -191,31 +186,15 @@ fi
 
 kill_clients
 kill_servers
-if [ -n "$server_parent_pid" ]; then
-    parent_cmdline=""
-    if [ -r "/proc/$server_parent_pid/cmdline" ]; then
-        parent_cmdline="$(tr '\000' ' ' <"/proc/$server_parent_pid/cmdline")"
-    fi
-    case "$parent_cmdline" in
-        *"$SERVER_CMDLINE"*)
-            /system/bin/kill "$server_parent_pid" 2>/dev/null || true
-            ;;
-    esac
+if [ -n "$server_parent_pid" ] && process_has_server_token "$server_parent_pid"; then
+    /system/bin/kill "$server_parent_pid" 2>/dev/null || true
 fi
 
 /system/bin/sleep 0.2
 kill_clients -9
 kill_servers -9
-if [ -n "$server_parent_pid" ] && [ -e "/proc/$server_parent_pid" ]; then
-    parent_cmdline=""
-    if [ -r "/proc/$server_parent_pid/cmdline" ]; then
-        parent_cmdline="$(tr '\000' ' ' <"/proc/$server_parent_pid/cmdline")"
-    fi
-    case "$parent_cmdline" in
-        *"$SERVER_CMDLINE"*)
-        /system/bin/kill -9 "$server_parent_pid" 2>/dev/null || true
-            ;;
-    esac
+if [ -n "$server_parent_pid" ] && process_has_server_token "$server_parent_pid"; then
+    /system/bin/kill -9 "$server_parent_pid" 2>/dev/null || true
 fi
 
 /system/bin/am broadcast -a com.termux.x11.ACTION_STOP -p com.termux.x11 >/dev/null 2>&1 || true
