@@ -56,6 +56,16 @@ if [ ! -d "$RUN_DIR" ]; then
     exit 1
 fi
 
+case "$REMOTE_OBSERVER" in
+    "$DEVICE_ROOT"/*)
+        CHROOT_OBSERVER="/${REMOTE_OBSERVER#"$DEVICE_ROOT/"}"
+        ;;
+    *)
+        echo "observer must be staged below device root: $REMOTE_OBSERVER" >&2
+        exit 2
+        ;;
+esac
+
 ADB_ARGS=(-s "$ADB_SERIAL")
 adb() {
     "$ADB" "${ADB_ARGS[@]}" "$@"
@@ -124,9 +134,9 @@ cleanup() {
 trap cleanup EXIT INT TERM
 
 if [ "$NAMESPACE_MODE" = chroot-dev ]; then
-    REMOTE_COMMAND="$PRIVATE_HELPER chroot-dev $MOUNT_PRIVATE $DEVICE_ROOT /usr/bin/env -i PATH=/usr/bin:/bin HOME=/tmp TMPDIR=/tmp $REMOTE_OBSERVER $RUN_ID $DURATION_SECONDS $INTERVAL_SECONDS"
+    REMOTE_COMMAND="$PRIVATE_HELPER chroot-dev $MOUNT_PRIVATE $DEVICE_ROOT /usr/bin/env -i PATH=/usr/bin:/bin HOME=/tmp TMPDIR=/tmp $CHROOT_OBSERVER $RUN_ID $DURATION_SECONDS $INTERVAL_SECONDS"
 else
-    REMOTE_COMMAND="$PRIVATE_HELPER chroot $DEVICE_ROOT /usr/bin/env -i PATH=/usr/bin:/bin HOME=/tmp TMPDIR=/tmp $REMOTE_OBSERVER $RUN_ID $DURATION_SECONDS $INTERVAL_SECONDS"
+    REMOTE_COMMAND="$PRIVATE_HELPER chroot $DEVICE_ROOT /usr/bin/env -i PATH=/usr/bin:/bin HOME=/tmp TMPDIR=/tmp $CHROOT_OBSERVER $RUN_ID $DURATION_SECONDS $INTERVAL_SECONDS"
 fi
 
 echo "network_observer_remote_command=$REMOTE_COMMAND"
