@@ -641,6 +641,42 @@ No new physical-control sample was taken in this run because the operator was
 away and no buttons were pressed. The preceding no-input raw-state and
 all-node event captures remain the valid physical-source evidence.
 
+### `input-20260809T220043Z-handle-mode-0`
+
+This controlled reboot compared the vendor's original handle mode with the
+mode used by the product path. Before reboot, the exact Nova runtime cleanup
+had passed and the test APK and Termux:X11 were force-stopped. The device
+property was changed from `persist.sys.handle.mode=1` to `0`, then the Nova
+was rebooted as required by the vendor preference implementation.
+
+After boot, the property remained `0`, but the input topology did not change:
+Android still exposed the virtual `Xbox Wireless Controller` as `/dev/input/event7`
+and the `Retroid Pocket Virtual Mouse` as `/dev/input/event8`; no physical
+controller node appeared. The vendor nodes remained `/dev/adckey` and
+`/dev/rsinput`, while `/dev/rscom` existed as the MCU UART endpoint and
+`/dev/ttyHS1` remained absent. `persist.sys.mcu.checkerrs` remained `2`.
+
+A fresh no-input 30-second all-node `getevent -lt` capture contained only
+nine device-announcement records and no key, axis, switch, event7, or mapper
+event9 records (589 bytes; SHA-256
+`143a2cad0b27ebd59b2479475d1ad6adcb91fd575409fa65f7227598901a228d`). The
+post-boot state, input topology, and input-reader inventory hashes are
+`805d2d4715080834d88e0da261856b0770b1bc88a170d099b524b6612eab5bf7`,
+`30af81e4238be149c53f1a009eca32263dc3f74b3ba5aeb6645e3942fe90be3f`, and
+`d991f9e8e20855942c20eff565600983a23ddbbfb2f122d843b044f7c21d6121`.
+
+The vendor Gamepad Test launch could not be used as a UI result because the
+device remained at the Android lock screen and no physical or synthetic
+unlock input was supplied. Its capture is retained only as context (SHA-256
+`a9e177041fbc9614694997f435fca7e13f35c14fb14d4611edd36b071b65f0e9`). No
+physical controls were pressed during this run. Mode 0 therefore does not
+unblock the source path; restore mode 1 and investigate the native MCU/ADC/
+UART/GPIO initialization rather than changing Steam or relay mappings.
+
+Artifacts are retained under the ignored
+`android/nova-lab/build/mapper-test/input-20260809T220043Z-handle-mode-0/`
+directory.
+
 ## Cleanup
 
 Every attempt ended without a Nova Steam runtime. The exact helper returned
