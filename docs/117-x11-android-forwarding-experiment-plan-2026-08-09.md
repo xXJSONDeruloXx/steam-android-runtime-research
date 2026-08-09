@@ -1,7 +1,8 @@
 # X11-to-Android forwarding experiment plan — 2026-08-09
 
-Status: branch decision and predeclared maximum-five ladder. No device result
-is claimed by this document.
+Status: branch decision and open-ended X11/Termux track. The first five
+experiments are an initial ladder, not a cap; no device result is claimed by
+this document.
 
 ## Scope and working assumption
 
@@ -17,6 +18,14 @@ The user’s “Temu to ERMUX” wording is recorded as the Termux:X11 assumptio
 If the device cannot run that app/package pair, the experiment is a failed
 bring-up with evidence, not permission to silently substitute another display
 architecture.
+
+The expanded objective is to take this route as far as the device can support:
+first a reliable X11 display, then native ARM64 Steam, then the Steam OOBE and
+login flow, including the QR-code login view visibly presented on the Android
+screen. Every device experiment gets a fresh identity, a durable result note,
+and a commit pushed before the next experiment starts. A negative result is
+useful only when it identifies the first failed boundary and leaves the device
+clean.
 
 ## Branch decision
 
@@ -65,11 +74,11 @@ not Gamescope or Steam Deck Big Picture, and the kit contains claims rather
 than a Nova device result. The local X11 capture helper is useful for Linux-side
 diagnostics but does not prove Android-side display.
 
-## Maximum-five experiment ladder
+## Initial experiment ladder
 
-These are the only five X11-forwarding experiments predeclared on this branch.
-Each gets a fresh run identity, exact cleanup, and a separate result document.
-Do not add a sixth “quick check” under a new name.
+These five experiments are the initial sequence. They are deliberately small
+enough to isolate the display, session, lifecycle, input, and product-shape
+questions. They do not limit the continuation of this track.
 
 ### 1. Termux:X11 display bring-up
 
@@ -129,6 +138,32 @@ Pass is not “Steam launched”; it requires visible fullscreen UI, usable inpu
 and documented network/audio/graphics limits. A negative result still closes
 the fallback question if the preceding evidence is fresh and complete.
 
+## Open-ended continuation toward OOBE and QR login
+
+After the initial ladder, continue with one separately predeclared and
+published experiment at a time while the route is producing new evidence. The
+intended sequence is:
+
+1. Repeat the synthetic client until the X11 window and same-run captures pass
+   through the corrected private-namespace launcher.
+2. Launch native ARM64 Steam over direct Termux:X11 and establish a fresh
+   desktop/Gamepad UI window without Gamescope or the AHB bridge.
+3. Advance the fresh Steam OOBE using the existing Android touch/controller
+   evidence paths, keeping X11 capture and Android screenshot identity tied to
+   the same run.
+4. Reach the Steam login page and verify that the QR-code login view is
+   visibly rendered on the physical Android display, not merely present in
+   Steam DOM or logs.
+5. Repeat the login/OOBE result across a stop/relaunch or Activity
+   foreground/background cycle to establish whether it is a usable session
+   architecture rather than a one-shot demo.
+
+This continuation has no fixed run count. Stop only after the QR acceptance
+passes, the route reaches a clearly documented device/runtime blocker, or the
+remaining work would require changing more than one independently testable
+boundary in the same experiment. Preserve the Gamescope/AHardwareBuffer line
+as a separate option throughout.
+
 ## Guardrails for this branch
 
 - Read `docs/34-nova-runtime-harness-lifecycle.md` immediately before every
@@ -140,11 +175,15 @@ the fallback question if the preceding evidence is fresh and complete.
 - Keep the AHB/Gamescope patch stack frozen. No low-level compositor change is
   justified by an X11 result.
 - Commit each durable experiment contract/result before starting the next one.
-- Stop after experiment 5 and make an explicit architecture decision.
+- Do not start the next device experiment until the current result and any
+  harness repair are committed and pushed.
+- Keep each follow-up one-variable and separately documented; the current
+  five-step ladder is not a stopping rule.
 
 ## Immediate next step
 
-Predeclare experiment 1 in a separate document, verify whether the attached
-Retroid Pocket Nova can install/start Termux:X11 and expose a usable display,
-then run only the synthetic X11 client. Do not launch Steam until that display
+The immediate next step is to repeat experiment 1 with the committed private
+mount-namespace launcher and exact teardown helper. Verify whether the
+attached Retroid Pocket Nova can map the synthetic X11 client and produce both
+same-run X11 and Android captures. Do not launch Steam until that display
 boundary is independently proven.

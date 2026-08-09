@@ -12,6 +12,8 @@ APK=${NOVA_TERMUX_X11_APK:?set NOVA_TERMUX_X11_APK to the official Termux:X11 AP
 X11_ANIMATE=${NOVA_X11_ANIMATE:-$BUILD_DIR/nova-x11-animate}
 X11_CAPTURE=${NOVA_X11_CAPTURE:-$BUILD_DIR/nova-x11-capture}
 RUNTIME_CLEANUP="$SCRIPT_DIR/device/nova-runtime-cleanup.sh"
+X11_PRIVATE_NAMESPACE_HELPER="$SCRIPT_DIR/device/nova-x11-private-namespace.sh"
+X11_CLEANUP_HELPER="$SCRIPT_DIR/device/nova-termux-x11-cleanup.sh"
 DEVICE_RUNTIME_CLEANUP=/data/local/tmp/nova-runtime-cleanup.sh
 CLIENT_FRAMES=${NOVA_TERMUX_X11_CLIENT_FRAMES:-600}
 RUN_ID=${NOVA_RUN_ID:-termux-x11-$(date -u +%Y%m%dT%H%M%SZ)-display-${DISPLAY_NUMBER}}
@@ -34,6 +36,8 @@ REMOTE_X11_LOCK=$DEVICE_ROOT/tmp/.X$DISPLAY_NUMBER-lock
 CHROOT_CLIENT=/tmp/nova-x11-animate-$RUN_ID
 CHROOT_CAPTURE=/tmp/nova-x11-capture-$RUN_ID
 CHROOT_X11_PPM=/tmp/nova-x11-forwarding-$RUN_ID.ppm
+REMOTE_PRIVATE_NAMESPACE_HELPER=/data/local/tmp/nova-x11-private-namespace-$RUN_ID.sh
+REMOTE_X11_CLEANUP_HELPER=/data/local/tmp/nova-termux-x11-cleanup-$RUN_ID.sh
 
 case "$RUN_ID" in
     ''|*[!A-Za-z0-9._-]*)
@@ -66,6 +70,14 @@ if [ ! -x "$X11_CAPTURE" ]; then
     echo "missing X11 capture helper: $X11_CAPTURE" >&2
     exit 1
 fi
+if [ ! -x "$X11_PRIVATE_NAMESPACE_HELPER" ]; then
+    echo "missing X11 namespace helper: $X11_PRIVATE_NAMESPACE_HELPER" >&2
+    exit 1
+fi
+if [ ! -x "$X11_CLEANUP_HELPER" ]; then
+    echo "missing X11 cleanup helper: $X11_CLEANUP_HELPER" >&2
+    exit 1
+fi
 if ! command -v sha256sum >/dev/null 2>&1; then
     echo "missing host tool: sha256sum" >&2
     exit 1
@@ -74,7 +86,9 @@ fi
 mkdir -p "$RUN_DIR"
 for artifact in \
     run-metadata.txt termux-x11-apk.sha256 nova-x11-animate.sha256 \
-    nova-x11-capture.sha256 termux-x11-server.log termux-x11-client.log \
+    nova-x11-capture.sha256 nova-x11-private-namespace.sha256 \
+    nova-termux-x11-cleanup.sha256 termux-x11-server.log \
+    termux-x11-client.log termux-x11-client.stdout termux-x11-client.stderr \
     x11-tree.txt x11-capture.txt x11-window.ppm android-screenshot.png \
     android-window-state.txt android-logcat.txt nova-runtime-cleanup.txt \
     nova-runtime-cleanup-preflight.txt post-stop-verification.txt; do
@@ -91,6 +105,12 @@ adb() {
 
 prepare_remote_state() {
     adb shell "mkdir -p $REMOTE_STATE_DIR; chmod 777 $REMOTE_STATE_DIR"
+}
+
+stage_x11_helpers() {
+    adb push "$X11_PRIVATE_NAMESPACE_HELPER" "$REMOTE_PRIVATE_NAMESPACE_HELPER" >/dev/null
+    adb push "$X11_CLEANUP_HELPER" "$REMOTE_X11_CLEANUP_HELPER" >/dev/null
+    adb shell "chmod 755 $REMOTE_PRIVATE_NAMESPACE_HELPER $REMOTE_X11_CLEANUP_HELPER"
 }
 
 cleanup_nova_runtime() {
@@ -110,20 +130,22 @@ cleanup_nova_runtime() {
 }
 
 cleanup_remote() {
-    local cleanup_output
+    local cleanup_output status=0
     prepare_remote_state >/dev/null 2>&1 || true
     cleanup_output=$(adb shell su -c \
-        "client_pid=; if [ -r $REMOTE_CLIENT_PID_FILE ]; then client_pid=\$(cat $REMOTE_CLIENT_PID_FILE); fi; if [ -n \"\$client_pid\" ] && [ -r /proc/\$client_pid/cmdline ] && tr '\\000' ' ' < /proc/\$client_pid/cmdline | grep -q 'nova-x11-animate'; then kill \"\$client_pid\" 2>/dev/null || true; fi; server_pid=; if [ -r $REMOTE_SERVER_PID_FILE ]; then server_pid=\$(cat $REMOTE_SERVER_PID_FILE); fi; if [ -n \"\$server_pid\" ] && [ -r /proc/\$server_pid/cmdline ] && tr '\\000' ' ' < /proc/\$server_pid/cmdline | grep -q 'termux-x11'; then kill \"\$server_pid\" 2>/dev/null || true; fi; am broadcast -a com.termux.x11.ACTION_STOP -p com.termux.x11 >/dev/null 2>&1 || true; am force-stop com.termux.x11 >/dev/null 2>&1 || true; socket_state=absent; [ -S $REMOTE_X11_SOCKET ] && socket_state=present; echo pre_cleanup_socket_state=\$socket_state >$REMOTE_STATE_DIR/cleanup-state; rm -f $REMOTE_CLIENT $REMOTE_CAPTURE $REMOTE_X11_PPM $REMOTE_X11_SOCKET $REMOTE_X11_LOCK /data/local/tmp/nova-x11-animate-forwarding /data/local/tmp/nova-x11-capture-forwarding" 2>&1 || true)
-    printf '%s\n' "$cleanup_output" | tr -d '\r'
+        "$REMOTE_X11_CLEANUP_HELPER cleanup $REMOTE_STATE_DIR $REMOTE_CLIENT $REMOTE_CAPTURE $REMOTE_X11_PPM $REMOTE_X11_SOCKET $REMOTE_X11_LOCK $REMOTE_PRIVATE_NAMESPACE_HELPER" 2>&1) || status=$?
+    cleanup_output=$(printf '%s\n' "$cleanup_output" | tr -d '\r')
+    printf '%s\n' "$cleanup_output"
+    return "$status"
 }
 
 post_stop_verify() {
-    local output
+    local output status=0
     output=$(adb shell su -c \
-        "server_pid=; if [ -r $REMOTE_SERVER_PID_FILE ]; then server_pid=\$(cat $REMOTE_SERVER_PID_FILE); fi; client_pid=; if [ -r $REMOTE_CLIENT_PID_FILE ]; then client_pid=\$(cat $REMOTE_CLIENT_PID_FILE); fi; server_state=absent; client_state=absent; socket_state=absent; [ -n \"\$server_pid\" ] && [ -e /proc/\$server_pid ] && server_state=present; [ -n \"\$client_pid\" ] && [ -e /proc/\$client_pid ] && client_state=present; [ -S $REMOTE_X11_SOCKET ] && socket_state=present; echo server_state=\$server_state client_state=\$client_state socket_state=\$socket_state" 2>&1 || true)
+        "$REMOTE_X11_CLEANUP_HELPER verify $REMOTE_STATE_DIR $REMOTE_X11_SOCKET" 2>&1) || status=$?
     output=$(printf '%s\n' "$output" | tr -d '\r')
     printf '%s\n' "$output" >"$RUN_DIR/post-stop-verification.txt"
-    if printf '%s\n' "$output" | rg -q 'server_state=absent client_state=absent socket_state=absent'; then
+    if [ "$status" -eq 0 ] && printf '%s\n' "$output" | rg -q 'server_state=absent client_state=absent server_parent_state=absent socket_state=absent'; then
         adb shell "rm -r $REMOTE_STATE_DIR" >/dev/null 2>&1 || true
         echo "termux_x11_post_stop=pass"
         return 0
@@ -138,8 +160,10 @@ on_exit() {
     if [ "${RUN_STARTED:-0}" = "1" ]; then
         adb shell su -c "cat $REMOTE_SERVER_LOG" >"$RUN_DIR/termux-x11-server.log" 2>/dev/null || true
         adb shell su -c "cat $REMOTE_CLIENT_LOG" >"$RUN_DIR/termux-x11-client.log" 2>/dev/null || true
+        adb shell su -c "cat $REMOTE_CLIENT_STDOUT" >"$RUN_DIR/termux-x11-client.stdout" 2>/dev/null || true
+        adb shell su -c "cat $REMOTE_CLIENT_STDERR" >"$RUN_DIR/termux-x11-client.stderr" 2>/dev/null || true
         adb logcat -d -v threadtime -s "CmdEntryPoint:*" "LorieNative:*" "MainActivity:*" "Lorie:*" "gles-renderer:*" "AndroidRuntime:*" >"$RUN_DIR/android-logcat.txt" || true
-        cleanup_remote >"$RUN_DIR/cleanup-output.txt" || true
+        cleanup_remote >"$RUN_DIR/cleanup-output.txt" || status=1
         post_stop_verify || status=1
         cleanup_nova_runtime >"$RUN_DIR/nova-runtime-cleanup.txt" || status=1
     fi
@@ -147,6 +171,7 @@ on_exit() {
 }
 trap on_exit EXIT INT TERM
 
+stage_x11_helpers
 cleanup_remote >"$RUN_DIR/pre-run-cleanup.txt"
 cleanup_nova_runtime >"$RUN_DIR/nova-runtime-cleanup-preflight.txt"
 if adb shell su -c "test -S $REMOTE_X11_SOCKET" >/dev/null 2>&1; then
@@ -184,6 +209,12 @@ adb shell am start --user 0 -n com.termux.x11/com.termux.x11.MainActivity >"$RUN
     echo "x11_animate_sha256=$(sha256sum "$X11_ANIMATE" | awk '{print $1}')"
     echo "x11_capture=$X11_CAPTURE"
     echo "x11_capture_sha256=$(sha256sum "$X11_CAPTURE" | awk '{print $1}')"
+    echo "x11_private_namespace_helper=$X11_PRIVATE_NAMESPACE_HELPER"
+    echo "x11_private_namespace_helper_sha256=$(sha256sum "$X11_PRIVATE_NAMESPACE_HELPER" | awk '{print $1}')"
+    echo "x11_cleanup_helper=$X11_CLEANUP_HELPER"
+    echo "x11_cleanup_helper_sha256=$(sha256sum "$X11_CLEANUP_HELPER" | awk '{print $1}')"
+    echo "remote_private_namespace_helper=$REMOTE_PRIVATE_NAMESPACE_HELPER"
+    echo "remote_cleanup_helper=$REMOTE_X11_CLEANUP_HELPER"
     echo "client_frames=$CLIENT_FRAMES"
     echo "presentation=Termux:X11 Android SurfaceView"
     echo "gamescope=not_used"
@@ -193,6 +224,8 @@ adb shell am start --user 0 -n com.termux.x11/com.termux.x11.MainActivity >"$RUN
 sha256sum "$APK" >"$RUN_DIR/termux-x11-apk.sha256"
 sha256sum "$X11_ANIMATE" >"$RUN_DIR/nova-x11-animate.sha256"
 sha256sum "$X11_CAPTURE" >"$RUN_DIR/nova-x11-capture.sha256"
+sha256sum "$X11_PRIVATE_NAMESPACE_HELPER" >"$RUN_DIR/nova-x11-private-namespace.sha256"
+sha256sum "$X11_CLEANUP_HELPER" >"$RUN_DIR/nova-termux-x11-cleanup.sha256"
 
 RUN_STARTED=1
 prepare_remote_state
@@ -217,11 +250,11 @@ fi
 echo "termux_x11_server=pass display=$DISPLAY_VALUE socket=$REMOTE_X11_SOCKET"
 
 adb shell su -c \
-    "printf '%s\\n' 'client_begin run_id=$RUN_ID display=$DISPLAY_VALUE' >$REMOTE_CLIENT_LOG; chroot $DEVICE_ROOT /usr/bin/env DISPLAY=$DISPLAY_VALUE XKB_CONFIG_ROOT=$XKB_CONFIG_ROOT_RELATIVE $CHROOT_CLIENT $CLIENT_FRAMES 1280 720 >$REMOTE_CLIENT_STDOUT 2>$REMOTE_CLIENT_STDERR & echo \$! >$REMOTE_CLIENT_PID_FILE"
+    "echo client_begin_run_id=$RUN_ID display=$DISPLAY_VALUE >$REMOTE_CLIENT_LOG; $REMOTE_PRIVATE_NAMESPACE_HELPER chroot $DEVICE_ROOT /usr/bin/env -i PATH=/usr/bin:/bin HOME=/tmp XDG_RUNTIME_DIR=/tmp TMPDIR=/tmp DISPLAY=$DISPLAY_VALUE XKB_CONFIG_ROOT=$XKB_CONFIG_ROOT_RELATIVE $CHROOT_CLIENT $CLIENT_FRAMES 1280 720 >$REMOTE_CLIENT_STDOUT 2>$REMOTE_CLIENT_STDERR & echo \$! >$REMOTE_CLIENT_PID_FILE"
 
 sleep 1
 adb shell su -c \
-    "chroot $DEVICE_ROOT /usr/bin/env DISPLAY=$DISPLAY_VALUE XKB_CONFIG_ROOT=$XKB_CONFIG_ROOT_RELATIVE $CHROOT_CAPTURE --tree" \
+    "$REMOTE_PRIVATE_NAMESPACE_HELPER chroot $DEVICE_ROOT /usr/bin/env -i PATH=/usr/bin:/bin HOME=/tmp XDG_RUNTIME_DIR=/tmp TMPDIR=/tmp DISPLAY=$DISPLAY_VALUE XKB_CONFIG_ROOT=$XKB_CONFIG_ROOT_RELATIVE $CHROOT_CAPTURE --tree" \
     >"$RUN_DIR/x11-tree.txt"
 
 window_id=$(sed -n 's/^nova_x11_window id=\([^ ]*\).*name="Nova animated Xwayland Gamescope probe".*/\1/p' "$RUN_DIR/x11-tree.txt" | head -n 1)
@@ -232,7 +265,7 @@ fi
 echo "termux_x11_window=pass id=$window_id"
 
 adb shell su -c \
-    "chroot $DEVICE_ROOT /usr/bin/env DISPLAY=$DISPLAY_VALUE XKB_CONFIG_ROOT=$XKB_CONFIG_ROOT_RELATIVE $CHROOT_CAPTURE --window-ppm $window_id $CHROOT_X11_PPM" \
+    "$REMOTE_PRIVATE_NAMESPACE_HELPER chroot $DEVICE_ROOT /usr/bin/env -i PATH=/usr/bin:/bin HOME=/tmp XDG_RUNTIME_DIR=/tmp TMPDIR=/tmp DISPLAY=$DISPLAY_VALUE XKB_CONFIG_ROOT=$XKB_CONFIG_ROOT_RELATIVE $CHROOT_CAPTURE --window-ppm $window_id $CHROOT_X11_PPM" \
     >"$RUN_DIR/x11-capture.txt"
 adb pull "$REMOTE_X11_PPM" "$RUN_DIR/x11-window.ppm" >"$RUN_DIR/x11-pull.txt" 2>&1
 [ -s "$RUN_DIR/x11-window.ppm" ]

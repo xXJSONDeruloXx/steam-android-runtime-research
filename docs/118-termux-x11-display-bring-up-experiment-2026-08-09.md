@@ -1,8 +1,9 @@
 # Termux:X11 display bring-up experiment — 2026-08-09
 
-Status: predeclared; no device result yet.
+Status: predeclared; the first device attempt produced a partial result and is
+recorded in [doc 119](119-termux-x11-display-bring-up-result-2026-08-09.md).
 
-This is experiment 1 of the maximum-five ladder in
+This is the first experiment in the open-ended X11/Termux track described by
 [`docs/117-x11-android-forwarding-experiment-plan-2026-08-09.md`](117-x11-android-forwarding-experiment-plan-2026-08-09.md).
 It tests only the Android X11 display boundary. It does not launch Steam,
 Gamescope, the Nova APK, the AHardwareBuffer bridge, or `SurfaceControl`.
@@ -85,7 +86,9 @@ path, establishing a fresh log baseline.
 4. Run the synthetic X11 animation from the chroot with `DISPLAY=:0`.
 5. Pull an Android `screencap`, an X11 window tree, and a same-run X11 PPM
    capture while the animation is mapped. Record logcat and focused-window
-   state.
+   state. The client and capture commands must enter the chroot through the
+   run-scoped private mount namespace helper; direct `chroot` from the
+   restricted `su` shell is not a valid route on this device.
 6. Stop the exact client/server, close the Activity, remove only this run’s
    temporary files/sockets, and verify no matching process or display socket
    remains.
@@ -112,9 +115,13 @@ run-metadata.txt
 termux-x11-apk.sha256
 nova-x11-animate.sha256
 nova-x11-capture.sha256
+nova-x11-private-namespace.sha256
+nova-termux-x11-cleanup.sha256
 nova-runtime-cleanup-preflight.txt
 termux-x11-server.log
 termux-x11-client.log
+termux-x11-client.stdout
+termux-x11-client.stderr
 x11-tree.txt
 x11-capture.txt
 x11-window.ppm

@@ -25,6 +25,7 @@ The useful results are split across several projects:
 - [steam-droid](https://github.com/xXJSONDeruloXx/steam-droid) proves Valve's ARM64 Android Steam libraries can be loaded, but the public package is not sufficient to boot the native service.
 - [steam-arm-findings](https://github.com/xXJSONDeruloXx/steam-arm-findings) proves the strongest display path so far: ARM64 Linux userspace, KGSL Turnip, AHardwareBuffer exchange, SurfaceControl presentation, and a gamescope Android backend capable of presenting 600 compositor frames.
 - The attached [Termux:X11 kit assessment](docs/02-termux-x11-kit-assessment.md) is a useful simpler bring-up path for normal ARM64 Steam desktop mode, but its own README explicitly excludes Gamescope and Steam Deck Big Picture.
+- The open [Termux:X11-to-Android forwarding track](docs/117-x11-android-forwarding-experiment-plan-2026-08-09.md) is now being taken past the initial display/lifecycle ladder toward native Steam OOBE, login, and a QR-code view visibly rendered on the Android screen; its first [partial display result](docs/119-termux-x11-display-bring-up-result-2026-08-09.md) has not yet reached a mapped synthetic window.
 - [Current ARM64 Steam research](docs/05-current-arm64-steam-research.md) records the live Valve endpoints, Holo's ARM64 package/rootfs channel, and the current Armada/PockNix session implementations.
 - [Android/Linux/gamescope roadmap](docs/06-android-linux-gamescope-roadmap.md) turns the evidence into a rooted MVP and a staged rootless target.
 - [Nova rooted bridge lab](docs/07-nova-rooted-bridge-smoke-test.md) records the first real Android-app Surface/HardwareBuffer and rooted chroot smoke test.
@@ -233,6 +234,7 @@ the gamescope frames on its own surface.
 - [Nova Vulkan AHardwareBuffer readback rerun result](docs/116-nova-ahb-vulkan-readback-rerun-result-2026-08-09.md)
 - [X11-to-Android forwarding experiment plan](docs/117-x11-android-forwarding-experiment-plan-2026-08-09.md)
 - [Termux:X11 display bring-up experiment](docs/118-termux-x11-display-bring-up-experiment-2026-08-09.md)
+- [Termux:X11 display bring-up partial result](docs/119-termux-x11-display-bring-up-result-2026-08-09.md)
 - [Retroid Pocket Nova flashing kit](tools/retroid-pocket-nova/README.md)
 
 ## Evidence standard
