@@ -677,6 +677,16 @@ Artifacts are retained under the ignored
 `android/nova-lab/build/mapper-test/input-20260809T220043Z-handle-mode-0/`
 directory.
 
+The product baseline was restored in a separate reboot immediately afterward:
+`persist.sys.handle.mode=1`, `persist.sys.gamepad.type=1`, and
+`persist.sys.mcu.checkerrs=2` persisted after boot. The restoration state,
+input topology, and input-reader inventory hashes are
+`0032ce09e40bd54547a7fcacab79edd1199ff161a34f7abe1fa26f73e6d4a5be`,
+`2feb78b279fae870dfd7fd71924b380124a71510e2f86b39f6aa6446074957b5`, and
+`b24071cd4032e3f22ce4b30d9df1fd24835882d4a199f219c9513a1a6dc546a7` under
+`android/nova-lab/build/mapper-test/input-20260809T220410Z-restore-mode-1/`.
+No Nova Steam runtime was relaunched during either mode run.
+
 ## Cleanup
 
 Every attempt ended without a Nova Steam runtime. The exact helper returned
