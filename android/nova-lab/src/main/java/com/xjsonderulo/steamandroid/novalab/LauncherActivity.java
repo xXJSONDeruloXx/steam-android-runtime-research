@@ -133,6 +133,11 @@ public final class LauncherActivity extends Activity {
         setContentView(page);
         enterImmersiveMode();
         handler.post(statusRefresh);
+        if (getIntent().getBooleanExtra("run_audio_bridge_stop", false)) {
+            stopAudioBridgeOnly();
+        } else if (getIntent().getBooleanExtra("run_audio_bridge_only", false)) {
+            startAudioBridgeOnly();
+        }
     }
 
     @Override
@@ -218,6 +223,24 @@ public final class LauncherActivity extends Activity {
     }
 
     private void stopSteamSession() {
+        Intent service = new Intent(this, LauncherService.class);
+        service.setAction(LauncherService.ACTION_STOP);
+        startService(service);
+    }
+
+    private void startAudioBridgeOnly() {
+        Intent service = new Intent(this, LauncherService.class);
+        service.setAction(LauncherService.ACTION_AUDIO_ONLY);
+        service.putExtra(LauncherService.EXTRA_AUDIO_BRIDGE_PORT,
+                AudioPcmBridge.DEFAULT_PORT);
+        if (Build.VERSION.SDK_INT >= 26) {
+            startForegroundService(service);
+        } else {
+            startService(service);
+        }
+    }
+
+    private void stopAudioBridgeOnly() {
         Intent service = new Intent(this, LauncherService.class);
         service.setAction(LauncherService.ACTION_STOP);
         startService(service);
