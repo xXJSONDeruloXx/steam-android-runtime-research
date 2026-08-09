@@ -203,6 +203,7 @@ the gamescope frames on its own surface.
 - [Nova OOBE AHB lifecycle-grace experiment](docs/86-nova-oobe-ahb-lifecycle-grace-experiment-2026-08-09.md)
 - [Nova OOBE AHB lifecycle-grace result](docs/87-nova-oobe-ahb-lifecycle-grace-result-2026-08-09.md)
 - [Nova Gamescope present-cadence result](docs/88-nova-gamescope-present-cadence-result-2026-08-09.md)
+- [Nova AHB valid-content cadence experiment](docs/89-nova-ahb-valid-content-cadence-experiment-2026-08-09.md)
 - [Retroid Pocket Nova flashing kit](tools/retroid-pocket-nova/README.md)
 
 ## Evidence standard
