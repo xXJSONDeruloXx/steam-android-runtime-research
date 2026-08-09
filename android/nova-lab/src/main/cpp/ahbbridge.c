@@ -1341,6 +1341,7 @@ Java_com_xjsonderulo_steamandroid_novalab_MainActivity_nativeRunDmaBufDoubleBuff
     int success = 0;
     int frame_count = 0;
     int release_fence_count = 0;
+    const int continuous = frame_count_argument < 0;
     const int buffer_width =
         frame_width_argument > 0 && frame_width_argument <= 4096
             ? frame_width_argument
@@ -1423,7 +1424,11 @@ Java_com_xjsonderulo_steamandroid_novalab_MainActivity_nativeRunDmaBufDoubleBuff
             goto double_buffer_done;
         }
         struct timeval timeout = {
-            .tv_sec = 15,
+            /* A live session must remain blocked while Gamescope has a
+             * quiet scene.  Positive bounded runs retain a fail-fast
+             * timeout so a dead host cannot leave the acceptance test
+             * hanging indefinitely. */
+            .tv_sec = continuous ? 0 : 15,
             .tv_usec = 0,
         };
         ahb_socket_set_receive_timeout(-1, index, clients[index], &timeout);
@@ -1476,7 +1481,6 @@ Java_com_xjsonderulo_steamandroid_novalab_MainActivity_nativeRunDmaBufDoubleBuff
      * bounded positive mode strict for automated smoke tests, while allowing
      * the live Android presentation and input bridges to remain available for
      * real device interaction until the host session is stopped. */
-    const int continuous = frame_count_argument < 0;
     const int total_frames =
         continuous
             ? 0
@@ -1493,6 +1497,9 @@ Java_com_xjsonderulo_steamandroid_novalab_MainActivity_nativeRunDmaBufDoubleBuff
     append_line(report, sizeof(report), &used,
                 "ahb_double_buffer_size=%dx%d\n", buffer_width,
                 buffer_height);
+    append_line(report, sizeof(report), &used,
+                "ahb_double_buffer_ack_wait_mode=%s\n",
+                continuous ? "continuous_blocking" : "bounded_15s");
     for (int frame = 0; continuous || frame < total_frames; ++frame) {
         int index = frame % 3;
         char acknowledgement[256] = {0};

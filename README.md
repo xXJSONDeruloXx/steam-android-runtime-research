@@ -7,8 +7,10 @@ Status: evidence gathered through 2026-08-09.
 ## Bottom line
 
 No previous Android-app attempt has reached the actual Steam login/library on Android. The Nova lab now
-reaches the pre-login Steam Gamepad UI and the live Steam DOM reaches `/login`, but Android presentation
-still has an unresolved stale-frame synchronization gate; the current
+reaches the pre-login Steam Gamepad UI and the live Steam DOM reaches `/login`. The latest device run
+resolved the timeout-driven quiet-scene failure in the continuous Android AHardwareBuffer receiver:
+Android and X11 remained usable through a quiet Steam scene and reached the same timezone page, but
+login and frame-identity correlation are still unaccepted gates. The current
 ARM handheld Linux ecosystem has moved further than the earlier experiments:
 Valve's ARM64 client and Steam runtime are directly reachable from live distribution endpoints, and
 Armada/PockNix document complete native-ARM64 Steam + gamescope sessions on supported Snapdragon
@@ -89,6 +91,7 @@ The useful results are split across several projects:
 - [Nova AHB repaint acceptance and Steam UI boundary](docs/72-nova-ahb-repaint-acceptance-and-steam-ui-boundary-2026-08-09.md) records the current no-hunk acceptance, the visible Steam UI gate, and the test-bench report handoff repair.
 - [Nova latest UI, touch, and login boundary](docs/73-nova-latest-ui-touch-login-boundary-2026-08-09.md) records the fresh controller/touch validation, OOBE login-state transition, stale Android presentation, and event-driven AHB next step.
 - [Nova AHB ancillary-data parser fix](docs/74-nova-ahb-ancillary-parser-fix-2026-08-09.md) records the frame-188 `__cmsg_nxthdr` producer stall, the bounded control-message parser, and a fresh 240-frame device pass.
+- [Nova continuous AHB quiet-scene fix](docs/75-nova-continuous-ahb-quiet-scene-fix-2026-08-09.md) records the device validation that keeps the live receiver blocked through Gamescope quiet scenes while retaining the bounded probe timeout.
 
 ## Recommended direction
 
@@ -179,7 +182,10 @@ the gamescope frames on its own surface.
 - [Nova clock-correlated AHB socket trace experiment](docs/69-nova-ahb-clock-correlated-socket-trace-experiment-2026-08-09.md)
 - [Nova clock-correlated AHB socket trace result](docs/70-nova-ahb-clock-correlated-socket-trace-result-2026-08-09.md)
 - [Nova AHB continuous-repaint fix](docs/71-nova-ahb-continuous-repaint-fix-2026-08-09.md)
+- [Nova AHB repaint acceptance and Steam UI boundary](docs/72-nova-ahb-repaint-acceptance-and-steam-ui-boundary-2026-08-09.md)
+- [Nova latest UI, touch, and login boundary](docs/73-nova-latest-ui-touch-login-boundary-2026-08-09.md)
 - [Nova AHB ancillary-data parser fix](docs/74-nova-ahb-ancillary-parser-fix-2026-08-09.md)
+- [Nova continuous AHB quiet-scene fix](docs/75-nova-continuous-ahb-quiet-scene-fix-2026-08-09.md)
 - [Retroid Pocket Nova flashing kit](tools/retroid-pocket-nova/README.md)
 
 ## Evidence standard
