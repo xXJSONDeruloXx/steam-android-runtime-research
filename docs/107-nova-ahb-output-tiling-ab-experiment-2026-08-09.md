@@ -1,6 +1,6 @@
 # Nova AHB output-tiling A/B experiment — 2026-08-09
 
-Status: predeclared; device result pending.
+Status: completed; see [the paired device result](108-nova-ahb-output-tiling-ab-result-2026-08-09.md).
 
 ## Question
 

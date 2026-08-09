@@ -222,6 +222,7 @@ the gamescope frames on its own surface.
 - [Nova AHB import-layout probe experiment](docs/105-nova-ahb-import-layout-probe-experiment-2026-08-09.md)
 - [Nova AHB import-layout probe result](docs/106-nova-ahb-import-layout-probe-result-2026-08-09.md)
 - [Nova AHB output-tiling A/B experiment](docs/107-nova-ahb-output-tiling-ab-experiment-2026-08-09.md)
+- [Nova AHB output-tiling A/B result](docs/108-nova-ahb-output-tiling-ab-result-2026-08-09.md)
 - [Retroid Pocket Nova flashing kit](tools/retroid-pocket-nova/README.md)
 
 ## Evidence standard
