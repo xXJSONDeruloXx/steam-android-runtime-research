@@ -18,11 +18,13 @@ X11_PRIVATE_NAMESPACE_HELPER="$SCRIPT_DIR/device/nova-x11-private-namespace.sh"
 X11_CLEANUP_HELPER="$SCRIPT_DIR/device/nova-termux-x11-cleanup.sh"
 X11_CLIENT_LAUNCHER="$SCRIPT_DIR/device/nova-termux-x11-client-launcher.sh"
 X11_ROOTFS_DEVICES_HELPER="$SCRIPT_DIR/device/nova-termux-x11-rootfs-devices.sh"
+MOUNT_PRIVATE_HELPER=${NOVA_MOUNT_PRIVATE_HELPER:-$BUILD_DIR/nova-mount-private}
 DEVICE_RUNTIME_CLEANUP=/data/local/tmp/nova-runtime-cleanup.sh
 CLIENT_FRAMES=${NOVA_TERMUX_X11_CLIENT_FRAMES:-600}
 ALLOW_X11_CAPTURE_FAILURE=${NOVA_TERMUX_X11_ALLOW_X11_CAPTURE_FAILURE:-0}
 STEAM_UID=${NOVA_TERMUX_X11_STEAM_UID:-501}
 STEAM_GID=${NOVA_TERMUX_X11_STEAM_GID:-20}
+BIND_ANDROID_DEV=${NOVA_TERMUX_X11_BIND_ANDROID_DEV:-0}
 RUN_ID=${NOVA_RUN_ID:-termux-x11-$(date -u +%Y%m%dT%H%M%SZ)-display-${DISPLAY_NUMBER}}
 RUN_DIR=${NOVA_RUN_DIR:-$BUILD_DIR/manual-runs/$RUN_ID}
 XKB_CONFIG_ROOT_RELATIVE=/usr/share/xkeyboard-config-2
@@ -47,6 +49,7 @@ REMOTE_PRIVATE_NAMESPACE_HELPER=/data/local/tmp/nova-x11-private-namespace-$RUN_
 REMOTE_X11_CLEANUP_HELPER=/data/local/tmp/nova-termux-x11-cleanup-$RUN_ID.sh
 REMOTE_CLIENT_LAUNCHER=/data/local/tmp/nova-termux-x11-client-launcher-$RUN_ID.sh
 REMOTE_ROOTFS_DEVICES_HELPER=/data/local/tmp/nova-termux-x11-rootfs-devices-$RUN_ID.sh
+REMOTE_MOUNT_PRIVATE=/data/local/tmp/nova-mount-private-$RUN_ID
 SERVER_PROCESS_TOKEN=termux-x11
 CLIENT_PROCESS_TOKEN=nova-x11-animate-$RUN_ID
 REMOTE_CLIENT_HOST_PID=
@@ -93,6 +96,14 @@ case "$STEAM_UID:$STEAM_GID" in
         exit 2
         ;;
 esac
+case "$BIND_ANDROID_DEV" in
+    0|1)
+        ;;
+    *)
+        echo "NOVA_TERMUX_X11_BIND_ANDROID_DEV must be 0 or 1" >&2
+        exit 2
+        ;;
+esac
 
 if [ ! -f "$APK" ]; then
     echo "missing Termux:X11 APK: $APK" >&2
@@ -122,6 +133,15 @@ if [ ! -x "$X11_ROOTFS_DEVICES_HELPER" ]; then
     echo "missing rootfs device helper: $X11_ROOTFS_DEVICES_HELPER" >&2
     exit 1
 fi
+if [ "$BIND_ANDROID_DEV" -eq 1 ]; then
+    if [ ! -x "$MOUNT_PRIVATE_HELPER" ]; then
+        "$SCRIPT_DIR/build-mount-private.sh" >/dev/null
+    fi
+    if [ ! -x "$MOUNT_PRIVATE_HELPER" ]; then
+        echo "missing mount-private helper: $MOUNT_PRIVATE_HELPER" >&2
+        exit 1
+    fi
+fi
 if ! command -v sha256sum >/dev/null 2>&1; then
     echo "missing host tool: sha256sum" >&2
     exit 1
@@ -138,6 +158,7 @@ for artifact in \
     x11-tree.txt x11-capture.txt x11-window.ppm android-screenshot.png \
     android-window-state.txt android-logcat.txt nova-runtime-cleanup.txt \
     nova-runtime-cleanup-preflight.txt rootfs-devices-preflight.txt \
+    nova-mount-private.sha256 \
     post-stop-verification.txt; do
     if [ -e "$RUN_DIR/$artifact" ]; then
         echo "run artifact already exists; choose a fresh NOVA_RUN_ID: $RUN_DIR/$artifact" >&2
@@ -159,7 +180,12 @@ stage_x11_helpers() {
     adb push "$X11_CLEANUP_HELPER" "$REMOTE_X11_CLEANUP_HELPER" >/dev/null
     adb push "$X11_CLIENT_LAUNCHER" "$REMOTE_CLIENT_LAUNCHER" >/dev/null
     adb push "$X11_ROOTFS_DEVICES_HELPER" "$REMOTE_ROOTFS_DEVICES_HELPER" >/dev/null
-    adb shell "chmod 755 $REMOTE_PRIVATE_NAMESPACE_HELPER $REMOTE_X11_CLEANUP_HELPER $REMOTE_CLIENT_LAUNCHER $REMOTE_ROOTFS_DEVICES_HELPER"
+    if [ "$BIND_ANDROID_DEV" -eq 1 ]; then
+        adb push "$MOUNT_PRIVATE_HELPER" "$REMOTE_MOUNT_PRIVATE" >/dev/null
+        adb shell "chmod 755 $REMOTE_PRIVATE_NAMESPACE_HELPER $REMOTE_X11_CLEANUP_HELPER $REMOTE_CLIENT_LAUNCHER $REMOTE_ROOTFS_DEVICES_HELPER $REMOTE_MOUNT_PRIVATE"
+    else
+        adb shell "chmod 755 $REMOTE_PRIVATE_NAMESPACE_HELPER $REMOTE_X11_CLEANUP_HELPER $REMOTE_CLIENT_LAUNCHER $REMOTE_ROOTFS_DEVICES_HELPER"
+    fi
 }
 
 prepare_rootfs_devices() {
@@ -227,6 +253,9 @@ on_exit() {
         cleanup_remote runtime >"$RUN_DIR/cleanup-output.txt" || status=1
         post_stop_verify || status=1
         cleanup_nova_runtime >"$RUN_DIR/nova-runtime-cleanup.txt" || status=1
+        if [ "$BIND_ANDROID_DEV" -eq 1 ]; then
+            adb shell su -c "/system/bin/rm -f $REMOTE_MOUNT_PRIVATE" >/dev/null 2>&1 || status=1
+        fi
         if [ -n "${REMOTE_CLIENT_HOST_PID:-}" ]; then
             wait "$REMOTE_CLIENT_HOST_PID" >/dev/null 2>&1 || true
         fi
@@ -282,6 +311,13 @@ adb shell am start --user 0 -n com.termux.x11/com.termux.x11.MainActivity >"$RUN
     echo "rootfs_devices_helper=$X11_ROOTFS_DEVICES_HELPER"
     echo "rootfs_devices_helper_sha256=$(sha256sum "$X11_ROOTFS_DEVICES_HELPER" | awk '{print $1}')"
     echo "remote_rootfs_devices_helper=$REMOTE_ROOTFS_DEVICES_HELPER"
+    echo "bind_android_dev=$BIND_ANDROID_DEV"
+    echo "client_namespace_mode=$([ "$BIND_ANDROID_DEV" -eq 1 ] && echo chroot-dev || echo chroot)"
+    if [ "$BIND_ANDROID_DEV" -eq 1 ]; then
+        echo "mount_private_helper=$MOUNT_PRIVATE_HELPER"
+        echo "mount_private_helper_sha256=$(sha256sum "$MOUNT_PRIVATE_HELPER" | awk '{print $1}')"
+        echo "remote_mount_private=$REMOTE_MOUNT_PRIVATE"
+    fi
     echo "x11_client_launcher=$X11_CLIENT_LAUNCHER"
     echo "x11_client_launcher_sha256=$(sha256sum "$X11_CLIENT_LAUNCHER" | awk '{print $1}')"
     echo "remote_client_launcher=$REMOTE_CLIENT_LAUNCHER"
@@ -305,9 +341,16 @@ sha256sum "$X11_PRIVATE_NAMESPACE_HELPER" >"$RUN_DIR/nova-x11-private-namespace.
 sha256sum "$X11_CLEANUP_HELPER" >"$RUN_DIR/nova-termux-x11-cleanup.sha256"
 sha256sum "$X11_CLIENT_LAUNCHER" >"$RUN_DIR/nova-termux-x11-client-launcher.sha256"
 sha256sum "$X11_ROOTFS_DEVICES_HELPER" >"$RUN_DIR/nova-termux-x11-rootfs-devices.sha256"
+if [ "$BIND_ANDROID_DEV" -eq 1 ]; then
+    sha256sum "$MOUNT_PRIVATE_HELPER" >"$RUN_DIR/nova-mount-private.sha256"
+fi
 
 RUN_STARTED=1
-prepare_rootfs_devices >"$RUN_DIR/rootfs-devices-preflight.txt"
+if [ "$BIND_ANDROID_DEV" -eq 1 ]; then
+    echo "nova_rootfs_devices=skipped mode=android-dev-bind" >"$RUN_DIR/rootfs-devices-preflight.txt"
+else
+    prepare_rootfs_devices >"$RUN_DIR/rootfs-devices-preflight.txt"
+fi
 prepare_remote_state
 adb push "$X11_ANIMATE" "$REMOTE_CLIENT" >/dev/null
 adb push "$X11_CAPTURE" "$REMOTE_CAPTURE" >/dev/null
@@ -331,8 +374,14 @@ echo "termux_x11_server=pass display=$DISPLAY_VALUE socket=$REMOTE_X11_SOCKET"
 
 adb shell "echo client_begin_run_id=$RUN_ID display=$DISPLAY_VALUE >$REMOTE_CLIENT_LOG"
 adb shell "echo 1 >$REMOTE_STATE_DIR/client-active"
+client_namespace_mode=chroot
+client_namespace_args="$DEVICE_ROOT"
+if [ "$BIND_ANDROID_DEV" -eq 1 ]; then
+    client_namespace_mode=chroot-dev
+    client_namespace_args="$REMOTE_MOUNT_PRIVATE $DEVICE_ROOT"
+fi
 adb shell su -c \
-    "$REMOTE_CLIENT_LAUNCHER $REMOTE_PRIVATE_NAMESPACE_HELPER $REMOTE_CLIENT_STDOUT $REMOTE_CLIENT_STDERR $DEVICE_ROOT /usr/bin/env -i PATH=/usr/bin:/bin HOME=/tmp XDG_RUNTIME_DIR=/tmp TMPDIR=/tmp DISPLAY=$DISPLAY_VALUE XKB_CONFIG_ROOT=$XKB_CONFIG_ROOT_RELATIVE NOVA_TERMUX_X11_STEAM_UID=$STEAM_UID NOVA_TERMUX_X11_STEAM_GID=$STEAM_GID $CHROOT_CLIENT $CLIENT_FRAMES 1280 720" \
+    "$REMOTE_CLIENT_LAUNCHER $REMOTE_PRIVATE_NAMESPACE_HELPER $REMOTE_CLIENT_STDOUT $REMOTE_CLIENT_STDERR $client_namespace_mode $client_namespace_args /usr/bin/env -i PATH=/usr/bin:/bin HOME=/tmp XDG_RUNTIME_DIR=/tmp TMPDIR=/tmp DISPLAY=$DISPLAY_VALUE XKB_CONFIG_ROOT=$XKB_CONFIG_ROOT_RELATIVE NOVA_TERMUX_X11_STEAM_UID=$STEAM_UID NOVA_TERMUX_X11_STEAM_GID=$STEAM_GID $CHROOT_CLIENT $CLIENT_FRAMES 1280 720" \
     >"$RUN_DIR/client-launch-command.txt" 2>&1 &
 REMOTE_CLIENT_HOST_PID=$!
 printf '%s\n' "$REMOTE_CLIENT_HOST_PID" >"$RUN_DIR/client-host-pid.txt"

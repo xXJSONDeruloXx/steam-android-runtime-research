@@ -255,6 +255,7 @@ the gamescope frames on its own surface.
 - [Termux:X11 native ARM64 Steam root-identity result](docs/137-termux-x11-native-steam-root-identity-result-2026-08-09.md)
 - [Termux:X11 rootfs `/dev` bind probe experiment](docs/138-termux-x11-rootfs-dev-bind-probe-experiment-2026-08-09.md)
 - [Termux:X11 rootfs `/dev` bind probe result](docs/139-termux-x11-rootfs-dev-bind-probe-result-2026-08-09.md)
+- [Termux:X11 native ARM64 Steam `/dev` bind experiment](docs/140-termux-x11-native-steam-dev-bind-experiment-2026-08-09.md)
 - [Retroid Pocket Nova flashing kit](tools/retroid-pocket-nova/README.md)
 
 ## Evidence standard
