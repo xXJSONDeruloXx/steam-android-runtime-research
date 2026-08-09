@@ -23,6 +23,7 @@ STATUS="$RUN_DIR/capture-status-$PHASE.txt"
 ANDROID_CAPTURE="$RUN_DIR/android-$PHASE.png"
 CDP_CAPTURE="$RUN_DIR/cdp-targets-$PHASE.json"
 FOCUS_CAPTURE="$RUN_DIR/focus-$PHASE.txt"
+FOCUS_DUMP="$RUN_DIR/input-focus-dump-$PHASE.txt"
 FORWARD_CAPTURE="$RUN_DIR/adb-forward-$PHASE.txt"
 
 write_status() {
@@ -64,8 +65,10 @@ fi
 
 curl --fail --silent --show-error "http://127.0.0.1:$CDP_PORT/json" \
     >"$CDP_CAPTURE"
-"$ADB" shell dumpsys input 2>/dev/null | tr -d '\r' |
-    awk '/FocusedWindows:/{getline; print; exit}' >"$FOCUS_CAPTURE"
+"$ADB" shell dumpsys input 2>/dev/null >"$FOCUS_DUMP"
+tr -d '\r' <"$FOCUS_DUMP" >"$FOCUS_DUMP.tmp"
+mv "$FOCUS_DUMP.tmp" "$FOCUS_DUMP"
+sed -n '/FocusedWindows:/{n;p;q;}' "$FOCUS_DUMP" >"$FOCUS_CAPTURE"
 "$ADB" exec-out screencap -p >"$ANDROID_CAPTURE"
 [ -s "$CDP_CAPTURE" ]
 [ -s "$FOCUS_CAPTURE" ]

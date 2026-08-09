@@ -1,6 +1,6 @@
 # Nova manual-capture harness guards — 2026-08-09
 
-Status: repaired after three invalid observation attempts; no device evidence
+Status: repaired after four invalid observation attempts; no device evidence
 from any invalid run is used.
 
 ## Incident
@@ -30,6 +30,12 @@ first matching window caused `sed` to receive `SIGPIPE` and the helper to exit
 141 before the PPM capture. That run was also cleaned and verified, and is not
 transport evidence.
 
+The following replacement had a valid forward and then failed with status 141
+before X11 discovery because focus capture used
+`dumpsys input | tr | awk`; the early-exiting `awk` again caused an upstream
+SIGPIPE under `pipefail`. It was cleaned and verified without producing runtime
+evidence.
+
 ## Repair
 
 `capture-nova-manual-evidence.sh` now snapshots `adb forward --list` into the
@@ -44,6 +50,10 @@ assumes that the device's global `/tmp` exists or is writable.
 
 The window-ID parser now uses one `sed` process with an explicit early exit,
 so a successful first match cannot be converted into a failure by `pipefail`.
+
+Focus capture now stores and normalizes the complete `dumpsys input` output
+first, then parses it from a file with one early-exit `sed`. No producer in the
+capture path is now terminated by a downstream early-exit pipeline.
 
 The correct order for the next run is now explicit:
 
