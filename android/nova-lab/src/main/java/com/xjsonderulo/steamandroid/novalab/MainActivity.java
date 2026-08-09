@@ -7,6 +7,10 @@ import android.graphics.Paint;
 import android.graphics.PixelFormat;
 import android.hardware.HardwareBuffer;
 import android.hardware.input.InputManager;
+import android.media.AudioAttributes;
+import android.media.AudioFormat;
+import android.media.AudioManager;
+import android.media.AudioTrack;
 import android.net.LocalServerSocket;
 import android.net.LocalSocket;
 import android.os.Bundle;
@@ -45,6 +49,9 @@ public final class MainActivity extends Activity implements SurfaceHolder.Callba
     private static final String TAG = "NovaLab";
     private static final int SURFACE_FRAMES = 120;
     private static final long NATIVE_PRESENTATION_STOP_GRACE_MS = 5000;
+    private static final int AUDIO_SAMPLE_RATE = 48000;
+    private static final int AUDIO_DURATION_MS = 500;
+    private static final float AUDIO_TEST_VOLUME = 0.05f;
 
     static {
         System.loadLibrary("novabridge");
@@ -65,10 +72,13 @@ public final class MainActivity extends Activity implements SurfaceHolder.Callba
     private TextView rootStatus;
     private TextView nativeStatus;
     private TextView androidVulkanStatus;
+    private TextView androidAudioStatus;
     private TextView bridgeStatus;
     private boolean doubleBufferPresentationMode;
     private File doubleBufferReportFile;
     private File androidVulkanReportFile;
+    private volatile boolean androidAudioProofRunning;
+    private File androidAudioReportFile;
     private boolean androidInputKeyOnly;
     private volatile boolean androidInputBridgeRunning;
     private Thread androidInputBridgeThread;
@@ -187,6 +197,8 @@ public final class MainActivity extends Activity implements SurfaceHolder.Callba
             page.addView(nativeStatus, new LinearLayout.LayoutParams(-1, -2));
             androidVulkanStatus = statusText("Android Vulkan: not run");
             page.addView(androidVulkanStatus, new LinearLayout.LayoutParams(-1, -2));
+            androidAudioStatus = statusText("Android audio: not run");
+            page.addView(androidAudioStatus, new LinearLayout.LayoutParams(-1, -2));
             bridgeStatus = statusText("Linux bridge: not run");
             page.addView(bridgeStatus, new LinearLayout.LayoutParams(-1, -2));
         }
@@ -221,6 +233,7 @@ public final class MainActivity extends Activity implements SurfaceHolder.Callba
                 rootStatus.setText("Root: not run");
                 nativeStatus.setText("Native: not run");
                 androidVulkanStatus.setText("Android Vulkan: not run");
+                androidAudioStatus.setText("Android audio: not run");
                 bridgeStatus.setText("Linux bridge: not run");
             }
         });
@@ -240,6 +253,16 @@ public final class MainActivity extends Activity implements SurfaceHolder.Callba
             }
         });
         vulkanButtons.addView(androidVulkanButton,
+                new LinearLayout.LayoutParams(0, -2, 1.0f));
+        Button androidAudioButton = new Button(this);
+        androidAudioButton.setText("Run Android audio");
+        androidAudioButton.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                runAndroidAudioProof();
+            }
+        });
+        vulkanButtons.addView(androidAudioButton,
                 new LinearLayout.LayoutParams(0, -2, 1.0f));
         Button bridgeButton = new Button(this);
         bridgeButton.setText("Run Linux bridge");
@@ -298,6 +321,14 @@ public final class MainActivity extends Activity implements SurfaceHolder.Callba
                         + androidVulkanReportFile.getAbsolutePath());
             }
         }
+        if (getIntent().getBooleanExtra("run_android_audio", false)) {
+            androidAudioReportFile = new File(getFilesDir(),
+                    "android-audio-proof-report.txt");
+            if (androidAudioReportFile.exists() && !androidAudioReportFile.delete()) {
+                Log.w(TAG, "android_audio_report_delete_failed path="
+                        + androidAudioReportFile.getAbsolutePath());
+            }
+        }
 
         if (getIntent().getBooleanExtra("run_android_input_bridge", false)) {
             startAndroidInputBridge();
@@ -315,7 +346,9 @@ public final class MainActivity extends Activity implements SurfaceHolder.Callba
                 + "x" + getIntent().getIntExtra(
                         "dmabuf_double_buffer_height", -1)
                 + " force_gpu_composition=" + forceGpuComposition
-                + " android_input_key_only=" + androidInputKeyOnly);
+                + " android_input_key_only=" + androidInputKeyOnly
+                + " run_android_audio=" + getIntent().getBooleanExtra(
+                        "run_android_audio", false));
         Log.i(TAG, "presentation fullscreen=" + fullscreenPresentationMode
                 + " size=" + presentationWidth + "x" + presentationHeight);
 
@@ -340,6 +373,14 @@ public final class MainActivity extends Activity implements SurfaceHolder.Callba
                 @Override
                 public void run() {
                     runAndroidVulkanHardwareBufferProbe();
+                }
+            }, 900);
+        }
+        if (getIntent().getBooleanExtra("run_android_audio", false)) {
+            androidAudioButton.postDelayed(new Runnable() {
+                @Override
+                public void run() {
+                    runAndroidAudioProof();
                 }
             }, 900);
         }
@@ -399,6 +440,7 @@ public final class MainActivity extends Activity implements SurfaceHolder.Callba
         Log.i(TAG, "activity_on_destroy");
         mainHandler.removeCallbacks(delayedNativePresentationCancel);
         surfaceProbeRunning = false;
+        androidAudioProofRunning = false;
         cancelNativePresentationBridge();
         stopAndroidInputBridge();
         stopAndroidTouchBridge();
@@ -1069,6 +1111,146 @@ public final class MainActivity extends Activity implements SurfaceHolder.Callba
         });
     }
 
+    private void runAndroidAudioProof() {
+        if (androidAudioProofRunning) {
+            return;
+        }
+        androidAudioProofRunning = true;
+        androidAudioReportFile = new File(getFilesDir(),
+                "android-audio-proof-report.txt");
+        if (androidAudioReportFile.exists() && !androidAudioReportFile.delete()) {
+            Log.w(TAG, "android_audio_report_delete_failed path="
+                    + androidAudioReportFile.getAbsolutePath());
+        }
+        if (androidAudioStatus != null) {
+            androidAudioStatus.setText("Android audio: opening AudioTrack...");
+        }
+        worker.execute(new Runnable() {
+            @Override
+            public void run() {
+                String result;
+                try {
+                    result = runAndroidAudioProofOfLife();
+                } catch (Throwable error) {
+                    result = "audio_proof=fail\nexception=" + error;
+                } finally {
+                    androidAudioProofRunning = false;
+                }
+                writeAndroidAudioReport(result);
+                Log.i(TAG, "android_audio_proof\n" + result);
+                final String report = result;
+                runOnUiThread(new Runnable() {
+                    @Override
+                    public void run() {
+                        if (androidAudioStatus != null) {
+                            androidAudioStatus.setText("Android audio:\n"
+                                    + trimForUi(report));
+                        }
+                    }
+                });
+            }
+        });
+    }
+
+    private String runAndroidAudioProofOfLife() {
+        StringBuilder report = new StringBuilder();
+        report.append("audio_proof=begin\n");
+        report.append("audio_sample_rate=").append(AUDIO_SAMPLE_RATE).append('\n');
+        report.append("audio_encoding=PCM_16_BIT\n");
+        report.append("audio_channel_mask=0x3\n");
+        report.append("audio_duration_ms=").append(AUDIO_DURATION_MS).append('\n');
+        report.append("audio_test_volume=").append(AUDIO_TEST_VOLUME).append('\n');
+
+        AudioManager manager = (AudioManager) getSystemService(AUDIO_SERVICE);
+        if (manager != null) {
+            report.append("audio_manager_output_sample_rate=")
+                    .append(manager.getProperty(AudioManager.PROPERTY_OUTPUT_SAMPLE_RATE))
+                    .append('\n');
+            report.append("audio_manager_output_frames_per_buffer=")
+                    .append(manager.getProperty(AudioManager.PROPERTY_OUTPUT_FRAMES_PER_BUFFER))
+                    .append('\n');
+        } else {
+            report.append("audio_manager=missing\n");
+        }
+
+        int minBufferBytes = AudioTrack.getMinBufferSize(
+                AUDIO_SAMPLE_RATE,
+                AudioFormat.CHANNEL_OUT_STEREO,
+                AudioFormat.ENCODING_PCM_16BIT);
+        report.append("audio_track_min_buffer_bytes=").append(minBufferBytes).append('\n');
+        if (minBufferBytes <= 0) {
+            report.append("audio_proof=fail\nreason=invalid_min_buffer\n");
+            return report.toString();
+        }
+
+        int frames = AUDIO_SAMPLE_RATE * AUDIO_DURATION_MS / 1000;
+        short[] samples = new short[frames * 2];
+        for (int frame = 0; frame < frames; frame++) {
+            double phase = 2.0 * Math.PI * 440.0 * frame / AUDIO_SAMPLE_RATE;
+            short sample = (short) (Math.sin(phase) * Short.MAX_VALUE * 0.25);
+            samples[frame * 2] = sample;
+            samples[frame * 2 + 1] = sample;
+        }
+        int bufferBytes = Math.max(minBufferBytes, samples.length * 2);
+        report.append("audio_track_buffer_bytes=").append(bufferBytes).append('\n');
+
+        AudioTrack track = null;
+        boolean passed = false;
+        try {
+            AudioAttributes attributes = new AudioAttributes.Builder()
+                    .setUsage(AudioAttributes.USAGE_GAME)
+                    .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC)
+                    .build();
+            AudioFormat format = new AudioFormat.Builder()
+                    .setSampleRate(AUDIO_SAMPLE_RATE)
+                    .setEncoding(AudioFormat.ENCODING_PCM_16BIT)
+                    .setChannelMask(AudioFormat.CHANNEL_OUT_STEREO)
+                    .build();
+            track = new AudioTrack.Builder()
+                    .setAudioAttributes(attributes)
+                    .setAudioFormat(format)
+                    .setBufferSizeInBytes(bufferBytes)
+                    .setTransferMode(AudioTrack.MODE_STATIC)
+                    .build();
+            report.append("audio_track_state=").append(track.getState()).append('\n');
+            if (track.getState() != AudioTrack.STATE_INITIALIZED) {
+                report.append("audio_proof=fail\nreason=track_not_initialized\n");
+                return report.toString();
+            }
+            track.setStereoVolume(AUDIO_TEST_VOLUME, AUDIO_TEST_VOLUME);
+            int writtenSamples = track.write(samples, 0, samples.length,
+                    AudioTrack.WRITE_BLOCKING);
+            report.append("audio_track_written_samples=").append(writtenSamples).append('\n');
+            if (writtenSamples != samples.length) {
+                report.append("audio_proof=fail\nreason=short_write\n");
+                return report.toString();
+            }
+            track.play();
+            report.append("audio_track_play_state=").append(track.getPlayState()).append('\n');
+            Thread.sleep(AUDIO_DURATION_MS + 150L);
+            report.append("audio_track_playback_head=")
+                    .append(track.getPlaybackHeadPosition()).append('\n');
+            track.stop();
+            report.append("audio_track_stop_state=").append(track.getPlayState()).append('\n');
+            passed = true;
+        } catch (InterruptedException error) {
+            Thread.currentThread().interrupt();
+            report.append("audio_proof=fail\nreason=interrupted\n");
+        } catch (RuntimeException error) {
+            report.append("audio_proof=fail\nexception=")
+                    .append(error.getClass().getSimpleName()).append(':')
+                    .append(error.getMessage()).append('\n');
+        } finally {
+            if (track != null) {
+                track.release();
+            }
+        }
+        if (passed) {
+            report.append("audio_proof=pass\n");
+        }
+        return report.toString();
+    }
+
     private void runDmaBufBridge() {
         final String socketPath = new File(
                 getFilesDir(), "nova-lab-ahb-bridge.sock").getAbsolutePath();
@@ -1159,6 +1341,19 @@ public final class MainActivity extends Activity implements SurfaceHolder.Callba
             output.close();
         } catch (IOException error) {
             Log.w(TAG, "android_vulkan_report_write_failed", error);
+        }
+    }
+
+    private void writeAndroidAudioReport(String report) {
+        if (androidAudioReportFile == null) {
+            return;
+        }
+        try {
+            FileOutputStream output = new FileOutputStream(androidAudioReportFile, false);
+            output.write(report.getBytes(StandardCharsets.UTF_8));
+            output.close();
+        } catch (IOException error) {
+            Log.w(TAG, "android_audio_report_write_failed", error);
         }
     }
 
