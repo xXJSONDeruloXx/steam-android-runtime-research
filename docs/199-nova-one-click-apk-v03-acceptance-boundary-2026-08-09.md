@@ -285,6 +285,51 @@ processes were absent after teardown. Host event10 remains a separate
 `com.rp.mapping` virtual device after teardown, but it is not visible to this
 Steam client namespace.
 
+### `launcher-20260809T203314Z-apk-v03-native-window-size`
+
+This geometry experiment used commit `dc83268cfc2da93c27c97afd237eb88d733691a4`
+and APK SHA-256
+`42696a39be946fcb6ea1fc510b0132af0fb8093b44176bf6bbb8f2414c3c3504`.
+The direct Termux:X11 client retained `-fullscreen -fulldesktopres` and added
+Steam's explicit `-w 1280 -h 960` arguments. The fresh inner-client log
+recorded both requested dimensions and the final command line:
+
+```text
+client_width=1280
+client_height=960
+client_flags_final=/opt/nova-steam/home/.local/share/Steam/steamrtarm64/steam -gamepadui -steamos3 -steampal -steamdeck -nobootstrapperupdate -skipinitialbootstrap -no-child-update-ui -no-cef-sandbox -cef-disable-gpu -fullscreen -fulldesktopres -w 1280 -h 960
+client_started=pass
+```
+
+The arguments did not change the mapped X11 geometry. Fresh X11 capture found
+root `0x511` at 1280x960 and Steam Big Picture window `0x2400035` at
+1280x800, with the same 160-pixel black bottom band on the Android capture.
+The X11 tree and settled Android screenshot hashes are
+`fff86bb187d869ad55a56be7db45004dc5036c1928bbe0662681e274972634c5` and
+`2d699f8d7e1c20f7aee41c598e15c6bd39e7cb4dfbb55bafdf13a95b70c099ba`.
+This is a negative result for Steam's `-w/-h` flags under the current
+fullscreen/full-desktop profile; the next geometry experiment should vary the
+fullscreen/full-desktop or X11 display mode, not add more size aliases.
+The default APK launch no longer passes these ineffective size flags; the
+client wrapper still accepts them for a separately identified future test.
+
+The one-controller namespace gate remained intact: the fresh Steam process saw
+only `/proc/<steam-pid>/root/dev/input/event9`, Steam opened the current
+045e/028e Xbox-compatible mapping at `20:34:13`, and the fresh source-event
+probe reached event9. That probe used `sendevent` to inject code 304 into the
+raw source event7; it is synthetic relay evidence, not proof that a human
+press on the physical controller is producing an event on event7. The operator
+reported that actual physical controls were not being forwarded, so physical
+event capture is now the next input gate.
+
+The direct root-side stop completed after the final exact cleanup retry:
+`nova_launcher_stop=pass`, `nova_x11_cleanup=pass`, and
+`nova_runtime_cleanup=pass`. The app state directory, X11 socket, capture
+helper, and matching Nova processes were absent after teardown. The attempted
+external `am startservice` stop was rejected because the service is not
+exported; the subsequent exact launcher stop path was used for cleanup and is
+not a product-session failure.
+
 ## Cleanup
 
 Every attempt ended without a Nova Steam runtime. The exact helper returned
@@ -301,16 +346,20 @@ matching runtime. No broad process kill was used.
 ## Next gate
 
 The direct APK path is now repeatable through signed-in Steam UI and the
-single-controller input gate is accepted. The next run should focus on the
-remaining product boundaries, in order:
+single-controller namespace gate is accepted, but physical-controller
+forwarding is not yet accepted. The next run should focus on the remaining
+product boundaries, in order:
 
-1. test and fix the 1280x800 Steam window geometry against the 1280x960 Nova
+1. capture a fresh bounded human-input window on both physical event7 and
+   relay event9, then fix source-node selection or Android/controller routing
+   if event7 is quiet;
+2. test and fix the 1280x800 Steam window geometry against the 1280x960 Nova
    surface;
-2. establish whether the `default` Steam audio manager reaches an Android
+3. establish whether the `default` Steam audio manager reaches an Android
    sink;
-3. preserve the direct APK fallback while adding a separately identified
+4. preserve the direct APK fallback while adding a separately identified
    Gamescope/AHardwareBuffer product mode; and
-4. keep 198X/game launch as a separate translation-runtime phase because its
+5. keep 198X/game launch as a separate translation-runtime phase because its
    current blocker is x86-64 execution, not display or controller input.
 
 Only after that direct product path is repeatable should the APK gain the
