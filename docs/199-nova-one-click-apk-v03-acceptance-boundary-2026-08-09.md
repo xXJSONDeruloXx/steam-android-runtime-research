@@ -1101,6 +1101,94 @@ Artifacts are under
 * final exact cleanup:
   `1bb8add9bfa2a0ad115fa08807f1927364b44300ae706823e12964cc74539be8`.
 
+### `alsa-20260809T225729Z-open-probe`
+
+This was the first rootfs-side ALSA probe after the Android sink proof. It was
+read-only at the PCM level: the probe opened/configured/closed the device and
+did not write samples. Exact Nova cleanup passed before and after the run; no
+physical or synthetic input was sent; and the device remained locked/asleep.
+
+The probe separated three boundaries. With no rootfs device mounts,
+`default` failed with `No such file or directory`. With the existing private
+namespace's `/dev` and `/proc`/`asound` visibility, both `default` and
+`plug:default` opened and accepted 48 kHz stereo hardware parameters as root.
+The same exact Steam UID/GID (`501:20`) with cleared supplementary groups
+failed both devices. Retaining only Android's audio group (`1005`) made both
+devices pass. This identifies the immediate cause of the old open failure:
+the launcher was clearing the supplementary group required by `/dev/snd`, not
+that the Nova kernel audio device was absent.
+
+The result is narrower than audible playback acceptance. It proves rootfs
+visibility, permissions, and parameter setup, but not a successful PCM write.
+The follow-up direct Steam run below tests that next boundary.
+
+Artifacts are under
+`android/nova-lab/build/manual-runs/alsa-20260809T225729Z-open-probe/`:
+
+* source: `nova-alsa-open-probe.c`, SHA-256
+  `8a85dba93eba0513491b8fdde2bd494b0e2b0c5180a6cfea977a62f4a6da6e86`;
+* no-device baseline:
+  `15e76c8ce32a5e930c78a9043a878db7280d53b2e1b7a99e5baba30031cc7add`;
+* root/default with mounts:
+  `a40810dd9c88f1124c01a0716af70ca7ce94c856b2cc8e365f100d33929ebba0`;
+* root/`plug:default` with mounts:
+  `425a49825d54a2f92362fa263cf34d02976922f80b07ee8f0f66a554aa605d31`;
+* Steam UID with cleared groups/default:
+  `15e76c8ce32a5e930c78a9043a878db7280d53b2e1b7a99e5baba30031cc7add`;
+* Steam UID with group `1005`/default:
+  `a40810dd9c88f1124c01a0716af70ca7ce94c856b2cc8e365f100d33929ebba0`;
+* Steam UID with group `1005`/`plug:default`:
+  `425a49825d54a2f92362fa263cf34d02976922f80b07ee8f0f66a554aa605d31`;
+* final exact cleanup:
+  `22ed8d65f35e6191f631acd408011edf7455ae18027214a34493e873e118a97d`.
+
+The launcher now preserves supplementary group `1005` for the Steam client;
+the source and rebuilt APK were pushed before the direct client run.
+
+### `audio-20260809T230053Z-steam-alsa-group`
+
+This was the direct Steam/X11 follow-up using the group-preserving launcher.
+The exact cleanup passed before launch; the APK SHA-256 was
+`a42b12b73d3dd92e59b3c60d08e048fb349c7f3076415e58efceff1d5fd42719`; the
+installed app-owned client script was refreshed to the current source; and
+the device remained locked/asleep with no physical or synthetic input.
+
+The client log records `client_uid=501`, `client_gid=20`,
+`client_audio_gid=1005`, `client_runtime_owner_status=pass`, and
+`client_started=pass`. The fresh run therefore reached the real Steam audio
+service rather than only exercising the standalone Android proof. The latest
+run-specific CEF lines changed the failure boundary:
+
+```text
+[17068:17068:0809/230201.920281:WARNING:audio_manager_linux.cc(53)] Falling back to ALSA for audio output. PulseAudio is not available or could not be initialized.
+[17068:17068:0809/230201.937086:ERROR:alsa_output.cc(482)] Failed to write to pcm device: Invalid argument
+```
+
+The previous `PcmOpen: default,No such file or directory` and
+`PcmOpen: plug:default,No such file or directory` errors are still present in
+the historical portion of `cef_log.txt`, but they do not occur in the fresh
+`23:01:59`/`23:02:01` client startup. Preserving group `1005` moved the current
+failure from device open to the PCM write/format contract. This is progress,
+but it is not yet audible Steam playback: no listener acceptance test was
+performed.
+
+The launcher stopped cleanly, the exact cleanup returned `pass`, the app-owned
+file inventory contained only the durable launcher assets, and the post-stop
+process inventory contained no matching Nova runtime. Artifacts are under
+`android/nova-lab/build/manual-runs/audio-20260809T230053Z-steam-alsa-group/`:
+
+* client log: `52f7562bdb6f3d24525ffc859824cefa268322f5471709828bf08c47c1957e53`;
+* run-specific CEF log: `afa06b02d717bd1e1b6b80a498ba4461e186120241a57fad637e179c356f8607`;
+* Steam webhelper launch log: `20121c62145918b9915891d37d3636f9297d06faeb94bcd2a65164b0b343c3d6`;
+* post-stop cleanup: `1bb8add9bfa2a0ad115fa08807f1927364b44300ae706823e12964cc74539be8`;
+* post-stop processes: `e1583a252356b30da43621725d64c4cd63a45c2bbf5d79583578d1dcacae736c`;
+* post-stop app files: `03d5bedd226c353d957847541bef2486832a83536d1eee3d77291dcb48fa0ac9`.
+
+The next audio experiment is a narrow silent rootfs ALSA write probe using
+the same negotiated format, followed by matching Chromium's requested format
+or period if the driver rejects that write. This remains separate from the
+physical-controller path.
+
 ## Cleanup
 
 Every attempt ended without a Nova Steam runtime. The exact helper returned
