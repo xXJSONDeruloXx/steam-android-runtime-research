@@ -30,6 +30,7 @@ keystore, and verified by `apksigner`.
 | timeout/cleanup fix, pending device retest | working tree after `00ed01c` | `9124807429ff6d21a3c7556865cf6a33b0c8999ac8673cc4b5629b46839b3ec1` | 0.3 |
 | single-controller namespace refinement, device-tested | `3681167` | `25d389dddc26cff7cbb53f39f6169cbbfc05eed68336dab53d09a4e4197d2ef0` | 0.3 |
 | relay-event allowlist refinement, device-tested | `21ad85a` | `d52d966749a4e6cc5b23c4548adce8c0161cea7c66aba5392fa2167bc191a356` | 0.3 |
+| notification-action product build, build-tested | `7ae566d` | `0ea67e39b3e0068eb78386cf3ddaac68e643ba2053361f23f0b3faf0213be4e8` | 0.3 |
 
 The runtime inputs for these attempts were the direct launcher mode: Termux:X11
 APK `/data/app/~~EaHbYh5LSrJyPyjYrj44Wg==/com.termux.x11-Yy3Sfe-6FUYa5hx2OcDldw==/base.apk`,
@@ -1257,6 +1258,23 @@ Artifacts are under
   `d17521aaf43daf2906355c80201e5be56ef7e8af99729172999ab3e0287691f2`;
 * final process inventory:
   `b7dae28b545536943cf26bd23e2a6be0c42be60dcdb2d9c90d1982f75f0d0538`.
+
+### `apk-20260809T231400Z-notification-controls`
+
+This was a source/build-only product refinement, deliberately outside the
+physical-controller path. `LauncherService` now puts an explicit `Stop`
+action in its ongoing foreground notification and makes the notification body
+open `LauncherActivity`. The session can therefore be stopped or returned to
+from the Android notification shade without reopening ADB or finding the
+launcher Activity. The action targets the non-exported service explicitly and
+uses immutable, update-current `PendingIntent`s.
+
+The APK rebuilt cleanly with `android/nova-lab/build.sh`, `apksigner verify`
+passed, and `aapt2 dump badging` reported package
+`com.xjsonderulo.steamandroid.novalab`, version `0.3`, min SDK 29, and target
+SDK 35. No device launch was performed for this source/build experiment, so
+it does not change the device acceptance boundary. The built APK SHA-256 is
+`0ea67e39b3e0068eb78386cf3ddaac68e643ba2053361f23f0b3faf0213be4e8`.
 
 ## Cleanup
 
