@@ -18,7 +18,12 @@ runtime_pids() {
                 if (index(args, "awk") || index(args, "nova-runtime-cleanup")) {
                     next
                 }
-                if (index(args, root "/opt/nova-steam") ||
+                # The launch wrappers carry ROOT as an argument, while their
+                # chrooted descendants expose only /opt/nova-steam. Matching
+                # ROOT here seeds the descendant walk with the exact Nova
+                # launcher tree without broad process-name termination.
+                if (index(args, root) ||
+                    index(args, root "/opt/nova-steam") ||
                     index(args, "/opt/nova-kgsl-driver/gamescope-headless") ||
                     index(args, "gamescope-headless-ahb-control.sh") ||
                     index(args, "nova-libei-input-bridge") ||
