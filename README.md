@@ -208,6 +208,7 @@ the gamescope frames on its own surface.
 - [Nova AHB valid-content timeout-split experiment](docs/91-nova-ahb-valid-content-timeout-split-experiment-2026-08-09.md)
 - [Nova AHB valid-content timeout-split result](docs/92-nova-ahb-valid-content-timeout-split-result-2026-08-09.md)
 - [Nova controller UI readiness-timeout experiment](docs/93-nova-controller-ui-readiness-timeout-experiment-2026-08-09.md)
+- [Nova controller UI readiness-timeout result](docs/94-nova-controller-ui-readiness-timeout-result-2026-08-09.md)
 - [Retroid Pocket Nova flashing kit](tools/retroid-pocket-nova/README.md)
 
 ## Evidence standard
