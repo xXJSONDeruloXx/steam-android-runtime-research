@@ -88,7 +88,7 @@ else
 fi
 
 if trace_output=$($ADB shell \
-    "su -c 'printf \"ahb-trace=\"; cat $DEVICE_ROOT/opt/nova-steam/ahb-trace; printf \"ahb-socket-trace=\"; cat $DEVICE_ROOT/opt/nova-steam/ahb-socket-trace'" \
+    "su -c 'printf \"ahb-trace=\"; cat $DEVICE_ROOT/opt/nova-steam/ahb-trace; printf \"ahb-socket-trace=\"; cat $DEVICE_ROOT/opt/nova-steam/ahb-socket-trace; printf \"ahb-scheduler-trace=\"; cat $DEVICE_ROOT/opt/nova-steam/ahb-scheduler-trace'" \
     2>&1); then
     trace_status=0
 else
@@ -103,7 +103,8 @@ fi
 printf '%s\n' "$trace_output"
 if [ "$trace_status" -eq 0 ] && \
     printf '%s\n' "$trace_output" | rg -q '^ahb-trace=0$' && \
-    printf '%s\n' "$trace_output" | rg -q '^ahb-socket-trace=0$'; then
+    printf '%s\n' "$trace_output" | rg -q '^ahb-socket-trace=0$' && \
+    printf '%s\n' "$trace_output" | rg -q '^ahb-scheduler-trace=0$'; then
     echo "post_stop_trace_state=pass"
 else
     echo "post_stop_trace_state=fail" >&2
@@ -114,6 +115,21 @@ if ack_poll_output=$($ADB shell getprop debug.nova.ahb_ack_poll_timeout_ms 2>&1)
     ack_poll_status=0
 else
     ack_poll_status=$?
+fi
+
+if scheduler_trace_output=$($ADB shell getprop debug.nova.ahb_scheduler_trace 2>&1); then
+    scheduler_trace_status=0
+else
+    scheduler_trace_status=$?
+fi
+scheduler_trace_output=$(printf '%s\n' "$scheduler_trace_output" | tr -d '\r')
+scheduler_trace_value=$(printf '%s\n' "$scheduler_trace_output" | tail -n 1)
+echo "debug.nova.ahb_scheduler_trace=$scheduler_trace_value"
+if [ "$scheduler_trace_status" -eq 0 ] && [ "$scheduler_trace_value" = "0" ]; then
+    echo "post_stop_scheduler_trace_state=pass"
+else
+    echo "post_stop_scheduler_trace_state=fail" >&2
+    failures=$((failures + 1))
 fi
 ack_poll_output=$(printf '%s\n' "$ack_poll_output" | tr -d '\r')
 ack_poll_value=$(printf '%s\n' "$ack_poll_output" | tail -n 1)

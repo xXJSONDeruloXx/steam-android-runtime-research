@@ -231,6 +231,63 @@ ahb_socket_name(int fd, int peer, char *name, size_t capacity)
     name[copy_length] = '\0';
 }
 
+static struct cmsghdr *
+ahb_socket_next_cmsg(const struct msghdr *message, struct cmsghdr *header,
+                     int *malformed)
+{
+    if (malformed != NULL) {
+        *malformed = 0;
+    }
+    if (message == NULL || header == NULL || message->msg_control == NULL) {
+        if (malformed != NULL) {
+            *malformed = 1;
+        }
+        return NULL;
+    }
+
+    uintptr_t control_start = (uintptr_t)message->msg_control;
+    if (message->msg_controllen > UINTPTR_MAX - control_start) {
+        if (malformed != NULL) {
+            *malformed = 1;
+        }
+        return NULL;
+    }
+    uintptr_t control_end = control_start + message->msg_controllen;
+    uintptr_t header_address = (uintptr_t)header;
+    if (header_address < control_start || header_address > control_end ||
+        control_end - header_address < CMSG_LEN(0)) {
+        if (malformed != NULL) {
+            *malformed = 1;
+        }
+        return NULL;
+    }
+
+    size_t remaining = (size_t)(control_end - header_address);
+    if (header->cmsg_len == 0) {
+        /* Some Android kernels leave zeroed control-buffer padding visible. */
+        return NULL;
+    }
+    if (header->cmsg_len < CMSG_LEN(0) || header->cmsg_len > remaining) {
+        if (malformed != NULL) {
+            *malformed = 1;
+        }
+        return NULL;
+    }
+
+    size_t aligned_length = CMSG_ALIGN(header->cmsg_len);
+    if (aligned_length < header->cmsg_len || aligned_length > remaining) {
+        if (malformed != NULL) {
+            *malformed = 1;
+        }
+        return NULL;
+    }
+    if (aligned_length == remaining ||
+        remaining - aligned_length < CMSG_LEN(0)) {
+        return NULL;
+    }
+    return (struct cmsghdr *)(header_address + aligned_length);
+}
+
 static void
 ahb_socket_cmsg_summary(const struct msghdr *message, char *summary,
                         size_t capacity)
@@ -245,8 +302,10 @@ ahb_socket_cmsg_summary(const struct msghdr *message, char *summary,
     }
     size_t used = 0;
     int header_index = 0;
-    for (struct cmsghdr *header = CMSG_FIRSTHDR(message); header != NULL;
-         header = CMSG_NXTHDR((struct msghdr *)message, header)) {
+    for (struct cmsghdr *header = CMSG_FIRSTHDR(message); header != NULL;) {
+        if (header->cmsg_len == 0) {
+            break;
+        }
         size_t bytes = 0;
         int valid = header->cmsg_len >= CMSG_LEN(0) &&
                     header->cmsg_len <= message->msg_controllen;
@@ -265,6 +324,13 @@ ahb_socket_cmsg_summary(const struct msghdr *message, char *summary,
         }
         used += (size_t)written;
         header_index += 1;
+        int malformed = 0;
+        struct cmsghdr *next =
+            ahb_socket_next_cmsg(message, header, &malformed);
+        if (malformed) {
+            break;
+        }
+        header = next;
     }
     if (header_index == 0) {
         snprintf(summary, capacity, "none");
@@ -278,14 +344,23 @@ ahb_socket_rights_count(const struct msghdr *message)
     if (message == NULL) {
         return 0;
     }
-    for (struct cmsghdr *header = CMSG_FIRSTHDR(message); header != NULL;
-         header = CMSG_NXTHDR((struct msghdr *)message, header)) {
+    for (struct cmsghdr *header = CMSG_FIRSTHDR(message); header != NULL;) {
+        if (header->cmsg_len == 0) {
+            break;
+        }
         if (header->cmsg_level == SOL_SOCKET &&
             header->cmsg_type == SCM_RIGHTS &&
             header->cmsg_len >= CMSG_LEN(0) &&
             header->cmsg_len <= message->msg_controllen) {
             count += (int)((header->cmsg_len - CMSG_LEN(0)) / sizeof(int));
         }
+        int malformed = 0;
+        struct cmsghdr *next =
+            ahb_socket_next_cmsg(message, header, &malformed);
+        if (malformed) {
+            break;
+        }
+        header = next;
     }
     return count;
 }
@@ -818,31 +893,40 @@ receive_bridge_acknowledgement(int client, char *acknowledgement,
     } else {
         acknowledgement[0] = '\0';
     }
-    for (struct cmsghdr *header = CMSG_FIRSTHDR(&message); header != NULL;
-         header = CMSG_NXTHDR(&message, header)) {
+    for (struct cmsghdr *header = CMSG_FIRSTHDR(&message); header != NULL;) {
+        if (header->cmsg_len == 0) {
+            break;
+        }
         if (header->cmsg_len < CMSG_LEN(0) ||
             header->cmsg_len > message.msg_controllen) {
             protocol_error = 1;
-            continue;
+            break;
         }
-        if (header->cmsg_level != SOL_SOCKET ||
-            header->cmsg_type != SCM_RIGHTS) {
-            continue;
-        }
-        size_t byte_count = header->cmsg_len - CMSG_LEN(0);
-        if (byte_count % sizeof(int) != 0) {
-            protocol_error = 1;
-            continue;
-        }
-        size_t descriptor_count = byte_count / sizeof(int);
-        int *descriptors = (int *)CMSG_DATA(header);
-        for (size_t index = 0; index < descriptor_count; ++index) {
-            if (*acquire_fence_fd < 0) {
-                *acquire_fence_fd = descriptors[index];
-            } else {
-                close(descriptors[index]);
+        if (header->cmsg_level == SOL_SOCKET &&
+            header->cmsg_type == SCM_RIGHTS) {
+            size_t byte_count = header->cmsg_len - CMSG_LEN(0);
+            if (byte_count % sizeof(int) != 0) {
+                protocol_error = 1;
+                break;
+            }
+            size_t descriptor_count = byte_count / sizeof(int);
+            int *descriptors = (int *)CMSG_DATA(header);
+            for (size_t index = 0; index < descriptor_count; ++index) {
+                if (*acquire_fence_fd < 0) {
+                    *acquire_fence_fd = descriptors[index];
+                } else {
+                    close(descriptors[index]);
+                }
             }
         }
+        int malformed = 0;
+        struct cmsghdr *next =
+            ahb_socket_next_cmsg(&message, header, &malformed);
+        if (malformed) {
+            protocol_error = 1;
+            break;
+        }
+        header = next;
     }
     char wait_end_payload[96] = {0};
     const char *wait_end_message = acknowledgement;
@@ -1052,25 +1136,48 @@ Java_com_xjsonderulo_steamandroid_novalab_MainActivity_nativeRunDmaBufBridge(
         acknowledgement[acknowledgement_bytes] = '\0';
     }
     int acquire_fence_fd = -1;
+    int acknowledgement_protocol_error =
+        acknowledgement_bytes >= 0 &&
+        (acknowledgement_message.msg_flags & (MSG_CTRUNC | MSG_TRUNC)) != 0;
     for (struct cmsghdr *header = CMSG_FIRSTHDR(&acknowledgement_message);
-         header != NULL; header = CMSG_NXTHDR(&acknowledgement_message, header)) {
-        if (header->cmsg_level != SOL_SOCKET ||
-            header->cmsg_type != SCM_RIGHTS) {
-            continue;
+         header != NULL;) {
+        if (header->cmsg_len == 0) {
+            break;
         }
-        size_t byte_count = header->cmsg_len - CMSG_LEN(0);
-        size_t descriptor_count = byte_count / sizeof(int);
-        int *descriptors = (int *)CMSG_DATA(header);
-        for (size_t index = 0; index < descriptor_count; ++index) {
-            if (acquire_fence_fd < 0) {
-                acquire_fence_fd = descriptors[index];
-            } else {
-                close(descriptors[index]);
+        if (header->cmsg_len < CMSG_LEN(0) ||
+            header->cmsg_len > acknowledgement_message.msg_controllen) {
+            acknowledgement_protocol_error = 1;
+            break;
+        }
+        if (header->cmsg_level == SOL_SOCKET &&
+            header->cmsg_type == SCM_RIGHTS) {
+            size_t byte_count = header->cmsg_len - CMSG_LEN(0);
+            if (byte_count % sizeof(int) != 0) {
+                acknowledgement_protocol_error = 1;
+                break;
+            }
+            size_t descriptor_count = byte_count / sizeof(int);
+            int *descriptors = (int *)CMSG_DATA(header);
+            for (size_t index = 0; index < descriptor_count; ++index) {
+                if (acquire_fence_fd < 0) {
+                    acquire_fence_fd = descriptors[index];
+                } else {
+                    close(descriptors[index]);
+                }
             }
         }
+        int malformed = 0;
+        struct cmsghdr *next = ahb_socket_next_cmsg(
+            &acknowledgement_message, header, &malformed);
+        if (malformed) {
+            acknowledgement_protocol_error = 1;
+            break;
+        }
+        header = next;
     }
     append_line(report, sizeof(report), &used,
-                "bridge_ack_bytes=%zd ack=%s", acknowledgement_bytes,
+                "bridge_ack_bytes=%zd control_protocol=%s ack=%s", acknowledgement_bytes,
+                acknowledgement_protocol_error ? "fail" : "pass",
                 acknowledgement_bytes > 0 ? acknowledgement : "");
     int linux_import_pass = acknowledgement_bytes > 0 &&
                             strstr(acknowledgement, "linux_import=pass") != NULL;

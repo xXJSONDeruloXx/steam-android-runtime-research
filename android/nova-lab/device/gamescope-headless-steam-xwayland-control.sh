@@ -9,6 +9,7 @@ GAMESCOPE_TIMEOUT=${NOVA_STEAM_GAMESCOPE_TIMEOUT:-35}
 CLIENT_TIMEOUT=${NOVA_STEAM_CLIENT_TIMEOUT:-25}
 NOVA_AHB_TRACE=${NOVA_AHB_TRACE:-0}
 NOVA_AHB_SOCKET_TRACE=${NOVA_AHB_SOCKET_TRACE:-0}
+NOVA_AHB_SCHEDULER_TRACE=${NOVA_AHB_SCHEDULER_TRACE:-0}
 if [ -r /opt/nova-steam/gamescope-timeout ]; then
     GAMESCOPE_TIMEOUT=$(cat /opt/nova-steam/gamescope-timeout)
 fi
@@ -21,8 +22,12 @@ fi
 if [ -r /opt/nova-steam/ahb-socket-trace ]; then
     NOVA_AHB_SOCKET_TRACE=$(cat /opt/nova-steam/ahb-socket-trace)
 fi
+if [ -r /opt/nova-steam/ahb-scheduler-trace ]; then
+    NOVA_AHB_SCHEDULER_TRACE=$(cat /opt/nova-steam/ahb-scheduler-trace)
+fi
 export NOVA_AHB_TRACE
 export NOVA_AHB_SOCKET_TRACE
+export NOVA_AHB_SCHEDULER_TRACE
 EIS_TOUCH_BRIDGE=0
 EIS_TOUCH_HELPER=/opt/nova-kgsl-driver/nova-libei-input-bridge
 EIS_TOUCH_APP_SOCKET=/run/nova-lab-app/nova-touch.sock
