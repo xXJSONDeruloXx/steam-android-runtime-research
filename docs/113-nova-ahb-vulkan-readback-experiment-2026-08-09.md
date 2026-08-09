@@ -1,6 +1,8 @@
 # Nova Vulkan AHardwareBuffer readback experiment — 2026-08-09
 
-Status: predeclared; the fresh device result will be recorded separately.
+Status: completed; the first device invocation was invalid because the native
+Steam control-script variant did not propagate the opt-in readback variables;
+see [the invalid-run result](114-nova-ahb-vulkan-readback-result-2026-08-09.md).
 
 ## Question
 
