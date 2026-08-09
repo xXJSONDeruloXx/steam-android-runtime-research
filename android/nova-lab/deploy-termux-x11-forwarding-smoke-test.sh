@@ -18,6 +18,8 @@ X11_PRIVATE_NAMESPACE_HELPER="$SCRIPT_DIR/device/nova-x11-private-namespace.sh"
 X11_CLEANUP_HELPER="$SCRIPT_DIR/device/nova-termux-x11-cleanup.sh"
 X11_CLIENT_LAUNCHER="$SCRIPT_DIR/device/nova-termux-x11-client-launcher.sh"
 X11_ROOTFS_DEVICES_HELPER="$SCRIPT_DIR/device/nova-termux-x11-rootfs-devices.sh"
+NETWORK_OBSERVER_HOST="$SCRIPT_DIR/probe-termux-x11-network-state.sh"
+NETWORK_OBSERVER_DEVICE="$SCRIPT_DIR/device/nova-termux-x11-network-observer.sh"
 MOUNT_PRIVATE_HELPER=${NOVA_MOUNT_PRIVATE_HELPER:-$BUILD_DIR/nova-mount-private}
 DEVICE_RUNTIME_CLEANUP=/data/local/tmp/nova-runtime-cleanup.sh
 CLIENT_FRAMES=${NOVA_TERMUX_X11_CLIENT_FRAMES:-600}
@@ -33,6 +35,9 @@ STEAM_TIMEOUT_SECONDS=${NOVA_TERMUX_X11_STEAM_TIMEOUT_SECONDS:-60}
 STEAM_UID=${NOVA_TERMUX_X11_STEAM_UID:-501}
 STEAM_GID=${NOVA_TERMUX_X11_STEAM_GID:-20}
 BIND_ANDROID_DEV=${NOVA_TERMUX_X11_BIND_ANDROID_DEV:-0}
+NETWORK_OBSERVER=${NOVA_TERMUX_X11_NETWORK_OBSERVER:-0}
+NETWORK_OBSERVER_DURATION_SECONDS=${NOVA_TERMUX_X11_NETWORK_OBSERVER_DURATION_SECONDS:-45}
+NETWORK_OBSERVER_INTERVAL_SECONDS=${NOVA_TERMUX_X11_NETWORK_OBSERVER_INTERVAL_SECONDS:-5}
 RUN_ID=${NOVA_RUN_ID:-termux-x11-$(date -u +%Y%m%dT%H%M%SZ)-display-${DISPLAY_NUMBER}}
 RUN_DIR=${NOVA_RUN_DIR:-$BUILD_DIR/manual-runs/$RUN_ID}
 XKB_CONFIG_ROOT_RELATIVE=/usr/share/xkeyboard-config-2
@@ -61,9 +66,11 @@ REMOTE_X11_CLEANUP_HELPER=/data/local/tmp/nova-termux-x11-cleanup-$RUN_ID.sh
 REMOTE_CLIENT_LAUNCHER=/data/local/tmp/nova-termux-x11-client-launcher-$RUN_ID.sh
 REMOTE_ROOTFS_DEVICES_HELPER=/data/local/tmp/nova-termux-x11-rootfs-devices-$RUN_ID.sh
 REMOTE_MOUNT_PRIVATE=/data/local/tmp/nova-mount-private-$RUN_ID
+REMOTE_NETWORK_OBSERVER=/data/local/tmp/nova-termux-x11-network-observer-$RUN_ID.sh
 SERVER_PROCESS_TOKEN=termux-x11
 CLIENT_PROCESS_TOKEN=nova-x11-animate-$RUN_ID
 REMOTE_CLIENT_HOST_PID=
+NETWORK_OBSERVER_HOST_PID=
 
 case "$RUN_ID" in
     ''|*[!A-Za-z0-9._-]*)
@@ -161,6 +168,25 @@ case "$BIND_ANDROID_DEV" in
         exit 2
         ;;
 esac
+case "$NETWORK_OBSERVER" in
+    0|1)
+        ;;
+    *)
+        echo "NOVA_TERMUX_X11_NETWORK_OBSERVER must be 0 or 1" >&2
+        exit 2
+        ;;
+esac
+case "$NETWORK_OBSERVER_DURATION_SECONDS:$NETWORK_OBSERVER_INTERVAL_SECONDS" in
+    ''|*[!0-9:]*|*:*:*)
+        echo "NOVA_TERMUX_X11_NETWORK_OBSERVER duration/interval must be numeric" >&2
+        exit 2
+        ;;
+esac
+if [ "$NETWORK_OBSERVER" -eq 1 ] &&
+    { [ "$NETWORK_OBSERVER_DURATION_SECONDS" -lt 1 ] || [ "$NETWORK_OBSERVER_INTERVAL_SECONDS" -lt 1 ]; }; then
+    echo "NOVA_TERMUX_X11_NETWORK_OBSERVER duration/interval must be at least 1 second" >&2
+    exit 2
+fi
 
 if [ ! -f "$APK" ]; then
     echo "missing Termux:X11 APK: $APK" >&2
@@ -189,6 +215,16 @@ fi
 if [ ! -x "$X11_ROOTFS_DEVICES_HELPER" ]; then
     echo "missing rootfs device helper: $X11_ROOTFS_DEVICES_HELPER" >&2
     exit 1
+fi
+if [ "$NETWORK_OBSERVER" -eq 1 ]; then
+    if [ ! -x "$NETWORK_OBSERVER_HOST" ]; then
+        echo "missing network observer host helper: $NETWORK_OBSERVER_HOST" >&2
+        exit 1
+    fi
+    if [ ! -x "$NETWORK_OBSERVER_DEVICE" ]; then
+        echo "missing network observer device helper: $NETWORK_OBSERVER_DEVICE" >&2
+        exit 1
+    fi
 fi
 if [ "$BIND_ANDROID_DEV" -eq 1 ]; then
     if [ ! -x "$MOUNT_PRIVATE_HELPER" ]; then
@@ -225,7 +261,8 @@ for artifact in \
     android-screenshot-before-input.png android-screenshot-after-input.png \
     x11-tree-after-input.txt x11-capture-after-input.txt \
     x11-window-before-input.ppm x11-window-after-input.ppm \
-    x11-pull-after-input.txt; do
+    x11-pull-after-input.txt network-observer-status.txt \
+    network-chroot-observer.txt; do
     if [ -e "$RUN_DIR/$artifact" ]; then
         echo "run artifact already exists; choose a fresh NOVA_RUN_ID: $RUN_DIR/$artifact" >&2
         exit 2
@@ -246,11 +283,18 @@ stage_x11_helpers() {
     adb push "$X11_CLEANUP_HELPER" "$REMOTE_X11_CLEANUP_HELPER" >/dev/null
     adb push "$X11_CLIENT_LAUNCHER" "$REMOTE_CLIENT_LAUNCHER" >/dev/null
     adb push "$X11_ROOTFS_DEVICES_HELPER" "$REMOTE_ROOTFS_DEVICES_HELPER" >/dev/null
+    if [ "$NETWORK_OBSERVER" -eq 1 ]; then
+        adb push "$NETWORK_OBSERVER_DEVICE" "$REMOTE_NETWORK_OBSERVER" >/dev/null
+    fi
+    helper_paths="$REMOTE_PRIVATE_NAMESPACE_HELPER $REMOTE_X11_CLEANUP_HELPER $REMOTE_CLIENT_LAUNCHER $REMOTE_ROOTFS_DEVICES_HELPER"
+    if [ "$NETWORK_OBSERVER" -eq 1 ]; then
+        helper_paths="$helper_paths $REMOTE_NETWORK_OBSERVER"
+    fi
     if [ "$BIND_ANDROID_DEV" -eq 1 ]; then
         adb push "$MOUNT_PRIVATE_HELPER" "$REMOTE_MOUNT_PRIVATE" >/dev/null
-        adb shell "chmod 755 $REMOTE_PRIVATE_NAMESPACE_HELPER $REMOTE_X11_CLEANUP_HELPER $REMOTE_CLIENT_LAUNCHER $REMOTE_ROOTFS_DEVICES_HELPER $REMOTE_MOUNT_PRIVATE"
+        adb shell "chmod 755 $helper_paths $REMOTE_MOUNT_PRIVATE"
     else
-        adb shell "chmod 755 $REMOTE_PRIVATE_NAMESPACE_HELPER $REMOTE_X11_CLEANUP_HELPER $REMOTE_CLIENT_LAUNCHER $REMOTE_ROOTFS_DEVICES_HELPER"
+        adb shell "chmod 755 $helper_paths"
     fi
 }
 
@@ -314,6 +358,14 @@ on_exit() {
         if [ -n "${REMOTE_CLIENT_HOST_PID:-}" ]; then
             wait "$REMOTE_CLIENT_HOST_PID" >/dev/null 2>&1 || true
         fi
+        if [ -n "${NETWORK_OBSERVER_HOST_PID:-}" ]; then
+            observer_status=0
+            wait "$NETWORK_OBSERVER_HOST_PID" >/dev/null 2>&1 || observer_status=$?
+            if [ "$observer_status" -ne 0 ]; then
+                status=1
+            fi
+            NETWORK_OBSERVER_HOST_PID=
+        fi
         adb shell su -c "cat $REMOTE_SERVER_LOG" >"$RUN_DIR/termux-x11-server.log" 2>/dev/null || true
         adb shell su -c "cat $REMOTE_CLIENT_LOG" >"$RUN_DIR/termux-x11-client.log" 2>/dev/null || true
         adb shell su -c "cat $REMOTE_CLIENT_STDOUT" >"$RUN_DIR/termux-x11-client.stdout" 2>/dev/null || true
@@ -327,6 +379,9 @@ on_exit() {
         cleanup_nova_runtime >"$RUN_DIR/nova-runtime-cleanup.txt" || status=1
         if [ "$BIND_ANDROID_DEV" -eq 1 ]; then
             adb shell su -c "/system/bin/rm -f $REMOTE_MOUNT_PRIVATE" >/dev/null 2>&1 || status=1
+        fi
+        if [ "$NETWORK_OBSERVER" -eq 1 ]; then
+            adb shell su -c "/system/bin/rm -f $REMOTE_NETWORK_OBSERVER" >/dev/null 2>&1 || status=1
         fi
     fi
     exit "$status"
@@ -407,6 +462,16 @@ adb shell am start --user 0 -n com.termux.x11/com.termux.x11.MainActivity >"$RUN
     echo "input_after_delay_seconds=$INPUT_AFTER_DELAY_SECONDS"
     echo "steam_timeout_seconds=$STEAM_TIMEOUT_SECONDS"
     echo "steam_uid=$STEAM_UID:$STEAM_GID"
+    echo "network_observer=$NETWORK_OBSERVER"
+    if [ "$NETWORK_OBSERVER" -eq 1 ]; then
+        echo "network_observer_host=$NETWORK_OBSERVER_HOST"
+        echo "network_observer_host_sha256=$(sha256sum "$NETWORK_OBSERVER_HOST" | awk '{print $1}')"
+        echo "network_observer_device=$NETWORK_OBSERVER_DEVICE"
+        echo "network_observer_device_sha256=$(sha256sum "$NETWORK_OBSERVER_DEVICE" | awk '{print $1}')"
+        echo "network_observer_remote=$REMOTE_NETWORK_OBSERVER"
+        echo "network_observer_duration_seconds=$NETWORK_OBSERVER_DURATION_SECONDS"
+        echo "network_observer_interval_seconds=$NETWORK_OBSERVER_INTERVAL_SECONDS"
+    fi
     echo "x11_window_name=${X11_WINDOW_NAME-any viewable depth-1 child}"
     echo "x11_window_wait_seconds=$WINDOW_WAIT_SECONDS"
     echo "presentation=Termux:X11 Android SurfaceView"
@@ -423,6 +488,10 @@ sha256sum "$X11_CLIENT_LAUNCHER" >"$RUN_DIR/nova-termux-x11-client-launcher.sha2
 sha256sum "$X11_ROOTFS_DEVICES_HELPER" >"$RUN_DIR/nova-termux-x11-rootfs-devices.sha256"
 if [ "$BIND_ANDROID_DEV" -eq 1 ]; then
     sha256sum "$MOUNT_PRIVATE_HELPER" >"$RUN_DIR/nova-mount-private.sha256"
+fi
+if [ "$NETWORK_OBSERVER" -eq 1 ]; then
+    sha256sum "$NETWORK_OBSERVER_HOST" >"$RUN_DIR/probe-termux-x11-network-state.sha256"
+    sha256sum "$NETWORK_OBSERVER_DEVICE" >"$RUN_DIR/nova-termux-x11-network-observer.sha256"
 fi
 
 RUN_STARTED=1
@@ -524,6 +593,20 @@ fi
 echo "termux_x11_android_capture=pass sha256=$(sha256sum "$RUN_DIR/android-screenshot.png" | awk '{print $1}')"
 if [ "$capture_status" -eq 0 ]; then
     echo "termux_x11_x11_capture=pass sha256=$(sha256sum "$RUN_DIR/x11-window.ppm" | awk '{print $1}')"
+fi
+
+if [ "$NETWORK_OBSERVER" -eq 1 ]; then
+    observer_mount_private=-
+    if [ "$BIND_ANDROID_DEV" -eq 1 ]; then
+        observer_mount_private="$REMOTE_MOUNT_PRIVATE"
+    fi
+    "$NETWORK_OBSERVER_HOST" "$ADB" "$ADB_SERIAL" "$DEVICE_ROOT" "$RUN_ID" "$RUN_DIR" \
+        "$REMOTE_PRIVATE_NAMESPACE_HELPER" "$client_namespace_mode" \
+        "$observer_mount_private" "$REMOTE_NETWORK_OBSERVER" \
+        "$NETWORK_OBSERVER_DURATION_SECONDS" "$NETWORK_OBSERVER_INTERVAL_SECONDS" \
+        >"$RUN_DIR/network-observer.log" 2>&1 &
+    NETWORK_OBSERVER_HOST_PID=$!
+    echo "termux_x11_network_observer=started pid=$NETWORK_OBSERVER_HOST_PID"
 fi
 
 if [ "$INPUT_MODE" != "none" ]; then
