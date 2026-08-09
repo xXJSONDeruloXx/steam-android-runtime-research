@@ -2,7 +2,7 @@
 
 Private evidence archive for building an Android app with a Linux runtime and a Steam/gamepad-first experience, rather than a Windows/Wine container as the primary product model.
 
-Status: evidence gathered through 2026-08-08.
+Status: evidence gathered through 2026-08-09.
 
 ## Bottom line
 
@@ -68,6 +68,7 @@ The useful results are split across several projects:
 - [Nova AHB socket-trace result](docs/49-nova-ahb-socket-trace-result-2026-08-08.md) records the stream baseline's valid message/FD exchange and the frame-432 Android receive/release boundary.
 - [Parent session process-audit follow-up 4](docs/50-parent-session-process-audit-followup-2026-08-08.md) records Luna's latest two-hour audit and the remaining capture, timeout, focus, and phase-serialization risks.
 - [Nova Android receive-wait experiment](docs/51-nova-ahb-app-receive-wait-experiment-2026-08-08.md) predeclares the next diagnostic-only app-side ACK wait boundary.
+- [Nova AHB transport observability result](docs/54-nova-ahb-transport-observability-result-2026-08-09.md) records stable peer identities, complete ACK/SCM_RIGHTS syscalls, and the reproduced frame-318 receive boundary.
 
 ## Recommended direction
 
@@ -140,6 +141,7 @@ the gamescope frames on its own surface.
 - [Nova Android receive-wait experiment](docs/51-nova-ahb-app-receive-wait-experiment-2026-08-08.md)
 - [Nova Android receive-wait result](docs/52-nova-ahb-app-receive-wait-result-2026-08-09.md)
 - [Nova AHB transport observability experiment](docs/53-nova-ahb-transport-observability-experiment-2026-08-09.md)
+- [Nova AHB transport observability result](docs/54-nova-ahb-transport-observability-result-2026-08-09.md)
 - [Retroid Pocket Nova flashing kit](tools/retroid-pocket-nova/README.md)
 
 ## Evidence standard
