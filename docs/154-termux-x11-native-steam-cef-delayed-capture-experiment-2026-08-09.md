@@ -1,6 +1,6 @@
 # Termux:X11 native ARM64 Steam delayed CEF capture experiment — 2026-08-09
 
-Status: predeclared experiment; no device launch has run for this profile.
+Status: completed; see the [device result](155-termux-x11-native-steam-cef-delayed-capture-result-2026-08-09.md).
 
 ## Why this is next
 
