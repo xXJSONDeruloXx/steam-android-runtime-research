@@ -19,6 +19,7 @@
 #include <sys/socket.h>
 #include <sys/stat.h>
 #include <sys/ioctl.h>
+#include <sys/syscall.h>
 #include <sys/system_properties.h>
 #include <sys/time.h>
 #include <sys/types.h>
@@ -39,6 +40,23 @@ ahb_trace_enabled(void)
     return enabled;
 }
 
+static unsigned long long
+ahb_monotonic_ns(void)
+{
+    struct timespec timestamp = {0};
+    if (clock_gettime(CLOCK_MONOTONIC, &timestamp) != 0) {
+        return 0;
+    }
+    return (unsigned long long)timestamp.tv_sec * 1000000000ULL +
+           (unsigned long long)timestamp.tv_nsec;
+}
+
+static long
+ahb_thread_id(void)
+{
+    return (long)syscall(SYS_gettid);
+}
+
 static void
 ahb_trace(int frame, int buffer, const char *phase, ssize_t bytes, int fence_fd,
           int status)
@@ -47,8 +65,9 @@ ahb_trace(int frame, int buffer, const char *phase, ssize_t bytes, int fence_fd,
         return;
     }
     __android_log_print(ANDROID_LOG_INFO, "NovaLab",
-                        "ahb_double_buffer_trace frame=%d buffer=%d phase=%s bytes=%zd fence=%d status=%d",
-                        frame, buffer, phase, bytes, fence_fd >= 0, status);
+                        "ahb_double_buffer_trace monotonic_ns=%llu pid=%d tid=%ld frame=%d buffer=%d phase=%s bytes=%zd fence=%d status=%d",
+                        ahb_monotonic_ns(), getpid(), ahb_thread_id(), frame,
+                        buffer, phase, bytes, fence_fd >= 0, status);
 }
 
 static int
@@ -292,8 +311,9 @@ ahb_socket_trace(const char *operation, int frame, int buffer, int fd,
     ahb_socket_cmsg_summary(message, cmsg_summary, sizeof(cmsg_summary));
     __android_log_print(
         ANDROID_LOG_INFO, "NovaLab",
-        "ahb_socket_trace op=%s frame=%d buffer=%d fd=%d inode=%llu type=%d generation=%u cookie=%llu peer_pid=%d peer_uid=%d peer_gid=%d local=%s peer=%s result=%zd errno=%d msg_flags=0x%x msg_controllen=%zu cmsgs=%s rights=%d fence_fd=%d payload=%s",
-        operation, frame, buffer, fd, ahb_socket_inode(fd),
+        "ahb_socket_trace monotonic_ns=%llu pid=%d tid=%ld op=%s frame=%d buffer=%d fd=%d inode=%llu type=%d generation=%u cookie=%llu peer_pid=%d peer_uid=%d peer_gid=%d local=%s peer=%s result=%zd errno=%d msg_flags=0x%x msg_controllen=%zu cmsgs=%s rights=%d fence_fd=%d payload=%s",
+        ahb_monotonic_ns(), getpid(), ahb_thread_id(), operation, frame,
+        buffer, fd, ahb_socket_inode(fd),
         ahb_socket_type(fd), ahb_socket_connection_generation(buffer, fd),
         ahb_socket_cookie(fd), peer_pid, peer_uid, peer_gid, local_name,
         peer_name, result, error_number,
@@ -312,8 +332,9 @@ ahb_socket_poll_trace(const char *operation, int frame, int buffer, int fd,
     }
     __android_log_print(
         ANDROID_LOG_INFO, "NovaLab",
-        "ahb_socket_poll op=%s frame=%d buffer=%d fd=%d inode=%llu type=%d generation=%u cookie=%llu result=%d revents=0x%x errno=%d",
-        operation, frame, buffer, fd, ahb_socket_inode(fd),
+        "ahb_socket_poll monotonic_ns=%llu pid=%d tid=%ld op=%s frame=%d buffer=%d fd=%d inode=%llu type=%d generation=%u cookie=%llu result=%d revents=0x%x errno=%d",
+        ahb_monotonic_ns(), getpid(), ahb_thread_id(), operation, frame,
+        buffer, fd, ahb_socket_inode(fd),
         ahb_socket_type(fd), ahb_socket_connection_generation(buffer, fd),
         ahb_socket_cookie(fd), result, (unsigned int)revents, error_number);
 }

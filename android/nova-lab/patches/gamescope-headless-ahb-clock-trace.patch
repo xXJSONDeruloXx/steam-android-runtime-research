@@ -1,0 +1,59 @@
+--- a/src/Backends/HeadlessBackend.cpp
++++ b/src/Backends/HeadlessBackend.cpp
+@@ -8,10 +8,12 @@
+ #include <cstdio>
+ #include <cstdlib>
+ #include <cerrno>
++#include <ctime>
+ #include <cstring>
+ #include <poll.h>
+ #include <sys/socket.h>
+ #include <sys/stat.h>
++#include <sys/syscall.h>
+ #include <sys/types.h>
+ #include <sys/un.h>
+ #include <unistd.h>
+@@ -26,0 +26,14 @@ namespace gamescope
++    static unsigned long long android_monotonic_ns()
++    {
++        timespec timestamp = {};
++        if ( clock_gettime( CLOCK_MONOTONIC, &timestamp ) != 0 )
++            return 0;
++        return (unsigned long long)timestamp.tv_sec * 1000000000ULL +
++            (unsigned long long)timestamp.tv_nsec;
++    }
++
++    static long android_thread_id()
++    {
++        return (long)syscall( SYS_gettid );
++    }
++
+@@ -52,6 +68,7 @@ namespace gamescope
+     static void android_output_trace( const char *phase, uint64_t frame, int index, bool submitted )
+     {
+         if ( android_output_trace_enabled() )
+-            headless_log.infof( "android_ahb_trace frame=%llu index=%d submitted=%d phase=%s",
++            headless_log.infof( "android_ahb_trace monotonic_ns=%llu pid=%d tid=%ld frame=%llu index=%d submitted=%d phase=%s",
++                android_monotonic_ns(), (int)getpid(), android_thread_id(),
+                 (unsigned long long)frame, index, submitted ? 1 : 0, phase );
+     }
+@@ -242,7 +259,8 @@ namespace gamescope
+         android_socket_peer_credentials( fd, &peerPid, &peerUid, &peerGid );
+         android_socket_cmsg_summary( message, cmsgSummary, sizeof( cmsgSummary ) );
+         headless_log.infof(
+-            "android_ahb_socket_trace op=%s frame=%llu index=%d fd=%d inode=%llu type=%d generation=%u cookie=%llu peer_pid=%d peer_uid=%d peer_gid=%d local=%s peer=%s result=%zd errno=%d msg_flags=0x%x msg_controllen=%zu cmsgs=%s rights=%d fence_fd=%d payload=%s",
++            "android_ahb_socket_trace monotonic_ns=%llu pid=%d tid=%ld op=%s frame=%llu index=%d fd=%d inode=%llu type=%d generation=%u cookie=%llu peer_pid=%d peer_uid=%d peer_gid=%d local=%s peer=%s result=%zd errno=%d msg_flags=0x%x msg_controllen=%zu cmsgs=%s rights=%d fence_fd=%d payload=%s",
++            android_monotonic_ns(), (int)getpid(), android_thread_id(),
+             operation, (unsigned long long)frame, index, fd,
+             android_socket_inode( fd ), android_socket_type( fd ),
+             android_socket_connection_generation( index, fd ),
+@@ -261,7 +279,8 @@ namespace gamescope
+         if ( !android_socket_trace_enabled() )
+             return;
+         headless_log.infof(
+-            "android_ahb_socket_poll op=%s frame=%llu index=%d fd=%d inode=%llu type=%d generation=%u cookie=%llu result=%d revents=0x%x errno=%d",
++            "android_ahb_socket_poll monotonic_ns=%llu pid=%d tid=%ld op=%s frame=%llu index=%d fd=%d inode=%llu type=%d generation=%u cookie=%llu result=%d revents=0x%x errno=%d",
++            android_monotonic_ns(), (int)getpid(), android_thread_id(),
+             operation, (unsigned long long)frame, index, fd,
+             android_socket_inode( fd ), android_socket_type( fd ),
+             android_socket_connection_generation( index, fd ),
