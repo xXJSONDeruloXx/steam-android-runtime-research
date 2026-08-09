@@ -189,6 +189,8 @@ for artifact in \
     android-window-state.txt android-logcat.txt nova-runtime-cleanup.txt \
     nova-runtime-cleanup-preflight.txt rootfs-devices-preflight.txt \
     nova-mount-private.sha256 \
+    android-input-focus.txt android-input-focus-before-input.txt \
+    android-input-focus-after-input.txt \
     post-stop-verification.txt android-window-state-before-input.txt \
     android-window-state-after-input.txt android-input-keyevent.txt \
     android-screenshot-before-input.png android-screenshot-after-input.png \
@@ -482,9 +484,10 @@ fi
 adb exec-out screencap -p >"$RUN_DIR/android-screenshot.png"
 [ -s "$RUN_DIR/android-screenshot.png" ]
 adb shell dumpsys window windows >"$RUN_DIR/android-window-state.txt"
+adb shell dumpsys input >"$RUN_DIR/android-input-focus.txt"
 adb logcat -d -v threadtime -s "CmdEntryPoint:*" "MainActivity:*" "Lorie:*" "gles-renderer:*" >"$RUN_DIR/android-logcat.txt" || true
 
-if ! rg -q 'mCurrentFocus=.*com\.termux\.x11|mFocusedApp=.*com\.termux\.x11' "$RUN_DIR/android-window-state.txt"; then
+if ! sed -n '/FocusedWindows:/{n;p;q;}' "$RUN_DIR/android-input-focus.txt" | rg -q 'com\.termux\.x11'; then
     echo "termux_x11_activity_focus=unknown_or_missing" >&2
 fi
 echo "termux_x11_android_capture=pass sha256=$(sha256sum "$RUN_DIR/android-screenshot.png" | awk '{print $1}')"
@@ -499,16 +502,19 @@ if [ "$INPUT_MODE" = "android-keyevent" ]; then
     fi
     sleep "$INPUT_DELAY_SECONDS"
     adb shell dumpsys window windows >"$RUN_DIR/android-window-state-before-input.txt"
-    if ! rg -q 'mCurrentFocus=.*com\.termux\.x11|mFocusedApp=.*com\.termux\.x11' \
-        "$RUN_DIR/android-window-state-before-input.txt"; then
-        if rg -q 'com\.rp\.settings' "$RUN_DIR/android-window-state-before-input.txt"; then
+    adb shell dumpsys input >"$RUN_DIR/android-input-focus-before-input.txt"
+    if ! sed -n '/FocusedWindows:/{n;p;q;}' \
+        "$RUN_DIR/android-input-focus-before-input.txt" | rg -q 'com\.termux\.x11'; then
+        if sed -n '/FocusedWindows:/{n;p;q;}' \
+            "$RUN_DIR/android-input-focus-before-input.txt" | rg -q 'com\.rp\.settings'; then
             adb shell input keyevent 4 >/dev/null 2>&1 || true
             sleep 1
             adb shell dumpsys window windows >"$RUN_DIR/android-window-state-before-input.txt"
+            adb shell dumpsys input >"$RUN_DIR/android-input-focus-before-input.txt"
         fi
     fi
-    if ! rg -q 'mCurrentFocus=.*com\.termux\.x11|mFocusedApp=.*com\.termux\.x11' \
-        "$RUN_DIR/android-window-state-before-input.txt"; then
+    if ! sed -n '/FocusedWindows:/{n;p;q;}' \
+        "$RUN_DIR/android-input-focus-before-input.txt" | rg -q 'com\.termux\.x11'; then
         echo "termux_x11_input_focus=fail" >&2
         exit 1
     fi
@@ -558,8 +564,9 @@ if [ "$INPUT_MODE" = "android-keyevent" ]; then
     adb exec-out screencap -p >"$RUN_DIR/android-screenshot-after-input.png"
     [ -s "$RUN_DIR/android-screenshot-after-input.png" ]
     adb shell dumpsys window windows >"$RUN_DIR/android-window-state-after-input.txt"
-    if ! rg -q 'mCurrentFocus=.*com\.termux\.x11|mFocusedApp=.*com\.termux\.x11' \
-        "$RUN_DIR/android-window-state-after-input.txt"; then
+    adb shell dumpsys input >"$RUN_DIR/android-input-focus-after-input.txt"
+    if ! sed -n '/FocusedWindows:/{n;p;q;}' \
+        "$RUN_DIR/android-input-focus-after-input.txt" | rg -q 'com\.termux\.x11'; then
         echo "termux_x11_input_focus_after=unknown_or_missing" >&2
     else
         echo "termux_x11_input_focus_after=pass"

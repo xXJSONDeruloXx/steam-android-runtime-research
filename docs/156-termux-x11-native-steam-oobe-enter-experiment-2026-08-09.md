@@ -1,6 +1,8 @@
 # Termux:X11 native ARM64 Steam OOBE Enter-input experiment — 2026-08-09
 
-Status: predeclared; no device launch has run for this profile.
+Status: completed; the first launch exposed a focus-observation bug before
+the keyevent was sent. See the [focus-guard result](157-termux-x11-native-steam-oobe-enter-focus-guard-result-2026-08-09.md)
+and the [authoritative-focus retry](158-termux-x11-native-steam-oobe-enter-retry-experiment-2026-08-09.md).
 
 ## Why this is next
 
@@ -27,7 +29,8 @@ startup capture, APK, renderer environment, and 60-second bound remain fixed.
 ## Focus and evidence contract
 
 Immediately before injection, the harness must capture Android window state
-and require `com.termux.x11` to own focus. If the known Nova settings overlay
+and Android input-dispatch state, then require `com.termux.x11` to own focus
+in the `dumpsys input` `FocusedWindows` record. If the known Nova settings overlay
 owns focus, the harness may dismiss it with Back, record the refreshed focus
 state, and then recheck the guard. Any other focus loss fails the run before
 the target event is sent.
