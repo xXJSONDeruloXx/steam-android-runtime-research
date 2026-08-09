@@ -1,6 +1,6 @@
 # Nova raw AHardwareBuffer snapshot experiment — 2026-08-09
 
-Status: predeclared; device result pending.
+Status: completed; see [the raw AHardwareBuffer snapshot result](112-nova-ahb-raw-snapshot-result-2026-08-09.md).
 
 ## Question
 

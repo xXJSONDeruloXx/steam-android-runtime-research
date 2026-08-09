@@ -226,6 +226,7 @@ the gamescope frames on its own surface.
 - [Nova optimal-tiling Steam-surface experiment](docs/109-nova-optimal-tiling-steam-surface-experiment-2026-08-09.md)
 - [Nova optimal-tiling Steam-surface result](docs/110-nova-optimal-tiling-steam-surface-result-2026-08-09.md)
 - [Nova raw AHardwareBuffer snapshot experiment](docs/111-nova-ahb-raw-snapshot-experiment-2026-08-09.md)
+- [Nova raw AHardwareBuffer snapshot result](docs/112-nova-ahb-raw-snapshot-result-2026-08-09.md)
 - [Retroid Pocket Nova flashing kit](tools/retroid-pocket-nova/README.md)
 
 ## Evidence standard
