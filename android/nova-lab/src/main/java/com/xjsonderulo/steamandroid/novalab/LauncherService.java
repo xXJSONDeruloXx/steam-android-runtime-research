@@ -3,6 +3,7 @@ package com.xjsonderulo.steamandroid.novalab;
 import android.app.Notification;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
+import android.app.PendingIntent;
 import android.app.Service;
 import android.content.Intent;
 import android.os.Build;
@@ -187,12 +188,28 @@ public final class LauncherService extends Service {
     }
 
     private Notification buildNotification(String text) {
+        Intent openIntent = new Intent(this, LauncherActivity.class);
+        PendingIntent openPendingIntent = PendingIntent.getActivity(
+                this, 18, openIntent, pendingIntentFlags());
+
+        Intent stopIntent = new Intent(this, LauncherService.class);
+        stopIntent.setAction(ACTION_STOP);
+        PendingIntent stopPendingIntent = PendingIntent.getService(
+                this, 19, stopIntent, pendingIntentFlags());
+
         return new Notification.Builder(this, CHANNEL_ID)
                 .setContentTitle("Nova Steam")
                 .setContentText(text)
                 .setSmallIcon(android.R.drawable.stat_sys_download)
+                .setContentIntent(openPendingIntent)
                 .setOngoing(true)
+                .addAction(new Notification.Action.Builder(
+                        android.R.drawable.ic_media_pause, "Stop", stopPendingIntent).build())
                 .build();
+    }
+
+    private int pendingIntentFlags() {
+        return PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE;
     }
 
     private void createNotificationChannel() {
