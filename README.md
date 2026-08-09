@@ -215,6 +215,7 @@ the gamescope frames on its own surface.
 - [Nova same-run X11/AHB presentation split result](docs/98-nova-same-run-x11-ahb-presentation-split-result-2026-08-09.md)
 - [Nova 1280x960 Steam/X11 resolution experiment](docs/99-nova-1280x960-steam-x11-resolution-experiment-2026-08-09.md)
 - [Nova 1280x960 Steam/X11 resolution result](docs/100-nova-1280x960-steam-x11-resolution-result-2026-08-09.md)
+- [Nova settled X11 presentation timing experiment](docs/101-nova-settled-x11-presentation-timing-experiment-2026-08-09.md)
 - [Retroid Pocket Nova flashing kit](tools/retroid-pocket-nova/README.md)
 
 ## Evidence standard
