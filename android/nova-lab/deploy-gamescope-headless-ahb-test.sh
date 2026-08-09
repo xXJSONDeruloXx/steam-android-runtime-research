@@ -45,8 +45,14 @@ SCREENSHOT="$BUILD_DIR/device-gamescope-headless-ahb-screenshot.png"
 METADATA="$BUILD_DIR/device-gamescope-headless-ahb-metadata.txt"
 PREFLIGHT="$BUILD_DIR/device-gamescope-headless-ahb-preflight.txt"
 FRAME_MARKER_CAPTURE="$BUILD_DIR/ahb-frame-marker-screenshot.txt"
+CLIENT_LOG="$BUILD_DIR/nova-steam-client.log"
+CLIENT_STDOUT="$BUILD_DIR/nova-steam-client.stdout"
+CLIENT_STDERR="$BUILD_DIR/nova-steam-client.stderr"
+STEAM_LOG_DIAGNOSTICS="$BUILD_DIR/nova-steam-logs.txt"
+SURFACEFLINGER_DIAGNOSTICS="$BUILD_DIR/device-surfaceflinger.txt"
 REQUIRE_TARGET=${NOVA_GAMESCOPE_AHB_REQUIRE_TARGET:-1}
 REQUIRE_RUN_MANIFEST=${NOVA_REQUIRE_RUN_MANIFEST:-0}
+PRESENTATION_DIAGNOSTICS=${NOVA_CAPTURE_PRESENTATION_DIAGNOSTICS:-0}
 RUN_PROFILE=${NOVA_RUN_PROFILE:-unclassified}
 RUN_ID=${NOVA_RUN_ID:-legacy-$(date -u +%Y%m%dT%H%M%SZ)-$$}
 RUN_DIR=${NOVA_RUN_DIR:-}
@@ -108,6 +114,15 @@ if [ "$ACK_POLL_TIMEOUT_MS" -gt 600000 ]; then
     exit 2
 fi
 
+case "$PRESENTATION_DIAGNOSTICS" in
+    0|1)
+        ;;
+    *)
+        echo "NOVA_CAPTURE_PRESENTATION_DIAGNOSTICS must be 0 or 1" >&2
+        exit 2
+        ;;
+esac
+
 case "$REQUIRE_RUN_MANIFEST" in
     0|1)
         ;;
@@ -137,6 +152,11 @@ if [ -n "$RUN_DIR" ]; then
     METADATA="$RUN_DIR/device-gamescope-headless-ahb-metadata.txt"
     PREFLIGHT="$RUN_DIR/device-gamescope-headless-ahb-preflight.txt"
     FRAME_MARKER_CAPTURE="$RUN_DIR/ahb-frame-marker-screenshot.txt"
+    CLIENT_LOG="$RUN_DIR/nova-steam-client.log"
+    CLIENT_STDOUT="$RUN_DIR/nova-steam-client.stdout"
+    CLIENT_STDERR="$RUN_DIR/nova-steam-client.stderr"
+    STEAM_LOG_DIAGNOSTICS="$RUN_DIR/nova-steam-logs.txt"
+    SURFACEFLINGER_DIAGNOSTICS="$RUN_DIR/device-surfaceflinger.txt"
     if [ "$REQUIRE_RUN_MANIFEST" = "1" ]; then
         for run_artifact in "$REPORT" "$LOGCAT" "$APP_REPORT" "$SCREENSHOT" "$METADATA" "$PREFLIGHT"; do
             if [ -e "$run_artifact" ]; then
@@ -155,6 +175,14 @@ if [ -n "$RUN_DIR" ]; then
         if [ "$AHB_FRAME_MARKER" = "1" ] && [ -e "$FRAME_MARKER_CAPTURE" ]; then
             echo "Nova run artifact already exists; use a fresh run id: $FRAME_MARKER_CAPTURE" >&2
             exit 2
+        fi
+        if [ "$PRESENTATION_DIAGNOSTICS" = "1" ]; then
+            for run_artifact in "$CLIENT_LOG" "$CLIENT_STDOUT" "$CLIENT_STDERR" "$STEAM_LOG_DIAGNOSTICS" "$SURFACEFLINGER_DIAGNOSTICS"; do
+                if [ -e "$run_artifact" ]; then
+                    echo "Nova run artifact already exists; use a fresh run id: $run_artifact" >&2
+                    exit 2
+                fi
+            done
         fi
     fi
 fi
@@ -356,6 +384,132 @@ set_ahb_ack_poll_timeout_state() {
     "$ADB" shell setprop debug.nova.ahb_ack_poll_timeout_ms "$value" \
         >/dev/null 2>&1 || status=$?
     return "$status"
+}
+capture_remote_diagnostic() {
+    local remote_path=$1 output_path=$2 diagnostic_name=$3
+    local temporary_path="${output_path}.tmp"
+    local header_path="${output_path}.header"
+    local capture_status=0
+
+    if "$ADB" shell \
+        "su -c 'if [ -f \"$remote_path\" ]; then cat \"$remote_path\"; else exit 1; fi'" \
+        2>/dev/null | tr -d '\r' >"$temporary_path"; then
+        capture_status=0
+    else
+        capture_status=$?
+    fi
+    {
+        echo "nova_run_id=$RUN_ID"
+        echo "nova_diagnostic_name=$diagnostic_name"
+        echo "nova_diagnostic_remote=$remote_path"
+        if [ "$capture_status" -eq 0 ]; then
+            echo "nova_diagnostic_status=present"
+        else
+            echo "nova_diagnostic_status=missing adb_status=$capture_status"
+        fi
+    } >"$header_path"
+    if [ "$capture_status" -eq 0 ]; then
+        cat "$header_path" "$temporary_path" >"$output_path"
+    else
+        mv "$header_path" "$output_path"
+    fi
+    rm -f "$header_path" "$temporary_path"
+    return "$capture_status"
+}
+capture_steam_log_diagnostics() {
+    local temporary_path="${STEAM_LOG_DIAGNOSTICS}.tmp"
+    local log_temporary_path
+    local remote_path
+    local log_status
+    local present_count=0
+    local missing_count=0
+    local log_name
+
+    {
+        echo "nova_run_id=$RUN_ID"
+        echo "nova_diagnostic_name=steam_logs"
+        echo "nova_diagnostic_status=best_effort"
+        echo "nova_steam_log_directory=$DEVICE_ROOT/opt/nova-steam/home/.local/share/Steam/logs"
+    } >"$temporary_path"
+    for log_name in console_log steamui_html webhelper webhelper_js webhelper_gpu connection_log cef_log; do
+        remote_path="$DEVICE_ROOT/opt/nova-steam/home/.local/share/Steam/logs/$log_name.txt"
+        log_temporary_path="${temporary_path}.${log_name}"
+        if "$ADB" shell \
+            "su -c 'if [ -f \"$remote_path\" ]; then cat \"$remote_path\"; else exit 1; fi'" \
+            2>/dev/null | tr -d '\r' >"$log_temporary_path"; then
+            log_status=present
+            present_count=$((present_count + 1))
+        else
+            log_status=missing
+            missing_count=$((missing_count + 1))
+        fi
+        {
+            echo "nova_steam_log=$log_name"
+            echo "nova_steam_log_status=$log_status"
+            if [ "$log_status" = "present" ]; then
+                cat "$log_temporary_path"
+            fi
+            echo "nova_steam_log_end=$log_name"
+        } >>"$temporary_path"
+        rm -f "$log_temporary_path"
+    done
+    {
+        echo "nova_steam_logs_present=$present_count"
+        echo "nova_steam_logs_missing=$missing_count"
+    } >>"$temporary_path"
+    mv "$temporary_path" "$STEAM_LOG_DIAGNOSTICS"
+}
+capture_surfaceflinger_diagnostics() {
+    local temporary_path="${SURFACEFLINGER_DIAGNOSTICS}.tmp"
+    local dump_temporary_path
+    local dump_status
+    local dump_name
+
+    {
+        echo "nova_run_id=$RUN_ID"
+        echo "nova_diagnostic_name=surfaceflinger"
+        echo "nova_diagnostic_status=best_effort"
+    } >"$temporary_path"
+    for dump_name in list layers; do
+        dump_temporary_path="${temporary_path}.${dump_name}"
+        if "$ADB" shell dumpsys SurfaceFlinger "--$dump_name" 2>&1 | \
+            tr -d '\r' >"$dump_temporary_path"; then
+            dump_status=pass
+        else
+            dump_status=fail
+        fi
+        {
+            echo "nova_surfaceflinger_dump=$dump_name"
+            echo "nova_surfaceflinger_dump_status=$dump_status"
+            cat "$dump_temporary_path"
+            echo "nova_surfaceflinger_dump_end=$dump_name"
+        } >>"$temporary_path"
+        rm -f "$dump_temporary_path"
+    done
+    mv "$temporary_path" "$SURFACEFLINGER_DIAGNOSTICS"
+}
+capture_presentation_diagnostics() {
+    local client_log_status=0
+    local client_stdout_status=0
+    local client_stderr_status=0
+
+    if [ "$PRESENTATION_DIAGNOSTICS" != "1" ]; then
+        return 0
+    fi
+    capture_remote_diagnostic \
+        "$DEVICE_ROOT/tmp/nova-steam-client.log" "$CLIENT_LOG" \
+        nova_steam_client_log || client_log_status=$?
+    capture_remote_diagnostic \
+        "$DEVICE_ROOT/tmp/nova-steam-client.stdout" "$CLIENT_STDOUT" \
+        nova_steam_client_stdout || client_stdout_status=$?
+    capture_remote_diagnostic \
+        "$DEVICE_ROOT/tmp/nova-steam-client.stderr" "$CLIENT_STDERR" \
+        nova_steam_client_stderr || client_stderr_status=$?
+    capture_steam_log_diagnostics
+    capture_surfaceflinger_diagnostics
+    echo "nova_presentation_diagnostics=pass client_log_status=$client_log_status client_stdout_status=$client_stdout_status client_stderr_status=$client_stderr_status"
+    echo "steam diagnostics: $CLIENT_LOG $CLIENT_STDOUT $CLIENT_STDERR $STEAM_LOG_DIAGNOSTICS"
+    echo "SurfaceFlinger diagnostics: $SURFACEFLINGER_DIAGNOSTICS"
 }
 run_preflight_gate() {
     local gate_status=0
@@ -571,6 +725,7 @@ trap cleanup_on_exit EXIT
     echo "nova_ahb_frame_identity=$AHB_FRAME_IDENTITY"
     echo "nova_ahb_frame_marker=$AHB_FRAME_MARKER"
     echo "nova_ahb_ack_poll_timeout_ms=$ACK_POLL_TIMEOUT_MS"
+    echo "presentation_diagnostics=$PRESENTATION_DIAGNOSTICS"
     echo "steam_client_timeout=${NOVA_STEAM_CLIENT_TIMEOUT:-unset}"
     echo "steam_gamescope_timeout=${NOVA_STEAM_GAMESCOPE_TIMEOUT:-unset}"
     echo "steamos_update_compat=installed"
@@ -598,6 +753,9 @@ fi
 run_preflight_gate
 
 rm -f "$REPORT" "$LOGCAT" "$APP_REPORT" "$ANDROID_INPUT_REPORT" "$ANDROID_TOUCH_REPORT" "$SCREENSHOT" "$FRAME_MARKER_CAPTURE"
+if [ "$PRESENTATION_DIAGNOSTICS" = "1" ]; then
+    rm -f "$CLIENT_LOG" "$CLIENT_STDOUT" "$CLIENT_STDERR" "$STEAM_LOG_DIAGNOSTICS" "$SURFACEFLINGER_DIAGNOSTICS"
+fi
 
 "$ADB" logcat -c
 cleanup_runtime
@@ -684,6 +842,7 @@ probe_status=$?
 set -e
 
 cp "$BUILD_DIR/holo-glibc-report.txt" "$REPORT"
+capture_presentation_diagnostics
 "$ADB" shell sleep 1
 "$ADB" logcat -d -v threadtime NovaLab:I '*:S' > "$LOGCAT"
 "$ADB" shell run-as "$PACKAGE" cat files/dmabuf-double-buffer-report.txt \
