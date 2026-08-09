@@ -29,6 +29,7 @@ keystore, and verified by `apksigner`.
 | relay-corrected build | `00ed01c` | `d9288c9f7843c215441c074d51491e473b7b53453a1e4454adb4a576db766306` | 0.3 |
 | timeout/cleanup fix, pending device retest | working tree after `00ed01c` | `9124807429ff6d21a3c7556865cf6a33b0c8999ac8673cc4b5629b46839b3ec1` | 0.3 |
 | single-controller namespace refinement, device-tested | `3681167` | `25d389dddc26cff7cbb53f39f6169cbbfc05eed68336dab53d09a4e4197d2ef0` | 0.3 |
+| relay-event allowlist refinement, device-tested | `21ad85a` | `d52d966749a4e6cc5b23c4548adce8c0161cea7c66aba5392fa2167bc191a356` | 0.3 |
 
 The runtime inputs for these attempts were the direct launcher mode: Termux:X11
 APK `/data/app/~~EaHbYh5LSrJyPyjYrj44Wg==/com.termux.x11-Yy3Sfe-6FUYa5hx2OcDldw==/base.apk`,
@@ -244,6 +245,46 @@ Two old bounded `getevent` probes were found by the final process audit and
 were killed by their exact PIDs after their command lines were retained; this
 is a diagnostic-harness cleanup gap, not a live Steam runtime residual.
 
+### `launcher-20260809T202544Z-apk-v03-input-allowlist`
+
+The relay-event allowlist refinement passed the one-controller namespace gate:
+
+```text
+nova_launcher_gamepad=pass
+nova_launcher_input_allow=event9
+x11_namespace_input=pass allowed_events=9 hidden_events=
+uinput_source=/dev/input/event7
+uinput_device=/dev/input/event9
+uinput_device_ready=pass
+nova_launcher_ready=pass display=:0 geometry=1280x960
+```
+
+The fresh Steam process shared the private mount namespace and saw exactly one
+node, `/dev/input/event9`; event7, event10, and the other host input nodes were
+absent inside its root. Steam held only event9. The relay intentionally uses
+the Xbox 360 identity (`045e:028e`) while retaining the descriptive device
+name, so the fresh Steam controller log contained one Xbox-compatible mapping
+with ABXY, LB/RB, triggers, sticks, and D-pad support. This is the desired
+single logical controller; the earlier physical-plus-virtual log was caused by
+exposing every node except event7.
+
+The bounded source-event sequence reached event9 and produced the expected
+Steam UI behavior: A opened 198X, B returned to the library, LB/RB produced
+`BTN_TL`/`BTN_TR`, and D-pad-right moved the carousel to The Sims 2. The event9
+trace hash is
+`3bd5d4b9069c08a1f2cb34468b758e2cff1564bf2a6ac24c7f362482aa8c5537`, and the
+settled Android screenshot hash is
+`f64ecac509fa4b9c54bf477d17e0854254ec3d5984118f0b58ab49892f9505fe`.
+
+X11 geometry remains the same: a 1280x960 root with a 1280x800 `Steam Big
+Picture Mode` window. The settled Steam PPM hash is
+`481b7098406be4f45c08206cb870ae9360f6580218ef52408fe1bea1f9afd8e2`.
+The APK product stop returned `nova_launcher_stop=pass`, both exact cleanup
+checks returned `pass`, and the launcher state/socket plus matching Nova
+processes were absent after teardown. Host event10 remains a separate
+`com.rp.mapping` virtual device after teardown, but it is not visible to this
+Steam client namespace.
+
 ## Cleanup
 
 Every attempt ended without a Nova Steam runtime. The exact helper returned
@@ -259,17 +300,18 @@ matching runtime. No broad process kill was used.
 
 ## Next gate
 
-The direct APK path is now repeatable through signed-in Steam UI and a
-relay-backed A-button navigation check, but the single-controller result is
-still partial. The next run should first change the private input view to
-expose only the relay's dynamically reported event9-equivalent node, then
-confirm, in order:
+The direct APK path is now repeatable through signed-in Steam UI and the
+single-controller input gate is accepted. The next run should focus on the
+remaining product boundaries, in order:
 
-1. no physical or `com.rp.mapping` virtual event is visible to Steam;
-2. Steam's fresh controller log and descriptor audit show one virtual device;
-3. ABXY/LB/RB/D-pad source events still navigate the visible UI;
-4. the 1280x800 Steam window geometry is recorded as unchanged or fixed; and
-5. the APK stop path and exact cleanup pass.
+1. test and fix the 1280x800 Steam window geometry against the 1280x960 Nova
+   surface;
+2. establish whether the `default` Steam audio manager reaches an Android
+   sink;
+3. preserve the direct APK fallback while adding a separately identified
+   Gamescope/AHardwareBuffer product mode; and
+4. keep 198X/game launch as a separate translation-runtime phase because its
+   current blocker is x86-64 execution, not display or controller input.
 
 Only after that direct product path is repeatable should the APK gain the
 separate Gamescope/AHardwareBuffer product mode.
