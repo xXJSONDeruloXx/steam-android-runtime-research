@@ -1,0 +1,23 @@
+--- a/src/steamcompmgr.cpp
++++ b/src/steamcompmgr.cpp
+@@ -164,0 +165,6 @@ static void nova_ahb_scheduler_trace( const char *phase,
++static bool nova_ahb_output_enabled()
++{
++	const char *socket = getenv( "NOVA_AHB_OUTPUT_SOCKET" );
++	return socket != nullptr && socket[0] != '\0';
++}
++
+@@ -944,0 +951 @@ bool			hasRepaintNonBasePlane = false;
++std::atomic<bool> nova_ahb_valid_contents = false;
+@@ -2691,0 +2699,3 @@ paint_all( global_focus_t *pFocus, bool async )
++	const bool bCanPresent = bValidContents && !GetBackend()->IsPaused();
++	if ( nova_ahb_output_enabled() )
++		nova_ahb_valid_contents.store( bCanPresent, std::memory_order_relaxed );
+@@ -2739 +2749 @@ paint_all( global_focus_t *pFocus, bool async )
+-	if ( !bValidContents || GetBackend()->IsPaused() )
++	if ( !bCanPresent )
+@@ -9045,0 +9056,4 @@ steamcompmgr_main(int argc, char **argv)
++			if ( vblank && nova_ahb_output_enabled() &&
++				nova_ahb_valid_contents.load( std::memory_order_relaxed ) )
++				hasRepaint = true;
++

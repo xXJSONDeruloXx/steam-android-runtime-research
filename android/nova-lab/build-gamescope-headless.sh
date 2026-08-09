@@ -12,6 +12,7 @@ PATCH_FILES=(
     "$SCRIPT_DIR/patches/gamescope-headless-ahb-clock-trace.patch"
     "$SCRIPT_DIR/patches/gamescope-headless-ahb-scheduler-trace.patch"
     "$SCRIPT_DIR/patches/gamescope-headless-ahb-frame-identity.patch"
+    "$SCRIPT_DIR/patches/gamescope-headless-ahb-valid-content-cadence.patch"
     "$SCRIPT_DIR/patches/gamescope-headless-libei-touch.patch"
 )
 SOURCE_DIR="${GAMESCOPE_SOURCE:-}"
