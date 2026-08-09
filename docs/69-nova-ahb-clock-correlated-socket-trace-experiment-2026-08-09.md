@@ -1,6 +1,7 @@
 # Nova clock-correlated AHB socket trace experiment — 2026-08-09
 
-Status: predeclared; no device result yet.
+Status: completed; see the bounded device result in
+[`docs/70-nova-ahb-clock-correlated-socket-trace-result-2026-08-09.md`](70-nova-ahb-clock-correlated-socket-trace-result-2026-08-09.md).
 
 This run follows the valid blocking-stream correlation in
 [`docs/68-nova-ahb-blocking-stream-correlation-result-2026-08-09.md`](68-nova-ahb-blocking-stream-correlation-result-2026-08-09.md).
@@ -31,6 +32,13 @@ The fields use the same monotonic clock domain in both processes, so the run
 can answer whether the sender's complete `sendmsg()` occurs before or after
 the receiver's `ack_wait_begin`, how long the receiver remains blocked, and
 whether any unexpected thread ID emits a competing receive event.
+
+The device result is now recorded in
+[`docs/70-nova-ahb-clock-correlated-socket-trace-result-2026-08-09.md`](70-nova-ahb-clock-correlated-socket-trace-result-2026-08-09.md).
+It confirms the cross-process clock correlation and refines the expected
+ordering: frames 147 and 148 have complete sender ACKs followed by Android
+receives, while frame 149 enters the Android wait before Gamescope reaches
+that slot's reuse and ACK path.
 
 ## Build gate
 
