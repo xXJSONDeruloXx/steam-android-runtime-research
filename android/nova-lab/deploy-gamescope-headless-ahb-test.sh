@@ -18,6 +18,8 @@ AHB_FRAME_MARKER=${NOVA_AHB_FRAME_MARKER:-0}
 AHB_CONTENT_PROBE=${NOVA_AHB_CONTENT_PROBE:-0}
 AHB_RAW_CAPTURE=${NOVA_AHB_RAW_CAPTURE:-0}
 AHB_RAW_CAPTURE_FRAME=${NOVA_AHB_RAW_CAPTURE_FRAME:-0}
+AHB_VULKAN_READBACK=${NOVA_AHB_VULKAN_READBACK:-0}
+AHB_VULKAN_READBACK_FRAME=${NOVA_AHB_VULKAN_READBACK_FRAME:-0}
 ANDROID_VULKAN_LAYOUT_PROBE=${NOVA_ANDROID_VULKAN_LAYOUT_PROBE:-0}
 ANDROID_VULKAN_LAYOUT_WIDTH=${NOVA_ANDROID_VULKAN_LAYOUT_WIDTH:-$BUFFER_WIDTH}
 ANDROID_VULKAN_LAYOUT_HEIGHT=${NOVA_ANDROID_VULKAN_LAYOUT_HEIGHT:-$BUFFER_HEIGHT}
@@ -142,6 +144,26 @@ case "$AHB_RAW_CAPTURE_FRAME" in
 esac
 if [ "$AHB_RAW_CAPTURE_FRAME" -gt 600 ]; then
     echo "NOVA_AHB_RAW_CAPTURE_FRAME must be <= 600" >&2
+    exit 2
+fi
+
+case "$AHB_VULKAN_READBACK" in
+    0|1)
+        ;;
+    *)
+        echo "NOVA_AHB_VULKAN_READBACK must be 0 or 1" >&2
+        exit 2
+        ;;
+esac
+
+case "$AHB_VULKAN_READBACK_FRAME" in
+    ''|*[!0-9]*)
+        echo "NOVA_AHB_VULKAN_READBACK_FRAME must be a non-negative integer" >&2
+        exit 2
+        ;;
+esac
+if [ "$AHB_VULKAN_READBACK_FRAME" -gt 600 ]; then
+    echo "NOVA_AHB_VULKAN_READBACK_FRAME must be <= 600" >&2
     exit 2
 fi
 
@@ -923,6 +945,8 @@ trap cleanup_on_exit EXIT
     echo "nova_ahb_content_probe=$AHB_CONTENT_PROBE"
     echo "nova_ahb_raw_capture=$AHB_RAW_CAPTURE"
     echo "nova_ahb_raw_capture_frame=$AHB_RAW_CAPTURE_FRAME"
+    echo "nova_ahb_vulkan_readback=$AHB_VULKAN_READBACK"
+    echo "nova_ahb_vulkan_readback_frame=$AHB_VULKAN_READBACK_FRAME"
     echo "android_vulkan_layout_probe=$ANDROID_VULKAN_LAYOUT_PROBE"
     echo "android_vulkan_layout_profile=${ANDROID_VULKAN_LAYOUT_WIDTH}x${ANDROID_VULKAN_LAYOUT_HEIGHT} usage=$ANDROID_VULKAN_LAYOUT_USAGE"
     echo "nova_ahb_output_tiling=$OUTPUT_TILING"
@@ -1055,6 +1079,8 @@ VULKAN_AHB_WIDTH="$BUFFER_WIDTH" \
 VULKAN_AHB_HEIGHT="$BUFFER_HEIGHT" \
 VULKAN_AHB_OUTPUT_SOCKET="/run/nova-lab-app/$SOCKET_NAME" \
 NOVA_AHB_OUTPUT_TILING="$OUTPUT_TILING" \
+NOVA_AHB_VULKAN_READBACK="$AHB_VULKAN_READBACK" \
+NOVA_AHB_VULKAN_READBACK_FRAME="$AHB_VULKAN_READBACK_FRAME" \
     "$SCRIPT_DIR/deploy-holo-probe.sh"
 probe_status=$?
 set -e
@@ -1180,6 +1206,9 @@ if [ "${NOVA_GAMESCOPE_AHB_SKIP_WAYLAND_SHM:-0}" != "1" ]; then
     report_markers+=("wayland_shm_frames=$FRAME_COUNT")
 fi
 report_markers+=("Android AHardwareBuffer output import begin tiling=$OUTPUT_TILING")
+if [ "$AHB_VULKAN_READBACK" = "1" ]; then
+    report_markers+=("android_ahb_vulkan_readback_${AHB_VULKAN_READBACK_FRAME}=pass")
+fi
 for marker in "${report_markers[@]}"; do
     if ! rg -q -- "$marker" "$REPORT"; then
         echo "missing report marker: $marker" >&2

@@ -1,0 +1,199 @@
+diff --git a/src/rendervulkan.hpp b/src/rendervulkan.hpp
+--- a/src/rendervulkan.hpp
++++ b/src/rendervulkan.hpp
+@@ -688,7 +688,8 @@
+ 	VK_FUNC(CmdBeginRendering) \
+ 	VK_FUNC(CmdBindDescriptorSets) \
+ 	VK_FUNC(CmdBindPipeline) \
+ 	VK_FUNC(CmdClearColorImage) \
+ 	VK_FUNC(CmdCopyBufferToImage) \
++	VK_FUNC(CmdCopyImageToBuffer) \
+ 	VK_FUNC(CmdCopyImage) \
+ 	VK_FUNC(CmdDispatch) \
+diff --git a/src/rendervulkan.hpp b/src/rendervulkan.hpp
+--- a/src/rendervulkan.hpp
++++ b/src/rendervulkan.hpp
+@@ -942,6 +942,7 @@ public:
+ 	void dispatch(uint32_t x, uint32_t y = 1, uint32_t z = 1);
+ 	void copyImage(gamescope::Rc<CVulkanTexture> src, gamescope::Rc<CVulkanTexture> dst);
+ 	void copyBufferToImage(VkBuffer buffer, VkDeviceSize offset, uint32_t stride, gamescope::Rc<CVulkanTexture> dst);
++	void copyImageToBuffer(gamescope::Rc<CVulkanTexture> src, VkBuffer buffer, VkDeviceSize offset, uint32_t rowLength);
+ 
+ 
+ 	void prepareSrcImage(CVulkanTexture *image);
+diff --git a/src/rendervulkan.cpp b/src/rendervulkan.cpp
+--- a/src/rendervulkan.cpp
++++ b/src/rendervulkan.cpp
+@@ -1011,5 +1011,5 @@ bool CVulkanDevice::createScratchResources()
+ 	VkBufferCreateInfo bufferCreateInfo = {
+ 		.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
+ 		.size = upload_buffer_size,
+-		.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
++		.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
+ 	};
+@@ -1819,6 +1819,32 @@ void CVulkanCmdBuffer::copyBufferToImage(VkBuffer buffer, VkDeviceSize offset, uint32_t stride, gamescope::Rc<CVulkanTexture> dst)
+ 	m_textureRefs.emplace_back(std::move(dst));
+ }
+ 
++void CVulkanCmdBuffer::copyImageToBuffer(gamescope::Rc<CVulkanTexture> src, VkBuffer buffer, VkDeviceSize offset, uint32_t rowLength)
++{
++	prepareSrcImage(src.get());
++	insertBarrier();
++
++	VkBufferImageCopy region = {
++		.bufferOffset = offset,
++		.bufferRowLength = rowLength,
++		.bufferImageHeight = 0,
++		.imageSubresource = {
++			.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
++			.layerCount = 1,
++		},
++		.imageOffset = { 0, 0, 0 },
++		.imageExtent = {
++			src->width(),
++			src->height(),
++			1,
++		},
++	};
++
++	m_device->vk.CmdCopyImageToBuffer(m_cmdBuffer, src->vkImage(), VK_IMAGE_LAYOUT_GENERAL, buffer, 1, &region);
++
++	m_textureRefs.emplace_back(std::move(src));
++}
++
+ void CVulkanCmdBuffer::prepareSrcImage(CVulkanTexture *image)
+ {
+ 	auto result = m_textureState.emplace(image, TextureState());
+@@ -1827,7 +1853,7 @@ void CVulkanCmdBuffer::prepareSrcImage(CVulkanTexture *image)
+ 	if (!result.second)
+ 		return;
+ 	// using the swapchain image as a source without writing to it doesn't make any sense
+-	assert(image->outputImage() == false);
++	assert(image->outputImage() == false || image->externalImage());
+ 	result.first->second.needsImport = image->externalImage();
+ 	result.first->second.needsExport = image->externalImage();
+ }
+diff --git a/src/Backends/HeadlessBackend.cpp b/src/Backends/HeadlessBackend.cpp
+--- a/src/Backends/HeadlessBackend.cpp
++++ b/src/Backends/HeadlessBackend.cpp
+@@ -52,12 +52,87 @@ namespace gamescope
+         const char *value = getenv( "NOVA_AHB_FRAME_COUNT" );
+         if ( value == nullptr || value[0] == '\0' )
+             return 0;
+ 
+         int frameCount = std::atoi( value );
+         return frameCount > 0 && frameCount <= 2000 ? frameCount : 0;
+     }
+ 
++    static bool android_vulkan_readback_enabled()
++    {
++        const char *value = getenv( "NOVA_AHB_VULKAN_READBACK" );
++        return value != nullptr && value[0] == '1';
++    }
++
++    static uint64_t android_vulkan_readback_frame()
++    {
++        const char *value = getenv( "NOVA_AHB_VULKAN_READBACK_FRAME" );
++        if ( value == nullptr || value[0] == '\0' )
++            return 0;
++
++        char *end = nullptr;
++        unsigned long long frame = std::strtoull( value, &end, 10 );
++        return end != value && end != nullptr && end[0] == '\0' && frame <= 2000
++            ? static_cast<uint64_t>( frame ) : 0;
++    }
++
++    static bool android_vulkan_readback_texture( gamescope::Rc<CVulkanTexture> texture,
++        uint64_t *checksum, uint8_t *minChannels, uint8_t *maxChannels,
++        uint8_t *firstPixel, uint8_t *centerPixel, uint8_t *lastPixel )
++    {
++        if ( texture == nullptr || checksum == nullptr || minChannels == nullptr ||
++            maxChannels == nullptr || firstPixel == nullptr || centerPixel == nullptr ||
++            lastPixel == nullptr )
++            return false;
++
++        const uint64_t byteCount = static_cast<uint64_t>( texture->width() ) *
++            static_cast<uint64_t>( texture->height() ) * 4ULL;
++        if ( byteCount == 0 || byteCount > CVulkanDevice::upload_buffer_size )
++            return false;
++
++        auto [mapped, offset] = g_device.uploadBufferData( static_cast<uint32_t>( byteCount ) );
++        auto commandBuffer = g_device.commandBuffer();
++        if ( commandBuffer == nullptr )
++            return false;
++        commandBuffer->copyImageToBuffer( texture, g_device.uploadBuffer(), offset, texture->width() );
++        uint64_t sequence = g_device.submit( std::move( commandBuffer ) );
++        g_device.wait( sequence );
++
++        uint8_t *pixels = static_cast<uint8_t *>( mapped );
++        uint64_t hash = 1469598103934665603ULL;
++        for ( int channel = 0; channel < 4; channel++ )
++        {
++            minChannels[channel] = 255;
++            maxChannels[channel] = 0;
++        }
++        for ( uint32_t row = 0; row < texture->height(); row++ )
++        {
++            uint8_t *line = pixels + static_cast<size_t>( row ) * texture->width() * 4u;
++            for ( uint32_t column = 0; column < texture->width(); column++ )
++            {
++                uint8_t *pixel = line + static_cast<size_t>( column ) * 4u;
++                for ( int channel = 0; channel < 4; channel++ )
++                {
++                    hash ^= pixel[channel];
++                    hash *= 1099511628211ULL;
++                    if ( pixel[channel] < minChannels[channel] )
++                        minChannels[channel] = pixel[channel];
++                    if ( pixel[channel] > maxChannels[channel] )
++                        maxChannels[channel] = pixel[channel];
++                }
++            }
++        }
++
++        const size_t centerOffset =
++            ( static_cast<size_t>( texture->height() / 2 ) * texture->width() +
++            static_cast<size_t>( texture->width() / 2 ) ) * 4u;
++        memcpy( firstPixel, pixels, 4u );
++        memcpy( centerPixel, pixels + centerOffset, 4u );
++        memcpy( lastPixel, pixels + byteCount - 4u, 4u );
++        *checksum = hash;
++        return true;
++    }
++
+     static bool android_output_trace_enabled()
+     {
+         const char *value = getenv( "NOVA_AHB_TRACE" );
+         return value != nullptr && value[0] == '1';
+@@ -736,2 +811,32 @@ namespace gamescope
+ 				vulkan_wait( *oSequence, true );
++                if ( android_vulkan_readback_enabled() &&
++                    m_androidFrameCount == android_vulkan_readback_frame() )
++                {
++                    uint64_t checksum = 0;
++                    uint8_t minChannels[4] = {};
++                    uint8_t maxChannels[4] = {};
++                    uint8_t firstPixel[4] = {};
++                    uint8_t centerPixel[4] = {};
++                    uint8_t lastPixel[4] = {};
++                    if ( !android_vulkan_readback_texture( m_androidTextures[index], &checksum,
++                        minChannels, maxChannels, firstPixel, centerPixel, lastPixel ) )
++                    {
++                        headless_log.errorf( "android_ahb_vulkan_readback_%llu=fail frame=%llu buffer=%d",
++                            (unsigned long long)m_androidFrameCount,
++                            (unsigned long long)m_androidFrameCount, index );
++                        return -1;
++                    }
++                    headless_log.infof(
++                        "android_ahb_vulkan_readback_%llu=pass frame=%llu buffer=%d bytes=%llu width=%u height=%u fnv1a64=%016llx rgba_min=%u,%u,%u,%u rgba_max=%u,%u,%u,%u first=%u,%u,%u,%u center=%u,%u,%u,%u last=%u,%u,%u,%u",
++                        (unsigned long long)m_androidFrameCount,
++                        (unsigned long long)m_androidFrameCount, index,
++                        (unsigned long long)m_androidTextures[index]->width() * m_androidTextures[index]->height() * 4ULL,
++                        m_androidTextures[index]->width(), m_androidTextures[index]->height(),
++                        (unsigned long long)checksum,
++                        minChannels[0], minChannels[1], minChannels[2], minChannels[3],
++                        maxChannels[0], maxChannels[1], maxChannels[2], maxChannels[3],
++                        firstPixel[0], firstPixel[1], firstPixel[2], firstPixel[3],
++                        centerPixel[0], centerPixel[1], centerPixel[2], centerPixel[3],
++                        lastPixel[0], lastPixel[1], lastPixel[2], lastPixel[3] );
++                }
+ 				android_output_trace( "ack_send", m_androidFrameCount, index, m_androidSubmitted[index] );

@@ -15,6 +15,7 @@ PATCH_FILES=(
     "$SCRIPT_DIR/patches/gamescope-headless-ahb-frame-identity.patch"
     "$SCRIPT_DIR/patches/gamescope-headless-ahb-valid-content-cadence.patch"
     "$SCRIPT_DIR/patches/gamescope-headless-libei-touch.patch"
+    "$SCRIPT_DIR/patches/gamescope-headless-ahb-vulkan-readback.patch"
 )
 SOURCE_DIR="${GAMESCOPE_SOURCE:-}"
 WORKTREE="${GAMESCOPE_HEADLESS_SOURCE:-$BUILD_DIR/gamescope-headless-source}"
