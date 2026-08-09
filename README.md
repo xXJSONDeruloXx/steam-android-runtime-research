@@ -298,6 +298,7 @@ the gamescope frames on its own surface.
 - [Termux:X11 root-private session-bus repair experiment](docs/180-termux-x11-root-private-session-bus-repair-experiment-2026-08-09.md)
 - [Termux:X11 root-private session-bus result](docs/181-termux-x11-root-private-session-bus-result-2026-08-09.md)
 - [Termux:X11 root-private session-bus CDP confirmation](docs/182-termux-x11-root-private-session-bus-cdp-experiment-2026-08-09.md)
+- [Termux:X11 root-private session-bus CDP result](docs/183-termux-x11-root-private-session-bus-cdp-result-2026-08-09.md)
 - [Retroid Pocket Nova flashing kit](tools/retroid-pocket-nova/README.md)
 
 ## Evidence standard
