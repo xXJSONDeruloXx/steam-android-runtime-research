@@ -11,7 +11,7 @@ CLIENT_STDERR=/tmp/nova-steam-client.stderr
 RUNTIME_DIR=/tmp/nova-steam-runtime
 STEAM_UID=${NOVA_TERMUX_X11_STEAM_UID:-501}
 STEAM_GID=${NOVA_TERMUX_X11_STEAM_GID:-20}
-CLIENT_TIMEOUT=60
+CLIENT_TIMEOUT=${NOVA_TERMUX_X11_STEAM_TIMEOUT_SECONDS:-60}
 client_pid=
 
 case "$STEAM_UID:$STEAM_GID" in
@@ -20,6 +20,16 @@ case "$STEAM_UID:$STEAM_GID" in
         exit 2
         ;;
 esac
+case "$CLIENT_TIMEOUT" in
+    ''|*[!0-9]*)
+        echo "invalid Steam timeout: $CLIENT_TIMEOUT" >&2
+        exit 2
+        ;;
+esac
+if [ "$CLIENT_TIMEOUT" -lt 1 ]; then
+    echo "Steam timeout must be at least 1 second" >&2
+    exit 2
+fi
 
 log() {
     echo "$1" >>"$CLIENT_LOG"
@@ -55,6 +65,7 @@ log "client_executable=$STEAM_EXECUTABLE"
 log "client_flags=-gamepadui -steamos3 -steampal -steamdeck -nobootstrapperupdate -skipinitialbootstrap -no-child-update-ui -no-cef-sandbox -cef-disable-gpu"
 log "client_uid=$STEAM_UID"
 log "client_gid=$STEAM_GID"
+log "client_timeout_seconds=$CLIENT_TIMEOUT"
 log "client_xauthority=${XAUTHORITY:-unset}"
 log "client_runtime_dir=$RUNTIME_DIR"
 
