@@ -1189,6 +1189,75 @@ the same negotiated format, followed by matching Chromium's requested format
 or period if the driver rejects that write. This remains separate from the
 physical-controller path.
 
+### `alsa-20260809T231000Z-write-probe`
+
+This run tested the direct rootfs ALSA write boundary without launching Steam
+and without sending input. Exact cleanup passed before the run. The device
+remained locked/asleep. The probe ran inside the same private namespace with
+`/dev` and `/proc` visible, as UID `501`, GID `20`, and supplementary audio
+group `1005`.
+
+The probe intentionally follows the current Chromium Linux ALSA path: a
+nonblocking playback open, S16 interleaved stereo at 48 kHz, and
+`snd_pcm_set_params()` before the first write. Chromium's implementation also
+writes only the currently available frames and recovers once before reporting
+an error; the probe mirrors that shape using an all-zero payload. See
+[Chromium's ALSA output implementation](https://chromium.googlesource.com/chromium/src/media/+/master/audio/alsa/alsa_output.cc)
+and its [ALSA parameter setup](https://chromium.googlesource.com/chromium/src/+/lkgr/media/audio/alsa/alsa_util.cc)
+for the upstream reference.
+
+All four matrix entries produced the same result:
+
+```text
+alsa_pcm_open=pass
+alsa_pcm_set_params=pass
+alsa_buffer_frames=2048
+alsa_period_frames=1024
+alsa_pcm_prepare=pass
+alsa_available_frames=2048
+alsa_pcm_write_requested_frames=2048
+alsa_pcm_write=fail status=-22 error=Invalid argument
+alsa_pcm_recover_status=-22 error=Invalid argument
+alsa_pcm_close=pass
+```
+
+That result held for `default` and `plug:default`, with 10,000 and 20,000
+microsecond requested buffers. The direct Linux ALSA route is therefore not
+blocked at visibility, group permissions, parameter negotiation, or prepare;
+the Android ALSA driver rejects the actual `writei` transfer. This closes the
+useful low-level probe without claiming audible playback. Continuing to tune
+the direct Steam ALSA write would now be a separate driver/bridge project, not
+a missing launcher permission.
+
+The first compile attempt used strict `-std=c11` and hit the rootfs toolchain's
+existing ALSA/glibc `struct timespec` header collision. Retrying with the
+rootfs-supported GNU dialect succeeded; the compile retry is retained as part
+of the run evidence.
+
+Artifacts are under
+`android/nova-lab/build/manual-runs/alsa-20260809T231000Z-write-probe/`:
+
+* source: `nova-alsa-write-probe.c`, SHA-256
+  `67aaeb9a3b6ea8f89dbba5c3ddf77ca460ead416f9a607369741085a73aafe38`;
+* strict-C compile failure:
+  `c9e86d9c6d4934b19af0b7101e3d5b0396b075cd4081739881a11fc9d7200a0f`;
+* GNU-dialect compile pass:
+  `aa11a5f59edec08841133a61ea65f7b2b9c31cb082d623e83f7255000a6d3a38`;
+* `default`, 10,000 microseconds:
+  `de7d4cc93ffdfb1aa74eb7c87fedf1251270395daf92547a3efa7a67abfb7631`;
+* `plug:default`, 10,000 microseconds:
+  `86fb9c35672cc9f2c26332153f178bcc3eecad5365473fd73b57dd84c2616a4d`;
+* `default`, 20,000 microseconds:
+  `d60311e79451f08b9c02e56397c384db9c4fdcb2e0ebdc94c913eeb38d312ecc`;
+* `plug:default`, 20,000 microseconds:
+  `1304d3752d82ce016c785eef74f0654ca0ef26ade0a704cb7a10f41aca1684f8`;
+* temporary artifact cleanup:
+  `77ca770a4e35e2b6428c9e5521336ca5a0614b9d1ae9a08b138d476c7fb2cc4b`;
+* final exact cleanup:
+  `d17521aaf43daf2906355c80201e5be56ef7e8af99729172999ab3e0287691f2`;
+* final process inventory:
+  `b7dae28b545536943cf26bd23e2a6be0c42be60dcdb2d9c90d1982f75f0d0538`.
+
 ## Cleanup
 
 Every attempt ended without a Nova Steam runtime. The exact helper returned
@@ -1206,16 +1275,20 @@ matching runtime. No broad process kill was used.
 
 The direct APK path is now repeatable through signed-in Steam UI, while
 physical-controller forwarding remains intentionally untested in the current
-operator-away window. The next product work is deliberately off the button
-path:
+operator-away window. The direct ALSA path is also now bounded at a reproducible
+`writei(EINVAL)` result. The next product work remains off the button path:
 
-1. add the smallest lifecycle-safe PCM bridge from the rootfs Steam audio
-   client to the proven Android `AudioTrack` sink;
-2. repeat the 1280x800 Termux:X11 stretch profile against the awake 1280x960
+1. turn the current launcher into a genuinely end-user-oriented one-click
+   APK flow, including durable start/stop state and no required ADB helper
+   script for the direct X11 product mode;
+2. add the smallest lifecycle-safe PCM bridge from the rootfs Steam audio
+   client to the proven Android `AudioTrack` sink, keeping it separate from
+   the rejected direct ALSA write path;
+3. repeat the 1280x800 Termux:X11 stretch profile against the awake 1280x960
    Nova surface for a real visual check;
-3. preserve the direct APK fallback while adding a separately identified
+4. preserve the direct APK fallback while adding a separately identified
    Gamescope/AHardwareBuffer product mode; and
-4. keep physical controls and 198X/game launch as separate phases, because
+5. keep physical controls and 198X/game launch as separate phases, because
    the former needs one known real press and the latter currently has an
    x86-64 execution blocker rather than a display blocker.
 
