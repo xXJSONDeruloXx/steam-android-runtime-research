@@ -219,6 +219,7 @@ the gamescope frames on its own surface.
 - [Nova settled X11 presentation timing result](docs/102-nova-settled-x11-presentation-timing-result-2026-08-09.md)
 - [Nova AHB pre-marker content probe experiment](docs/103-nova-ahb-pre-marker-content-probe-experiment-2026-08-09.md)
 - [Nova AHB pre-marker content probe result](docs/104-nova-ahb-pre-marker-content-probe-result-2026-08-09.md)
+- [Nova AHB import-layout probe experiment](docs/105-nova-ahb-import-layout-probe-experiment-2026-08-09.md)
 - [Retroid Pocket Nova flashing kit](tools/retroid-pocket-nova/README.md)
 
 ## Evidence standard
