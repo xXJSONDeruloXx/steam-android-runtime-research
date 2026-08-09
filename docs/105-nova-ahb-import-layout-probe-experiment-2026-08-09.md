@@ -1,6 +1,6 @@
 # Nova AHB import-layout probe experiment — 2026-08-09
 
-Status: predeclared. This experiment answers the next presentation-layer
+Status: completed; see [the valid device result](106-nova-ahb-import-layout-probe-result-2026-08-09.md). This experiment answers the next presentation-layer
 question exposed by the pre-marker content result: whether the Android
 AHardwareBuffer allocation used by the 1280×960 three-buffer loop has a
 Vulkan/DRM image layout compatible with Gamescope's current DMA-BUF import.
@@ -74,6 +74,7 @@ before using its layout result.
 
 ## Acceptance artifacts
 
-The result document will include the exact run ID, APK and source provenance,
-the complete bounded Android Vulkan report, the modifier/layout fields, hashes
-of retained artifacts, and the cleanup verifier result.
+The valid result records the exact run ID, APK and source provenance, the
+complete bounded Android Vulkan report, the modifier/layout fields, hashes of
+retained artifacts, and the cleanup verifier result. The first mismatched
+profile attempt remains explicitly invalid above.
