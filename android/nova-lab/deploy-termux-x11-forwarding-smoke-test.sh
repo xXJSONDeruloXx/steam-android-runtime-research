@@ -11,12 +11,13 @@ DISPLAY_NUMBER=${NOVA_TERMUX_X11_DISPLAY:-0}
 APK=${NOVA_TERMUX_X11_APK:?set NOVA_TERMUX_X11_APK to the official Termux:X11 APK}
 X11_ANIMATE=${NOVA_X11_ANIMATE:-$BUILD_DIR/nova-x11-animate}
 X11_CAPTURE=${NOVA_X11_CAPTURE:-$BUILD_DIR/nova-x11-capture}
-X11_WINDOW_NAME=${NOVA_TERMUX_X11_WINDOW_NAME:-Nova animated Xwayland Gamescope probe}
+X11_WINDOW_NAME=${NOVA_TERMUX_X11_WINDOW_NAME-Nova animated Xwayland Gamescope probe}
 WINDOW_WAIT_SECONDS=${NOVA_TERMUX_X11_WINDOW_WAIT_SECONDS:-1}
 RUNTIME_CLEANUP="$SCRIPT_DIR/device/nova-runtime-cleanup.sh"
 X11_PRIVATE_NAMESPACE_HELPER="$SCRIPT_DIR/device/nova-x11-private-namespace.sh"
 X11_CLEANUP_HELPER="$SCRIPT_DIR/device/nova-termux-x11-cleanup.sh"
 X11_CLIENT_LAUNCHER="$SCRIPT_DIR/device/nova-termux-x11-client-launcher.sh"
+X11_ROOTFS_DEVICES_HELPER="$SCRIPT_DIR/device/nova-termux-x11-rootfs-devices.sh"
 DEVICE_RUNTIME_CLEANUP=/data/local/tmp/nova-runtime-cleanup.sh
 CLIENT_FRAMES=${NOVA_TERMUX_X11_CLIENT_FRAMES:-600}
 ALLOW_X11_CAPTURE_FAILURE=${NOVA_TERMUX_X11_ALLOW_X11_CAPTURE_FAILURE:-0}
@@ -43,6 +44,7 @@ CHROOT_X11_PPM=/tmp/nova-x11-forwarding-$RUN_ID.ppm
 REMOTE_PRIVATE_NAMESPACE_HELPER=/data/local/tmp/nova-x11-private-namespace-$RUN_ID.sh
 REMOTE_X11_CLEANUP_HELPER=/data/local/tmp/nova-termux-x11-cleanup-$RUN_ID.sh
 REMOTE_CLIENT_LAUNCHER=/data/local/tmp/nova-termux-x11-client-launcher-$RUN_ID.sh
+REMOTE_ROOTFS_DEVICES_HELPER=/data/local/tmp/nova-termux-x11-rootfs-devices-$RUN_ID.sh
 SERVER_PROCESS_TOKEN=termux-x11
 CLIENT_PROCESS_TOKEN=nova-x11-animate-$RUN_ID
 REMOTE_CLIENT_HOST_PID=
@@ -108,6 +110,10 @@ if [ ! -x "$X11_CLIENT_LAUNCHER" ]; then
     echo "missing X11 client launcher: $X11_CLIENT_LAUNCHER" >&2
     exit 1
 fi
+if [ ! -x "$X11_ROOTFS_DEVICES_HELPER" ]; then
+    echo "missing rootfs device helper: $X11_ROOTFS_DEVICES_HELPER" >&2
+    exit 1
+fi
 if ! command -v sha256sum >/dev/null 2>&1; then
     echo "missing host tool: sha256sum" >&2
     exit 1
@@ -118,12 +124,13 @@ for artifact in \
     run-metadata.txt termux-x11-apk.sha256 nova-x11-animate.sha256 \
     nova-x11-capture.sha256 nova-x11-private-namespace.sha256 \
     nova-termux-x11-cleanup.sha256 termux-x11-server.log \
-    nova-termux-x11-client-launcher.sha256 \
+    nova-termux-x11-client-launcher.sha256 nova-termux-x11-rootfs-devices.sha256 \
     termux-x11-client.log termux-x11-client.stdout termux-x11-client.stderr \
     client-launch-command.txt client-host-pid.txt \
     x11-tree.txt x11-capture.txt x11-window.ppm android-screenshot.png \
     android-window-state.txt android-logcat.txt nova-runtime-cleanup.txt \
-    nova-runtime-cleanup-preflight.txt post-stop-verification.txt; do
+    nova-runtime-cleanup-preflight.txt rootfs-devices-preflight.txt \
+    post-stop-verification.txt; do
     if [ -e "$RUN_DIR/$artifact" ]; then
         echo "run artifact already exists; choose a fresh NOVA_RUN_ID: $RUN_DIR/$artifact" >&2
         exit 2
@@ -143,7 +150,20 @@ stage_x11_helpers() {
     adb push "$X11_PRIVATE_NAMESPACE_HELPER" "$REMOTE_PRIVATE_NAMESPACE_HELPER" >/dev/null
     adb push "$X11_CLEANUP_HELPER" "$REMOTE_X11_CLEANUP_HELPER" >/dev/null
     adb push "$X11_CLIENT_LAUNCHER" "$REMOTE_CLIENT_LAUNCHER" >/dev/null
-    adb shell "chmod 755 $REMOTE_PRIVATE_NAMESPACE_HELPER $REMOTE_X11_CLEANUP_HELPER $REMOTE_CLIENT_LAUNCHER"
+    adb push "$X11_ROOTFS_DEVICES_HELPER" "$REMOTE_ROOTFS_DEVICES_HELPER" >/dev/null
+    adb shell "chmod 755 $REMOTE_PRIVATE_NAMESPACE_HELPER $REMOTE_X11_CLEANUP_HELPER $REMOTE_CLIENT_LAUNCHER $REMOTE_ROOTFS_DEVICES_HELPER"
+}
+
+prepare_rootfs_devices() {
+    local output status=0
+    output=$(adb shell su -c \
+        "$REMOTE_ROOTFS_DEVICES_HELPER $DEVICE_ROOT" 2>&1) || status=$?
+    output=$(printf '%s\n' "$output" | tr -d '\r')
+    printf '%s\n' "$output"
+    if [ "$status" -ne 0 ] || ! printf '%s\n' "$output" | rg -q '^nova_rootfs_devices=pass '; then
+        echo "nova_rootfs_devices=fail" >&2
+        return 1
+    fi
 }
 
 cleanup_nova_runtime() {
@@ -251,6 +271,9 @@ adb shell am start --user 0 -n com.termux.x11/com.termux.x11.MainActivity >"$RUN
     echo "x11_cleanup_helper_sha256=$(sha256sum "$X11_CLEANUP_HELPER" | awk '{print $1}')"
     echo "remote_private_namespace_helper=$REMOTE_PRIVATE_NAMESPACE_HELPER"
     echo "remote_cleanup_helper=$REMOTE_X11_CLEANUP_HELPER"
+    echo "rootfs_devices_helper=$X11_ROOTFS_DEVICES_HELPER"
+    echo "rootfs_devices_helper_sha256=$(sha256sum "$X11_ROOTFS_DEVICES_HELPER" | awk '{print $1}')"
+    echo "remote_rootfs_devices_helper=$REMOTE_ROOTFS_DEVICES_HELPER"
     echo "x11_client_launcher=$X11_CLIENT_LAUNCHER"
     echo "x11_client_launcher_sha256=$(sha256sum "$X11_CLIENT_LAUNCHER" | awk '{print $1}')"
     echo "remote_client_launcher=$REMOTE_CLIENT_LAUNCHER"
@@ -259,7 +282,7 @@ adb shell am start --user 0 -n com.termux.x11/com.termux.x11.MainActivity >"$RUN
     echo "client_launch=foreground adb shell su command with host-side background"
     echo "client_frames=$CLIENT_FRAMES"
     echo "allow_x11_capture_failure=$ALLOW_X11_CAPTURE_FAILURE"
-    echo "x11_window_name=${X11_WINDOW_NAME:-any viewable depth-1 child}"
+    echo "x11_window_name=${X11_WINDOW_NAME-any viewable depth-1 child}"
     echo "x11_window_wait_seconds=$WINDOW_WAIT_SECONDS"
     echo "presentation=Termux:X11 Android SurfaceView"
     echo "gamescope=not_used"
@@ -272,8 +295,10 @@ sha256sum "$X11_CAPTURE" >"$RUN_DIR/nova-x11-capture.sha256"
 sha256sum "$X11_PRIVATE_NAMESPACE_HELPER" >"$RUN_DIR/nova-x11-private-namespace.sha256"
 sha256sum "$X11_CLEANUP_HELPER" >"$RUN_DIR/nova-termux-x11-cleanup.sha256"
 sha256sum "$X11_CLIENT_LAUNCHER" >"$RUN_DIR/nova-termux-x11-client-launcher.sha256"
+sha256sum "$X11_ROOTFS_DEVICES_HELPER" >"$RUN_DIR/nova-termux-x11-rootfs-devices.sha256"
 
 RUN_STARTED=1
+prepare_rootfs_devices >"$RUN_DIR/rootfs-devices-preflight.txt"
 prepare_remote_state
 adb push "$X11_ANIMATE" "$REMOTE_CLIENT" >/dev/null
 adb push "$X11_CAPTURE" "$REMOTE_CAPTURE" >/dev/null

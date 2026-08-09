@@ -247,6 +247,7 @@ the gamescope frames on its own surface.
 - [Termux:X11 Android screen-capture result](docs/129-termux-x11-android-screen-capture-result-2026-08-09.md)
 - [Termux:X11 native ARM64 Steam experiment](docs/130-termux-x11-native-steam-experiment-2026-08-09.md)
 - [Termux:X11 native ARM64 Steam result](docs/131-termux-x11-native-steam-result-2026-08-09.md)
+- [Termux:X11 rootfs device-namespace repair experiment](docs/132-termux-x11-rootfs-device-repair-experiment-2026-08-09.md)
 - [Retroid Pocket Nova flashing kit](tools/retroid-pocket-nova/README.md)
 
 ## Evidence standard
