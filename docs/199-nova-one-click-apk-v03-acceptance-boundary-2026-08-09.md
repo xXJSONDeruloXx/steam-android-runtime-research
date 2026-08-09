@@ -418,6 +418,50 @@ settings recorded, then verify a real event7 trace before starting Nova. Do
 not add more relay mappings or synthetic `sendevent` tests until that gate
 passes.
 
+### `input-20260809T210313Z-handle-takeover`
+
+This bounded source-side experiment tested the Retroid setting that is
+explicitly described as `New Controller Takeover Mode`. The setting is
+implemented by `com.ro.settings.preference.input.HandleConnectionModePreference`
+and writes `persist.sys.handle.mode`; it was `0` before the experiment and was
+set to `1` through the vendor settings UI. The preference says that a restart
+is required, so the Nova was not running and the device was rebooted before
+the fresh capture. The post-reboot state was:
+
+```text
+persist.sys.handle.mode=1
+persist.sys.gamepad.type=1
+sys.boot_completed=1
+bluetooth_on=0
+key_adapter_enable=null
+global_gamepad_to_mouse_mode=null
+```
+
+The mapper still exposed `/dev/input/event7` as the virtual `Xbox Wireless
+Controller` and the `keydetect` kernel module was loaded. Its `/dev/adckey`
+misc device existed, and boot `dmesg` included `driver: adckey_fasync` and
+`adckey_write:start`. However, an operator-directed 12-second capture of
+`/dev/input/event7` was empty (SHA-256
+`e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`). A
+simultaneous all-node capture contained only the nine `getevent` device
+announcements and no key, axis, or touch events. The captured state,
+capabilities, kernel log, logcat tail, and both traces are retained under the
+ignored local artifact directory
+`android/nova-lab/build/mapper-test/input-20260809T210313Z-handle-takeover/`;
+the state and capability artifact hashes are
+`967fd4c38c82cccb61fe2990d51874d3b93fadff87c3ec278259b506b4ad6e2a` and
+`fc0dd837228ff7f6684c3567facf17c7b6d1ca0cce1c727fdb9ce1e5611047bc`.
+
+The prior reversible Game Assistant drawer test was also negative: opening
+the vendor overlay and closing it with Back did not produce a
+`Gamepad->Standard` transition in the mapper log; the live configuration
+remained empty. This rules out the simple UI lifecycle reset as a reliable
+fix. The physical-control failure is therefore still below the Nova relay and
+Steam: the current device image has a live virtual gamepad endpoint but no
+observed physical source event. Do not claim controller support or add more
+Steam-side mappings until the `keydetect`/MCU or Retroid takeover path emits a
+real input event.
+
 ## Cleanup
 
 Every attempt ended without a Nova Steam runtime. The exact helper returned
@@ -438,9 +482,9 @@ single-controller namespace gate is accepted, but physical-controller
 forwarding is not yet accepted. The next run should focus on the remaining
 product boundaries, in order:
 
-1. test the Retroid mapper/GameAssistant source configuration with one
-   reversible setting change, restore the operator's prior setting afterward,
-   and require a real event7 trace before re-running the relay gate;
+1. inspect the Retroid `keydetect`/`/dev/adckey` and MCU source path, including
+   the effect of `persist.sys.handle.mode=1`, and require a real physical
+   event before re-running the relay gate;
 2. test and fix the 1280x800 Steam window geometry against the 1280x960 Nova
    surface;
 3. establish whether the `default` Steam audio manager reaches an Android
