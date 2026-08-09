@@ -32,6 +32,7 @@ keystore, and verified by `apksigner`.
 | relay-event allowlist refinement, device-tested | `21ad85a` | `d52d966749a4e6cc5b23c4548adce8c0161cea7c66aba5392fa2167bc191a356` | 0.3 |
 | notification-action product build, build-tested | `7ae566d` | `0ea67e39b3e0068eb78386cf3ddaac68e643ba2053361f23f0b3faf0213be4e8` | 0.3 |
 | notification lifecycle, device-tested without input | `b68943d` | `0ea67e39b3e0068eb78386cf3ddaac68e643ba2053361f23f0b3faf0213be4e8` | 0.3 |
+| notification permission gate, build-tested | `8d6f326` | `cdcc53ca0a49e134f62c359b08070c50de47153adac5b20d17c9f156afab96c3` | 0.3 |
 
 The runtime inputs for these attempts were the direct launcher mode: Termux:X11
 APK `/data/app/~~EaHbYh5LSrJyPyjYrj44Wg==/com.termux.x11-Yy3Sfe-6FUYa5hx2OcDldw==/base.apk`,
@@ -1328,6 +1329,22 @@ service remaining. Artifacts are under
 * launcher stop: `1ba025a7da75c64669bbfd7ff7a11e25275d8edad6798b71f4aef468e8015ee2`;
 * final exact cleanup: `4acf12e3cd7083f7fae2c5f82858813e754676109963deae703bcabe98cf9250`;
 * post-stop process inventory: `1039ba37e7ac80be04866345240e392fcfebb3ef752f9fa258b66a36afb6994d`.
+
+### `apk-20260809T232000Z-notification-permission-gate`
+
+The lifecycle run showed that constructing a foreground notification action is
+not sufficient on Android 13 when `POST_NOTIFICATIONS` is denied. This source
+refinement makes the launcher request that permission on the first Start
+attempt, reports the dependency in the launcher summary, and starts Steam only
+after the user grants it. If the user denies the request, the app leaves Steam
+stopped and explains that reliable notification-based Stop is unavailable.
+
+The APK rebuilt cleanly with `android/nova-lab/build.sh`; `apksigner verify`
+passed. The new APK SHA-256 is
+`cdcc53ca0a49e134f62c359b08070c50de47153adac5b20d17c9f156afab96c3`.
+This is a build-only result; the permission dialog and the resulting visible
+Stop action still need one awake-device acceptance run with an operator able
+to grant the Android permission.
 
 ## Cleanup
 
