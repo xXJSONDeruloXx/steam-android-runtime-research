@@ -201,6 +201,7 @@ the gamescope frames on its own surface.
 - [Nova OOBE A-button surface-correlation result](docs/84-nova-oobe-a-button-result-2026-08-09.md)
 - [Nova bounded-session overlay guard experiment](docs/85-nova-bounded-overlay-guard-experiment-2026-08-09.md)
 - [Nova OOBE AHB lifecycle-grace experiment](docs/86-nova-oobe-ahb-lifecycle-grace-experiment-2026-08-09.md)
+- [Nova OOBE AHB lifecycle-grace result](docs/87-nova-oobe-ahb-lifecycle-grace-result-2026-08-09.md)
 - [Retroid Pocket Nova flashing kit](tools/retroid-pocket-nova/README.md)
 
 ## Evidence standard
