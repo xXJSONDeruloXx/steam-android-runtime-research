@@ -232,6 +232,7 @@ the gamescope frames on its own surface.
 - [Nova Vulkan AHardwareBuffer readback rerun experiment](docs/115-nova-ahb-vulkan-readback-rerun-experiment-2026-08-09.md)
 - [Nova Vulkan AHardwareBuffer readback rerun result](docs/116-nova-ahb-vulkan-readback-rerun-result-2026-08-09.md)
 - [X11-to-Android forwarding experiment plan](docs/117-x11-android-forwarding-experiment-plan-2026-08-09.md)
+- [Termux:X11 display bring-up experiment](docs/118-termux-x11-display-bring-up-experiment-2026-08-09.md)
 - [Retroid Pocket Nova flashing kit](tools/retroid-pocket-nova/README.md)
 
 ## Evidence standard
