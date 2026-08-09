@@ -137,6 +137,7 @@ on_exit() {
     if [ "${RUN_STARTED:-0}" = "1" ]; then
         adb shell su -c "cat $REMOTE_SERVER_LOG" >"$RUN_DIR/termux-x11-server.log" 2>/dev/null || true
         adb shell su -c "cat $REMOTE_CLIENT_LOG" >"$RUN_DIR/termux-x11-client.log" 2>/dev/null || true
+        adb logcat -d -v threadtime -s "CmdEntryPoint:*" "LorieNative:*" "MainActivity:*" "Lorie:*" "gles-renderer:*" "AndroidRuntime:*" >"$RUN_DIR/android-logcat.txt" || true
         cleanup_remote >"$RUN_DIR/cleanup-output.txt" || true
         post_stop_verify || status=1
         cleanup_nova_runtime >"$RUN_DIR/nova-runtime-cleanup.txt" || status=1
@@ -186,7 +187,7 @@ adb push "$X11_ANIMATE" "$REMOTE_CLIENT" >/dev/null
 adb push "$X11_CAPTURE" "$REMOTE_CAPTURE" >/dev/null
 
 adb shell su -c \
-    "mkdir -p $REMOTE_STATE_DIR; export TMPDIR=$DEVICE_ROOT/tmp; export XKB_CONFIG_ROOT=$DEVICE_ROOT/usr/share/X11/xkb; export CLASSPATH=\$(pm path com.termux.x11 | cut -d: -f2); export TERMUX_X11_DEBUG=1; /system/bin/app_process / --nice-name=termux-x11 com.termux.x11.CmdEntryPoint $DISPLAY_VALUE >$REMOTE_SERVER_LOG 2>&1 & echo \$! >$REMOTE_SERVER_PID_FILE"
+    "CLASSPATH=\$(pm path com.termux.x11 | cut -d: -f2); /system/bin/env TMPDIR=$DEVICE_ROOT/tmp XKB_CONFIG_ROOT=$DEVICE_ROOT/usr/share/X11/xkb CLASSPATH=\$CLASSPATH TERMUX_X11_DEBUG=1 /system/bin/app_process / --nice-name=termux-x11 com.termux.x11.CmdEntryPoint $DISPLAY_VALUE >$REMOTE_SERVER_LOG 2>&1 & echo \$! >$REMOTE_SERVER_PID_FILE"
 
 socket_ready=0
 for attempt in $(seq 1 60); do

@@ -56,6 +56,13 @@ writes. The harness therefore creates a run-specific state directory through
 the regular shell transport, makes only that directory writable, and records
 its path in `run-metadata.txt`.
 
+The next fresh run reached `app_process` but never created the X11 socket. A
+foreground reproduction captured `$TMPDIR is not set. Normally it is pointing
+to /tmp of a container.`: this device's `su -c` wrapper resets an in-shell
+`export TMPDIR=...` to `/data/local/tmp`, which Termux:X11 intentionally
+rejects. The harness now applies `TMPDIR`, `XKB_CONFIG_ROOT`, and `CLASSPATH`
+with `/system/bin/env` on the `app_process` command itself.
+
 ## Procedure and gates
 
 `android/nova-lab/deploy-termux-x11-forwarding-smoke-test.sh` must:
