@@ -915,6 +915,47 @@ the 1280x800 image is scaled into the 1280x960 Android surface. It is a
 separate experiment and must be restored if it is not suitable for touch or
 visual fidelity.
 
+### `launcher-20260809T223146Z-x11-stretch-1280x800`
+
+This was the complementary no-input geometry experiment. The exact runtime
+cleanup passed before launch, and no physical or synthetic input was sent. The
+Termux:X11 preference file was backed up inside its own app files, then the
+profile was changed to `displayResolutionMode=custom`,
+`displayResolutionCustom=1280x800`, and `displayStretch=true`; fullscreen
+remained enabled and the additional keyboard remained disabled.
+
+Termux:X11 applied the requested X geometry. Its native log reports an initial
+1280x1024 buffer during Activity setup, followed by a 1280x800 buffer and
+`window changed: 1280 800 builtin`. The X11 root and the viewable Steam Big
+Picture child were both 1280x800, and the captured Steam PPM was 1280x800.
+This removes the 160-pixel X11 root-versus-window mismatch seen in the
+1280x960 profile. The Android screenshot, however, captured the device lock
+screen rather than the Termux:X11 surface because the Nova was asleep/locked.
+Therefore this run does not accept or reject the renderer's visual stretch;
+it proves only that the supported X geometry was applied. No synthetic unlock
+was used while the operator was away.
+
+The launcher stopped with `nova_launcher_stop=pass`; exact runtime cleanup
+then returned `pass` after terminating the run's launcher process, with no
+matching residual process. The original Termux:X11 preferences were restored
+and the temporary backup was removed. Artifacts are under
+`android/nova-lab/build/manual-runs/launcher-20260809T223146Z-x11-stretch-1280x800/`:
+
+* X11 tree: `23435dfd7bef32c5507692d752fb9a751931426cefcf98a92634fc08235b955d`;
+* 1280x800 Steam PPM: `8537934761849c217a0836b52199c778902be97e329171798ae5b75f1a11af5e`;
+* locked 1280x960 Android screenshot: `b1fd591591607a49282bf18d0654e60fc87bb36e4ddfbb1d095ee2af3d64688a`;
+* Termux:X11 server log: `d6bab00110d59990df47885f1551d881a14d8f8debc0d3aead28e324269d1dcf`;
+* Steam client log: `febfae297d479896089d37e4c043c70c4e8fff6c3d473122509ff5f979c32be9`;
+* Termux:X11 logcat: `d92514e25eb7d2f71442a95be17290adce8345a606e51438d638946d5bbf22fc`;
+* restored preference XML: `25530aa4ed8fda450e43638e2c7a00bb95d5cb1ff1c1ab18e717f32a4feb0895`;
+* launcher stop: `79f82176ea42e5839198a39dc0e525b0df85ede600d47160415772e3a413a406`;
+* post-stop exact cleanup: `a5c96bab09c9e19a542d0e07d864f66c8f63cfb59efa2ed067eb7166d4726df7`;
+* post-stop process inventory: `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+
+No product default is changed by this result. Once the device is awake, the
+same profile can be repeated for a real Android-surface visual check; the
+input blocker remains intentionally out of scope for that check.
+
 ## Cleanup
 
 Every attempt ended without a Nova Steam runtime. The exact helper returned
