@@ -34,11 +34,17 @@ public final class LauncherActivity extends Activity {
             "nova-termux-x11-cleanup.sh",
             "nova-termux-x11-steam-client.sh",
             "nova-uinput-gamepad-relay-launcher.sh",
-            "nova-runtime-cleanup.sh"
+            "nova-runtime-cleanup.sh",
+            "nova-steam-network-api-compat.sh",
+            "nova-steamos-update-compat.sh"
     };
     private static final String[] OPTIONAL_ASSETS = {
             "nova-mount-private",
-            "nova-uinput-gamepad-relay"
+            "nova-uinput-gamepad-relay",
+            "libsysv-sem-shim.so",
+            "libffmpeg-avutil-compat.so",
+            "libsdl3-compat.so",
+            "libposix-sync-trace.so"
     };
 
     private final Handler handler = new Handler(Looper.getMainLooper());

@@ -138,7 +138,7 @@ public final class LauncherService extends Service {
         final String currentRootfs = rootfs == null
                 ? "/data/local/tmp/nova-holo-rootfs" : rootfs;
         final String currentAssets = assetDirectory == null
-                ? getFilesDir().getAbsolutePath() : assetDirectory;
+                ? new File(getFilesDir(), "launcher").getAbsolutePath() : assetDirectory;
         final String currentTermuxApk = termuxApk == null ? "" : termuxApk;
         Process process;
         synchronized (processLock) {

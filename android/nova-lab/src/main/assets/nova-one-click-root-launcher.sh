@@ -16,6 +16,9 @@ RUNTIME_CLEANUP="$APP_DIR/nova-runtime-cleanup.sh"
 CLIENT_SOURCE="$APP_DIR/nova-termux-x11-steam-client.sh"
 RELAY_LAUNCHER="$APP_DIR/nova-uinput-gamepad-relay-launcher.sh"
 MOUNT_PRIVATE="$APP_DIR/nova-mount-private"
+NETWORK_COMPAT_SOURCE="$APP_DIR/nova-steam-network-api-compat.sh"
+STEAMOS_UPDATE_COMPAT_SOURCE="$APP_DIR/nova-steamos-update-compat.sh"
+DRIVER_DIR="$ROOT/opt/nova-kgsl-driver"
 
 if [ ! -x "$MOUNT_PRIVATE" ]; then
     if [ -x /data/local/tmp/nova-mount-private ]; then
@@ -108,7 +111,8 @@ if [ ! -d "$ROOT" ]; then
     exit 1
 fi
 if [ ! -x "$PRIVATE_HELPER" ] || [ ! -x "$CLEANUP_HELPER" ] || \
-    [ ! -x "$CLIENT_SOURCE" ] || [ ! -x "$RELAY_LAUNCHER" ]; then
+    [ ! -x "$CLIENT_SOURCE" ] || [ ! -x "$RELAY_LAUNCHER" ] || \
+    [ ! -x "$NETWORK_COMPAT_SOURCE" ] || [ ! -x "$STEAMOS_UPDATE_COMPAT_SOURCE" ]; then
     log "nova_launcher_start=fail reason=missing_launcher_asset"
     exit 1
 fi
@@ -126,6 +130,23 @@ if runtime_present; then
 fi
 
 mkdir -p "$STATE" "$ROOT/tmp/.X11-unix"
+mkdir -p "$DRIVER_DIR" "$ROOT/usr/bin/steamos-polkit-helpers"
+/system/bin/cp "$NETWORK_COMPAT_SOURCE" "$DRIVER_DIR/nova-steam-network-api-compat.sh"
+/system/bin/cp "$STEAMOS_UPDATE_COMPAT_SOURCE" \
+    "$ROOT/usr/bin/steamos-polkit-helpers/steamos-update"
+/system/bin/chmod 755 "$DRIVER_DIR/nova-steam-network-api-compat.sh" \
+    "$ROOT/usr/bin/steamos-polkit-helpers/steamos-update"
+for driver_asset in \
+    nova-uinput-gamepad-relay \
+    libsysv-sem-shim.so \
+    libffmpeg-avutil-compat.so \
+    libsdl3-compat.so \
+    libposix-sync-trace.so; do
+    if [ -f "$APP_DIR/$driver_asset" ]; then
+        /system/bin/cp "$APP_DIR/$driver_asset" "$DRIVER_DIR/$driver_asset"
+        /system/bin/chmod 755 "$DRIVER_DIR/$driver_asset"
+    fi
+done
 /system/bin/rm -f "$STATE/launcher.log" "$STATE/cleanup.log" \
     "$STATE/runtime-cleanup.log" "$STATE/server.log" "$STATE/client.log" \
     "$STATE/relay.log" "$STATE/activity.log" "$STATE/ready"

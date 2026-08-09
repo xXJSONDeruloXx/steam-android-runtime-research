@@ -296,11 +296,16 @@ export MESA_LOADER_DRIVER_OVERRIDE=swrast
 export GALLIUM_DRIVER=softpipe
 export LIBGL_ALWAYS_SOFTWARE=1
 export LD_LIBRARY_PATH="$STEAM_ROOT/steamrtarm64:$STEAM_ROOT/lib/aarch64-linux-gnu:/usr/lib${steam_runtime_files_bin:+:${steam_runtime_files_bin%/bin}/lib/aarch64-linux-gnu}${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
-export LD_PRELOAD=/opt/nova-kgsl-driver/libsysv-sem-shim.so
 log "client_mesa_driver=$MESA_LOADER_DRIVER_OVERRIDE"
 log "client_gallium_driver=$GALLIUM_DRIVER"
 log "client_libgl_always_software=1"
-log "client_preload=/opt/nova-kgsl-driver/libsysv-sem-shim.so"
+if [ -f /opt/nova-kgsl-driver/libsysv-sem-shim.so ]; then
+    export LD_PRELOAD=/opt/nova-kgsl-driver/libsysv-sem-shim.so
+    log "client_preload=/opt/nova-kgsl-driver/libsysv-sem-shim.so"
+else
+    unset LD_PRELOAD
+    log "client_preload=missing_libsysv_sem_shim"
+fi
 
 start_dbus_session() {
     if [ "$DBUS_SESSION_MODE" -eq 0 ]; then

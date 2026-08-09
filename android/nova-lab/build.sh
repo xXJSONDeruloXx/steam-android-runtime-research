@@ -41,7 +41,9 @@ for helper in \
     nova-termux-x11-cleanup.sh \
     nova-termux-x11-steam-client.sh \
     nova-uinput-gamepad-relay-launcher.sh \
-    nova-runtime-cleanup.sh; do
+    nova-runtime-cleanup.sh \
+    nova-steam-network-api-compat.sh \
+    nova-steamos-update-compat.sh; do
     cp "$SCRIPT_DIR/device/$helper" "$APK_ASSET_DIR/$helper"
 done
 
@@ -49,7 +51,13 @@ done
 # when the corresponding local build artifact exists; the launcher reports a
 # missing optional helper instead of confusing a diagnostic APK build with a
 # complete device installation.
-for optional_helper in nova-mount-private nova-uinput-gamepad-relay; do
+for optional_helper in \
+    nova-mount-private \
+    nova-uinput-gamepad-relay \
+    libsysv-sem-shim.so \
+    libffmpeg-avutil-compat.so \
+    libsdl3-compat.so \
+    libposix-sync-trace.so; do
     if [ -f "$BUILD_DIR/$optional_helper" ]; then
         cp "$BUILD_DIR/$optional_helper" "$APK_ASSET_DIR/$optional_helper"
     fi
@@ -74,8 +82,8 @@ done
     --auto-add-overlay \
     --min-sdk-version 29 \
     --target-sdk-version 35 \
-    --version-code 2 \
-    --version-name 0.2 \
+    --version-code 3 \
+    --version-name 0.3 \
     -A "$APK_ASSET_DIR" \
     "$BUILD_DIR/compiled"/*.flat
 
