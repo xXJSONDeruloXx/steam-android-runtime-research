@@ -72,6 +72,7 @@ The useful results are split across several projects:
 - [Parent session process-audit follow-up 5](docs/55-parent-session-process-audit-followup-2026-08-09.md) records Luna's latest two-hour audit and the required timeout, path, polling, teardown, and phase-barrier repairs.
 - [Nova manual harness guards](docs/56-nova-manual-harness-guards-2026-08-09.md) records the finite-timeout policy and fail-closed post-stop verifier added after Luna's audit.
 - [Nova AHB read-queue experiment](docs/57-nova-ahb-read-queue-experiment-2026-08-09.md) predeclares the timed receive/FIONREAD boundary and blocked-thread evidence.
+- [Nova AHB read-queue result](docs/58-nova-ahb-read-queue-result-2026-08-09.md) records the reproduced frame-133 ACK wait, absent receive-timeout return, and clean guarded teardown.
 
 ## Recommended direction
 
@@ -148,6 +149,7 @@ the gamescope frames on its own surface.
 - [Parent session process-audit follow-up 5](docs/55-parent-session-process-audit-followup-2026-08-09.md)
 - [Nova manual harness guards](docs/56-nova-manual-harness-guards-2026-08-09.md)
 - [Nova AHB read-queue experiment](docs/57-nova-ahb-read-queue-experiment-2026-08-09.md)
+- [Nova AHB read-queue result](docs/58-nova-ahb-read-queue-result-2026-08-09.md)
 - [Retroid Pocket Nova flashing kit](tools/retroid-pocket-nova/README.md)
 
 ## Evidence standard
