@@ -138,11 +138,11 @@ All files are under:
 - The prior frame-153/frame-169 boundary is now separated from the ancillary
   parser crash and from Gamescope's deliberate no-repaint behavior.
 
-## What remains open
+## What remained open at the time of this run
 
-- The native continuous loop still lacks an explicit cancellation API. Teardown
-  currently relies on closing/killing the session and therefore produces the
-  expected final receive failure in the app report.
+- The native continuous loop still lacked an explicit cancellation API at the
+  time of this run. This is resolved by [doc 76](76-nova-ahb-explicit-cancellation-2026-08-09.md),
+  which adds the cancellation pipe and Activity-stop teardown validation.
 - Frame identity is not yet correlated end to end between a Gamescope commit,
   an AHB buffer, an Android SurfaceControl capture, and the same-run X11 image.
   Add that observability before claiming a login screen from a stale or

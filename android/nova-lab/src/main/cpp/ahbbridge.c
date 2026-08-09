@@ -126,6 +126,64 @@ ahb_socket_type(int fd)
 static int ahb_socket_connection_fds[3] = {-1, -1, -1};
 static unsigned int ahb_socket_connection_generations[3] = {0, 0, 0};
 
+static pthread_mutex_t ahb_bridge_cancel_mutex = PTHREAD_MUTEX_INITIALIZER;
+static int ahb_bridge_cancel_read_fd = -1;
+static int ahb_bridge_cancel_write_fd = -1;
+
+static int
+ahb_bridge_register_cancel_pipe(int read_fd, int write_fd)
+{
+    int status = 0;
+    pthread_mutex_lock(&ahb_bridge_cancel_mutex);
+    if (ahb_bridge_cancel_read_fd >= 0 || ahb_bridge_cancel_write_fd >= 0) {
+        status = -1;
+    } else {
+        ahb_bridge_cancel_read_fd = read_fd;
+        ahb_bridge_cancel_write_fd = write_fd;
+    }
+    pthread_mutex_unlock(&ahb_bridge_cancel_mutex);
+    return status;
+}
+
+static void
+ahb_bridge_unregister_cancel_pipe(int read_fd, int write_fd)
+{
+    pthread_mutex_lock(&ahb_bridge_cancel_mutex);
+    if (ahb_bridge_cancel_read_fd == read_fd &&
+        ahb_bridge_cancel_write_fd == write_fd) {
+        ahb_bridge_cancel_read_fd = -1;
+        ahb_bridge_cancel_write_fd = -1;
+    }
+    pthread_mutex_unlock(&ahb_bridge_cancel_mutex);
+}
+
+static void
+ahb_bridge_request_cancel(void)
+{
+    pthread_mutex_lock(&ahb_bridge_cancel_mutex);
+    int cancel_fd = ahb_bridge_cancel_write_fd;
+    pthread_mutex_unlock(&ahb_bridge_cancel_mutex);
+    if (cancel_fd < 0) {
+        __android_log_print(ANDROID_LOG_INFO, "NovaLab",
+                            "ahb_double_buffer_cancel_request=absent");
+        return;
+    }
+
+    char marker = 'x';
+    errno = 0;
+    ssize_t written;
+    do {
+        written = write(cancel_fd, &marker, sizeof(marker));
+    } while (written < 0 && errno == EINTR);
+    __android_log_print(
+        ANDROID_LOG_INFO, "NovaLab",
+        "ahb_double_buffer_cancel_request=%s errno=%d",
+        written == (ssize_t)sizeof(marker) || (written < 0 && errno == EPIPE)
+            ? "pass"
+            : "fail",
+        written < 0 ? errno : 0);
+}
+
 static void
 ahb_socket_register_connection(int buffer, int fd)
 {
@@ -482,6 +540,41 @@ ahb_socket_timeout_queue_payload(int fd, char *payload, size_t capacity)
              queue_errno);
 }
 
+static int
+wait_for_socket_or_cancel(int socket_fd, int cancel_fd, int frame, int buffer)
+{
+    struct pollfd descriptors[2] = {
+        {
+            .fd = socket_fd,
+            .events = POLLIN | POLLERR | POLLHUP | POLLNVAL,
+        },
+        {
+            .fd = cancel_fd,
+            .events = POLLIN | POLLERR | POLLHUP | POLLNVAL,
+        },
+    };
+    nfds_t descriptor_count = cancel_fd >= 0 ? 2 : 1;
+    int poll_status;
+    do {
+        errno = 0;
+        poll_status = poll(descriptors, descriptor_count, -1);
+    } while (poll_status < 0 && errno == EINTR);
+    if (poll_status < 0) {
+        return -1;
+    }
+    if (cancel_fd >= 0 && descriptors[1].revents != 0) {
+        __android_log_print(
+            ANDROID_LOG_INFO, "NovaLab",
+            "ahb_double_buffer_cancelled phase=accept frame=%d buffer=%d",
+            frame, buffer);
+        return -2;
+    }
+    if (descriptors[0].revents == 0) {
+        return -1;
+    }
+    return 0;
+}
+
 /* surface_control.h exposes its ARect parameters as C++ references even when
  * included from C. Declare the API's C ABI here so the NDK C build can use the
  * API-29 surface transaction path without compiling this file as C++. */
@@ -829,10 +922,23 @@ create_bridge_server(const char *socket_path)
     return server;
 }
 
+static int
+accept_bridge_client(int server, int cancel_fd, int frame, int buffer)
+{
+    int wait_status = wait_for_socket_or_cancel(server, cancel_fd, frame, buffer);
+    if (wait_status != 0) {
+        return wait_status == -2 ? -2 : -1;
+    }
+    errno = 0;
+    int client = accept(server, NULL, NULL);
+    return client >= 0 ? client : -1;
+}
+
 static ssize_t
 receive_bridge_acknowledgement(int client, char *acknowledgement,
                                size_t capacity, int *acquire_fence_fd,
-                               int frame, int buffer)
+                               int frame, int buffer, int cancel_fd,
+                               int continuous)
 {
     *acquire_fence_fd = -1;
     char control[CMSG_SPACE(sizeof(int) * 4)] = {0};
@@ -851,19 +957,38 @@ receive_bridge_acknowledgement(int client, char *acknowledgement,
     ahb_socket_wait_probe(frame, buffer, client);
 
     int ack_poll_timeout_ms = ahb_socket_ack_poll_timeout_ms();
-    if (ack_poll_timeout_ms > 0) {
-        struct pollfd timed_poll = {
-            .fd = client,
-            .events = POLLIN | POLLERR | POLLHUP | POLLNVAL,
+    int wait_timeout_ms = ack_poll_timeout_ms;
+    if (wait_timeout_ms == 0) {
+        wait_timeout_ms = continuous ? -1 : 15000;
+    }
+    if (cancel_fd >= 0 || wait_timeout_ms != 0) {
+        struct pollfd timed_poll[2] = {
+            {
+                .fd = client,
+                .events = POLLIN | POLLERR | POLLHUP | POLLNVAL,
+            },
+            {
+                .fd = cancel_fd,
+                .events = POLLIN | POLLERR | POLLHUP | POLLNVAL,
+            },
         };
+        nfds_t descriptor_count = cancel_fd >= 0 ? 2 : 1;
         errno = 0;
         int poll_status;
         do {
-            poll_status = poll(&timed_poll, 1, ack_poll_timeout_ms);
+            poll_status = poll(timed_poll, descriptor_count, wait_timeout_ms);
         } while (poll_status < 0 && errno == EINTR);
         int poll_error = poll_status < 0 ? errno : 0;
         ahb_socket_poll_trace("ack_wait_timed", frame, buffer, client,
-                              poll_status, timed_poll.revents, poll_error);
+                              poll_status, timed_poll[0].revents, poll_error);
+
+        if (cancel_fd >= 0 && timed_poll[1].revents != 0) {
+            __android_log_print(
+                ANDROID_LOG_INFO, "NovaLab",
+                "ahb_double_buffer_cancelled phase=ack_wait frame=%d buffer=%d",
+                frame, buffer);
+            return -2;
+        }
 
         if (poll_status <= 0) {
             char queue_payload[96] = {0};
@@ -872,8 +997,8 @@ receive_bridge_acknowledgement(int client, char *acknowledgement,
             char timeout_payload[256] = {0};
             snprintf(timeout_payload, sizeof(timeout_payload),
                      "%s poll_timeout_ms=%d poll_result=%d poll_revents=0x%x poll_errno=%d",
-                     queue_payload, ack_poll_timeout_ms, poll_status,
-                     (unsigned int)timed_poll.revents, poll_error);
+                     queue_payload, wait_timeout_ms, poll_status,
+                     (unsigned int)timed_poll[0].revents, poll_error);
             ahb_socket_trace(
                 poll_status == 0 ? "ack_wait_timeout" : "ack_wait_poll_error",
                 frame, buffer, client, poll_status, poll_error, NULL, -1,
@@ -1338,6 +1463,9 @@ Java_com_xjsonderulo_steamandroid_novalab_MainActivity_nativeRunDmaBufDoubleBuff
     int clients[3] = {-1, -1, -1};
     char socket_paths[3][sizeof(((struct sockaddr_un *)0)->sun_path)] = {{0}};
     ASurfaceControl *surface_control = NULL;
+    int cancel_pipe[2] = {-1, -1};
+    int cancel_registered = 0;
+    int cancelled = 0;
     int success = 0;
     int frame_count = 0;
     int release_fence_count = 0;
@@ -1364,7 +1492,21 @@ Java_com_xjsonderulo_steamandroid_novalab_MainActivity_nativeRunDmaBufDoubleBuff
         .format = AHARDWAREBUFFER_FORMAT_R8G8B8A8_UNORM,
         .usage = usage,
     };
-    int status = AHardwareBuffer_isSupported(&description);
+    int status = 0;
+    if (pipe(cancel_pipe) != 0) {
+        append_line(report, sizeof(report), &used,
+                    "ahb_double_buffer_cancel_pipe=failed errno=%d\n", errno);
+        goto double_buffer_done;
+    }
+    if (ahb_bridge_register_cancel_pipe(cancel_pipe[0], cancel_pipe[1]) != 0) {
+        append_line(report, sizeof(report), &used,
+                    "ahb_double_buffer_cancel_pipe=already_active\n");
+        goto double_buffer_done;
+    }
+    cancel_registered = 1;
+    append_line(report, sizeof(report), &used,
+                "ahb_double_buffer_cancel_pipe=ready\n");
+    status = AHardwareBuffer_isSupported(&description);
     append_line(report, sizeof(report), &used,
                 "ahb_double_buffer_supported=%d usage=0x%llx\n", status,
                 (unsigned long long)usage);
@@ -1410,8 +1552,14 @@ Java_com_xjsonderulo_steamandroid_novalab_MainActivity_nativeRunDmaBufDoubleBuff
     }
 
     for (int index = 0; index < 3; ++index) {
-        errno = 0;
-        clients[index] = accept(servers[index], NULL, NULL);
+        clients[index] = accept_bridge_client(servers[index], cancel_pipe[0], -1,
+                                              index);
+        if (clients[index] == -2) {
+            cancelled = 1;
+            append_line(report, sizeof(report), &used,
+                        "ahb_double_buffer_cancelled=pass phase=accept\n");
+            goto double_buffer_done;
+        }
         int accept_error = clients[index] < 0 ? errno : 0;
         ahb_socket_register_connection(index, clients[index]);
         ahb_socket_trace("accept", -1, index, clients[index],
@@ -1512,7 +1660,13 @@ Java_com_xjsonderulo_steamandroid_novalab_MainActivity_nativeRunDmaBufDoubleBuff
         }
         ssize_t acknowledgement_bytes = receive_bridge_acknowledgement(
             clients[index], acknowledgement, sizeof(acknowledgement),
-            &acquire_fence_fd, frame, index);
+            &acquire_fence_fd, frame, index, cancel_pipe[0], continuous);
+        if (acknowledgement_bytes == -2) {
+            cancelled = 1;
+            append_line(report, sizeof(report), &used,
+                        "ahb_double_buffer_cancelled=pass phase=ack_wait\n");
+            goto double_buffer_done;
+        }
         if (frame < 4 || (frame % 30) == 0 || acknowledgement_bytes <= 0) {
             __android_log_print(
                 ANDROID_LOG_INFO, "NovaLab",
@@ -1607,6 +1761,15 @@ Java_com_xjsonderulo_steamandroid_novalab_MainActivity_nativeRunDmaBufDoubleBuff
               release_fence_count == total_frames - 1;
 
 double_buffer_done:
+    if (cancel_registered) {
+        ahb_bridge_unregister_cancel_pipe(cancel_pipe[0], cancel_pipe[1]);
+    }
+    if (cancel_pipe[0] >= 0) {
+        close(cancel_pipe[0]);
+    }
+    if (cancel_pipe[1] >= 0) {
+        close(cancel_pipe[1]);
+    }
     if (surface_control != NULL) {
         ASurfaceControl_release(surface_control);
     }
@@ -1628,7 +1791,20 @@ double_buffer_done:
     append_line(report, sizeof(report), &used,
                 "ahb_double_buffer_frames=%d releases=%d\n", frame_count,
                 release_fence_count);
+    if (cancelled) {
+        append_line(report, sizeof(report), &used,
+                    "ahb_double_buffer_cancelled=pass\n");
+    }
     append_line(report, sizeof(report), &used, "ahb_double_buffer=%s\n",
                 success ? "pass" : "fail");
     return report_string(env, report);
+}
+
+JNIEXPORT void JNICALL
+Java_com_xjsonderulo_steamandroid_novalab_MainActivity_nativeStopDmaBufDoubleBufferBridge(
+    JNIEnv *env, jobject object)
+{
+    (void)env;
+    (void)object;
+    ahb_bridge_request_cancel();
 }

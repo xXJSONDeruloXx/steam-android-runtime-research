@@ -37,6 +37,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.Locale;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 
 public final class MainActivity extends Activity implements SurfaceHolder.Callback {
     private static final String TAG = "NovaLab";
@@ -93,6 +94,7 @@ public final class MainActivity extends Activity implements SurfaceHolder.Callba
                                                                      int frameWidth,
                                                                      int frameHeight,
                                                                      boolean forceGpuComposition);
+    private static native void nativeStopDmaBufDoubleBufferBridge();
 
     @Override
     protected void onCreate(Bundle state) {
@@ -340,12 +342,43 @@ public final class MainActivity extends Activity implements SurfaceHolder.Callba
         }
     }
 
+    private void cancelNativePresentationBridge() {
+        try {
+            nativeStopDmaBufDoubleBufferBridge();
+        } catch (Throwable error) {
+            Log.w(TAG, "double_buffer_cancel_failed", error);
+        }
+    }
+
+    @Override
+    protected void onStop() {
+        Log.i(TAG, "activity_on_stop");
+        cancelNativePresentationBridge();
+        super.onStop();
+    }
+
+    @Override
+    public void onBackPressed() {
+        Log.i(TAG, "activity_back_finish");
+        finish();
+    }
+
     @Override
     protected void onDestroy() {
+        Log.i(TAG, "activity_on_destroy");
         surfaceProbeRunning = false;
+        cancelNativePresentationBridge();
         stopAndroidInputBridge();
         stopAndroidTouchBridge();
         worker.shutdownNow();
+        try {
+            if (!worker.awaitTermination(2, TimeUnit.SECONDS)) {
+                Log.w(TAG, "worker_shutdown_timeout");
+            }
+        } catch (InterruptedException error) {
+            Thread.currentThread().interrupt();
+            Log.w(TAG, "worker_shutdown_interrupted", error);
+        }
         super.onDestroy();
     }
 
