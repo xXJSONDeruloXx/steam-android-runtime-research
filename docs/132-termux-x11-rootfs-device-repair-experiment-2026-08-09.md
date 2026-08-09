@@ -1,6 +1,7 @@
 # Termux:X11 rootfs device-namespace repair experiment — 2026-08-09
 
-Status: predeclared repair; no device launch has occurred for this profile.
+Status: predeclared repair; the device result is recorded in
+`docs/133-termux-x11-rootfs-device-repair-result-2026-08-09.md`.
 
 ## Hypothesis
 
