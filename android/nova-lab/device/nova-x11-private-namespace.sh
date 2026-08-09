@@ -37,13 +37,23 @@ case "$mode" in
             exit 1
         fi
         mounted=1
+        shm_mounted=0
         cleanup_mount() {
+            if [ "$shm_mounted" -eq 1 ]; then
+                /system/bin/umount -l "$root/dev/shm" >/dev/null 2>&1 || true
+                shm_mounted=0
+            fi
             if [ "$mounted" -eq 1 ]; then
                 /system/bin/umount -l "$root/dev" >/dev/null 2>&1 || true
                 mounted=0
             fi
         }
         trap cleanup_mount EXIT INT TERM
+        if ! /system/bin/mount -t tmpfs -o mode=1777 tmpfs "$root/dev/shm"; then
+            echo "x11_namespace_error=mount_shm" >&2
+            exit 1
+        fi
+        shm_mounted=1
         /system/bin/chroot "$root" "$@"
         status=$?
         trap - EXIT INT TERM

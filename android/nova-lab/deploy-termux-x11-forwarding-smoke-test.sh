@@ -37,6 +37,9 @@ REMOTE_SERVER_LOG=$REMOTE_STATE_DIR/server.log
 REMOTE_CLIENT_LOG=$REMOTE_STATE_DIR/client.log
 REMOTE_CLIENT_STDOUT=$REMOTE_STATE_DIR/client.stdout
 REMOTE_CLIENT_STDERR=$REMOTE_STATE_DIR/client.stderr
+REMOTE_STEAM_LOG=$DEVICE_ROOT/tmp/nova-steam-client.log
+REMOTE_STEAM_STDOUT=$DEVICE_ROOT/tmp/nova-steam-client.stdout
+REMOTE_STEAM_STDERR=$DEVICE_ROOT/tmp/nova-steam-client.stderr
 REMOTE_CLIENT=$DEVICE_ROOT/tmp/nova-x11-animate-$RUN_ID
 REMOTE_CAPTURE=$DEVICE_ROOT/tmp/nova-x11-capture-$RUN_ID
 REMOTE_X11_PPM=$DEVICE_ROOT/tmp/nova-x11-forwarding-$RUN_ID.ppm
@@ -154,6 +157,7 @@ for artifact in \
     nova-termux-x11-cleanup.sha256 termux-x11-server.log \
     nova-termux-x11-client-launcher.sha256 nova-termux-x11-rootfs-devices.sha256 \
     termux-x11-client.log termux-x11-client.stdout termux-x11-client.stderr \
+    steam-client.log steam-client.stdout steam-client.stderr \
     client-launch-command.txt client-host-pid.txt \
     x11-tree.txt x11-capture.txt x11-window.ppm android-screenshot.png \
     android-window-state.txt android-logcat.txt nova-runtime-cleanup.txt \
@@ -249,6 +253,9 @@ on_exit() {
         adb shell su -c "cat $REMOTE_CLIENT_LOG" >"$RUN_DIR/termux-x11-client.log" 2>/dev/null || true
         adb shell su -c "cat $REMOTE_CLIENT_STDOUT" >"$RUN_DIR/termux-x11-client.stdout" 2>/dev/null || true
         adb shell su -c "cat $REMOTE_CLIENT_STDERR" >"$RUN_DIR/termux-x11-client.stderr" 2>/dev/null || true
+        adb shell su -c "cat $REMOTE_STEAM_LOG" >"$RUN_DIR/steam-client.log" 2>/dev/null || true
+        adb shell su -c "cat $REMOTE_STEAM_STDOUT" >"$RUN_DIR/steam-client.stdout" 2>/dev/null || true
+        adb shell su -c "cat $REMOTE_STEAM_STDERR" >"$RUN_DIR/steam-client.stderr" 2>/dev/null || true
         adb logcat -d -v threadtime -s "CmdEntryPoint:*" "LorieNative:*" "MainActivity:*" "Lorie:*" "gles-renderer:*" "AndroidRuntime:*" >"$RUN_DIR/android-logcat.txt" || true
         cleanup_remote runtime >"$RUN_DIR/cleanup-output.txt" || status=1
         post_stop_verify || status=1
@@ -295,6 +302,9 @@ adb shell am start --user 0 -n com.termux.x11/com.termux.x11.MainActivity >"$RUN
     echo "state_dir=$REMOTE_STATE_DIR"
     echo "staged_client=$REMOTE_CLIENT"
     echo "staged_capture=$REMOTE_CAPTURE"
+    echo "steam_client_log=$REMOTE_STEAM_LOG"
+    echo "steam_client_stdout=$REMOTE_STEAM_STDOUT"
+    echo "steam_client_stderr=$REMOTE_STEAM_STDERR"
     echo "termux_x11_apk=$APK"
     echo "termux_x11_device_apk=$TERMUX_X11_CLASSPATH"
     echo "termux_x11_apk_sha256=$(sha256sum "$APK" | awk '{print $1}')"
@@ -352,6 +362,7 @@ else
     prepare_rootfs_devices >"$RUN_DIR/rootfs-devices-preflight.txt"
 fi
 prepare_remote_state
+adb shell su -c "/system/bin/rm -f $REMOTE_STEAM_LOG $REMOTE_STEAM_STDOUT $REMOTE_STEAM_STDERR"
 adb push "$X11_ANIMATE" "$REMOTE_CLIENT" >/dev/null
 adb push "$X11_CAPTURE" "$REMOTE_CAPTURE" >/dev/null
 
