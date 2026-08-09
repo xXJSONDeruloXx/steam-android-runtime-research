@@ -382,6 +382,42 @@ the Retroid `com.rp.mapping` gamepad profile/MCU path, including why Bluetooth
 is off and why the mapper transitions to an empty configuration. Do not change
 Steam's event mapping until a real event appears on event7.
 
+### `input-20260809T205021Z-mapper-profile-inspection`
+
+This was a read-only source and state inspection after the physical-input run.
+The pulled system APKs were `RsMapping.apk` SHA-256
+`1596ab70b2443a14bd7268cf9655be668d79e7a60e62d924ce844f000b37d0bc`,
+`RPSettings.apk` SHA-256
+`07c3627f180dbfb80099e49136de375a79d5c410fbf4124dc0de7f9921ba621f`, and
+`GameAssistant.apk` SHA-256
+`889e42a54eb3fe84739245d032be7174804cc5b3a79625cab5e9e5cd85bf2d22`.
+
+The decompiled `RsMapping` application initializes `StandardGamepadConfig`,
+but the live log then records `Gamepad->Empty`. The `GameAssistant`
+`AppConfigService` selects a per-foreground-app config when `key_adapter_enable`
+is enabled; if no app-specific config exists, it falls back to its global
+default. The device's pulled `configs.db` contained only the built-in `empty`
+configuration and `com.rp.gameassistant|empty` in `last_config` (DB SHA-256
+`5c026f9357d912e25cb4639a35cfc7218a7dda45ad673f1258e45466d07ff742`). There
+was no Steam profile to select.
+
+The relevant firmware settings were absent from the settings table, so the
+source defaults apply: `key_adapter_enable=true` and
+`global_gamepad_to_mouse_mode=false`. `RsMapping` reported
+`ro.mapping.state=3`, which is its `SERVICE_READY` state. This explains why
+the virtual event7 node exists and has a complete Xbox capability descriptor
+while no physical MCU event reaches it: the mapper is live but its active
+configuration is empty. The `Gamepad->Empty` transition is therefore a
+Retroid system-app configuration problem, not evidence of a Nova relay or
+Steam namespace failure.
+
+No device setting or mapper data was changed during this inspection. The next
+bounded experiment must use one reversible source-side change at a time: first
+test the Retroid screen/key-mapping configuration with the operator's current
+settings recorded, then verify a real event7 trace before starting Nova. Do
+not add more relay mappings or synthetic `sendevent` tests until that gate
+passes.
+
 ## Cleanup
 
 Every attempt ended without a Nova Steam runtime. The exact helper returned
@@ -402,8 +438,9 @@ single-controller namespace gate is accepted, but physical-controller
 forwarding is not yet accepted. The next run should focus on the remaining
 product boundaries, in order:
 
-1. inspect and restore the Retroid mapper/MCU gamepad profile so a real event
-   appears on event7, then re-run the physical-event7-to-relay-event9 gate;
+1. test the Retroid mapper/GameAssistant source configuration with one
+   reversible setting change, restore the operator's prior setting afterward,
+   and require a real event7 trace before re-running the relay gate;
 2. test and fix the 1280x800 Steam window geometry against the 1280x960 Nova
    surface;
 3. establish whether the `default` Steam audio manager reaches an Android
