@@ -73,6 +73,7 @@ The useful results are split across several projects:
 - [Nova manual harness guards](docs/56-nova-manual-harness-guards-2026-08-09.md) records the finite-timeout policy and fail-closed post-stop verifier added after Luna's audit.
 - [Nova AHB read-queue experiment](docs/57-nova-ahb-read-queue-experiment-2026-08-09.md) predeclares the timed receive/FIONREAD boundary and blocked-thread evidence.
 - [Nova AHB read-queue result](docs/58-nova-ahb-read-queue-result-2026-08-09.md) records the reproduced frame-133 ACK wait, absent receive-timeout return, and clean guarded teardown.
+- [Nova AHB receive-timeout observability experiment](docs/59-nova-ahb-receive-timeout-observability-experiment-2026-08-09.md) predeclares logging and readback of Android's `SO_RCVTIMEO` setup without changing transport behavior.
 
 ## Recommended direction
 
@@ -150,6 +151,7 @@ the gamescope frames on its own surface.
 - [Nova manual harness guards](docs/56-nova-manual-harness-guards-2026-08-09.md)
 - [Nova AHB read-queue experiment](docs/57-nova-ahb-read-queue-experiment-2026-08-09.md)
 - [Nova AHB read-queue result](docs/58-nova-ahb-read-queue-result-2026-08-09.md)
+- [Nova AHB receive-timeout observability experiment](docs/59-nova-ahb-receive-timeout-observability-experiment-2026-08-09.md)
 - [Retroid Pocket Nova flashing kit](tools/retroid-pocket-nova/README.md)
 
 ## Evidence standard

@@ -299,6 +299,36 @@ ahb_socket_poll_trace(const char *operation, int frame, int buffer, int fd,
 }
 
 static void
+ahb_socket_set_receive_timeout(int frame, int buffer, int fd,
+                               const struct timeval *requested)
+{
+    errno = 0;
+    int set_status = setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, requested,
+                                sizeof(*requested));
+    int set_error = set_status < 0 ? errno : 0;
+
+    struct timeval effective = {0};
+    socklen_t effective_length = sizeof(effective);
+    errno = 0;
+    int get_status = getsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, &effective,
+                                &effective_length);
+    int get_error = get_status < 0 ? errno : 0;
+
+    if (!ahb_socket_trace_enabled()) {
+        return;
+    }
+    __android_log_print(
+        ANDROID_LOG_INFO, "NovaLab",
+        "ahb_socket_timeout frame=%d buffer=%d fd=%d inode=%llu type=%d generation=%u cookie=%llu requested_sec=%lld requested_usec=%lld set_result=%d set_errno=%d get_result=%d get_errno=%d effective_sec=%lld effective_usec=%lld effective_len=%u",
+        frame, buffer, fd, ahb_socket_inode(fd), ahb_socket_type(fd),
+        ahb_socket_connection_generation(buffer, fd), ahb_socket_cookie(fd),
+        (long long)requested->tv_sec, (long long)requested->tv_usec,
+        set_status, set_error, get_status, get_error,
+        (long long)effective.tv_sec, (long long)effective.tv_usec,
+        (unsigned int)effective_length);
+}
+
+static void
 ahb_socket_wait_probe(int frame, int buffer, int fd)
 {
     if (!ahb_socket_trace_enabled()) {
@@ -928,7 +958,7 @@ Java_com_xjsonderulo_steamandroid_novalab_MainActivity_nativeRunDmaBufBridge(
     if (status != 0) {
         goto done;
     }
-    setsockopt(client, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout));
+    ahb_socket_set_receive_timeout(-1, -1, client, &timeout);
     char acknowledgement[128] = {0};
     char acknowledgement_control[CMSG_SPACE(sizeof(int))] = {0};
     struct iovec acknowledgement_vector = {
@@ -1207,8 +1237,7 @@ Java_com_xjsonderulo_steamandroid_novalab_MainActivity_nativeRunDmaBufDoubleBuff
             .tv_sec = 15,
             .tv_usec = 0,
         };
-        setsockopt(clients[index], SOL_SOCKET, SO_RCVTIMEO, &timeout,
-                   sizeof(timeout));
+        ahb_socket_set_receive_timeout(-1, index, clients[index], &timeout);
         status = AHardwareBuffer_sendHandleToUnixSocket(buffers[index],
                                                         clients[index]);
         ahb_socket_trace("handle_send", -1, index, clients[index], status,
