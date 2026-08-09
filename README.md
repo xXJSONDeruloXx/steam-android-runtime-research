@@ -260,6 +260,7 @@ the gamescope frames on its own surface.
 - [Termux:X11 native ARM64 Steam bind-launcher forwarding repair](docs/142-termux-x11-native-steam-dev-bind-launcher-forwarding-repair-2026-08-09.md)
 - [Termux:X11 native ARM64 Steam `/dev` bind result](docs/143-termux-x11-native-steam-dev-bind-result-2026-08-09.md)
 - [Termux:X11 native ARM64 Steam `/dev/shm` experiment](docs/144-termux-x11-native-steam-dev-shm-experiment-2026-08-09.md)
+- [Termux:X11 native ARM64 Steam `/dev/shm` result](docs/145-termux-x11-native-steam-dev-shm-result-2026-08-09.md)
 - [Retroid Pocket Nova flashing kit](tools/retroid-pocket-nova/README.md)
 
 ## Evidence standard
