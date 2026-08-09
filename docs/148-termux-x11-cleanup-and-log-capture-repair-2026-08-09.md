@@ -1,7 +1,9 @@
 # Termux:X11 cleanup and log-capture repair — 2026-08-09
 
-Status: predeclared harness-repair experiment; no device launch has run for
-this profile.
+Status: the first control launch used the harness's default synthetic client
+because the native Steam client path was not passed explicitly; see the
+[partial result](149-termux-x11-cleanup-log-capture-control-result-2026-08-09.md).
+The intended native Steam control remains pending.
 
 ## Why this is next
 

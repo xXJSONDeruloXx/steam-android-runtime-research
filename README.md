@@ -264,6 +264,7 @@ the gamescope frames on its own surface.
 - [Termux:X11 native ARM64 Steam procfs experiment](docs/146-termux-x11-native-steam-procfs-experiment-2026-08-09.md)
 - [Termux:X11 native ARM64 Steam procfs result](docs/147-termux-x11-native-steam-procfs-result-2026-08-09.md)
 - [Termux:X11 cleanup and log-capture repair](docs/148-termux-x11-cleanup-and-log-capture-repair-2026-08-09.md)
+- [Termux:X11 cleanup/log-capture control result](docs/149-termux-x11-cleanup-log-capture-control-result-2026-08-09.md)
 - [Retroid Pocket Nova flashing kit](tools/retroid-pocket-nova/README.md)
 
 ## Evidence standard
