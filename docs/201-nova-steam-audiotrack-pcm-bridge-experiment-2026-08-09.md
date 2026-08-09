@@ -38,6 +38,23 @@ root launcher passes `NOVA_ANDROID_LAUNCHER_AUDIO_BRIDGE` and its port, and
 passed: shell syntax, ARM64 shared-library compilation, exported ALSA symbol
 inspection, Java compilation, APK signing, and APK build.
 
+## First device attempt — `audio-20260809T234943Z-loopback-permission`
+
+The app-owned diagnostic entrypoint reached the service, but listener creation
+failed before any rootfs probe:
+
+```text
+NovaAudioBridge: audio_bridge=fail reason=listen error=java.net.SocketException: socket failed: EPERM (Operation not permitted)
+NovaLauncher: Nova audio bridge failed: audio_bridge=fail reason=listen error=java.net.SocketException: socket failed: EPERM (Operation not permitted)
+```
+
+The APK had not requested `android.permission.INTERNET`; Android rejected the
+loopback `ServerSocket` even though it was bound to `127.0.0.1`. The service
+did not remain running, and no PCM or Steam process was launched. The exact
+Nova cleanup preflight was pass. The manifest now declares the normal Internet
+permission required for a loopback socket; the bridge still binds only to
+localhost and remains opt-in.
+
 ## Acceptance gates
 
 The bounded device run must establish, in order:
