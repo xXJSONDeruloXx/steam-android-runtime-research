@@ -11,6 +11,10 @@ CLIENT_STDERR=/tmp/nova-steam-client.stderr
 RUNTIME_DIR=/tmp/nova-steam-runtime
 STEAM_UID=${NOVA_TERMUX_X11_STEAM_UID:-501}
 STEAM_GID=${NOVA_TERMUX_X11_STEAM_GID:-20}
+# Android's audio device nodes are normally owned by AID_AUDIO (1005). Keep
+# the Linux Steam identity stable while granting only that supplementary
+# group; callers can override it for a device with a different audio gid.
+STEAM_AUDIO_GID=${NOVA_TERMUX_X11_STEAM_AUDIO_GID:-1005}
 CLIENT_TIMEOUT=${NOVA_TERMUX_X11_STEAM_TIMEOUT_SECONDS:-60}
 STEAM_FULLSCREEN=${NOVA_TERMUX_X11_STEAM_FULLSCREEN:-0}
 STEAM_FULLDESKTOPRES=${NOVA_TERMUX_X11_STEAM_FULLDESKTOPRES:-0}
@@ -41,6 +45,12 @@ dbus_system_started=0
 case "$STEAM_UID:$STEAM_GID" in
     ''|*[!0-9:]*|*:*:*)
         echo "invalid Steam uid/gid: $STEAM_UID:$STEAM_GID" >&2
+        exit 2
+        ;;
+esac
+case "$STEAM_AUDIO_GID" in
+    ''|*[!0-9]*)
+        echo "invalid Steam audio gid: $STEAM_AUDIO_GID" >&2
         exit 2
         ;;
 esac
@@ -109,7 +119,7 @@ log() {
 
 run_as_steam() {
     /usr/bin/setpriv --reuid="$STEAM_UID" --regid="$STEAM_GID" \
-        --clear-groups "$@"
+        --groups="$STEAM_AUDIO_GID" "$@"
 }
 
 stop_dbus_session() {
@@ -243,6 +253,7 @@ log "client_width=${STEAM_WIDTH:-unset}"
 log "client_height=${STEAM_HEIGHT:-unset}"
 log "client_uid=$STEAM_UID"
 log "client_gid=$STEAM_GID"
+log "client_audio_gid=$STEAM_AUDIO_GID"
 log "client_timeout_seconds=$CLIENT_TIMEOUT"
 log "client_xauthority=${XAUTHORITY:-unset}"
 log "client_runtime_dir=$RUNTIME_DIR"
