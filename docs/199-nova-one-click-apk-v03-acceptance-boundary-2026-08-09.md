@@ -687,6 +687,63 @@ input topology, and input-reader inventory hashes are
 `android/nova-lab/build/mapper-test/input-20260809T220410Z-restore-mode-1/`.
 No Nova Steam runtime was relaunched during either mode run.
 
+### `input-20260809T220529Z-native-source-audit-2`
+
+With mode 1 restored, this was a read-only source and device audit. No Nova
+Steam runtime was launched, no test APK or relay was started, and no physical
+control was pressed. The local vendor extraction used for the audit contains
+`librsinput.so` with SHA-256
+`a02ee0c395103841716dd134be7861e37e90038d5b7acf0b7d6fa2884f4c4f6a`.
+
+The decompiled Java path loads `rsinput`, constructs the standard gamepad
+configuration, and calls `Mapping.start()`, which calls the native `MCUInit()`.
+The ARM64 native path was then traced far enough to identify the Nova/U3
+source: its device initialization reaches `uart_init`, opens `/dev/rscom`,
+configures the file descriptor with `tcgetattr`/`tcsetattr`, and only after a
+successful UART setup proceeds to protocol initialization and virtual-gamepad
+creation. The library also contains strings for ADC and GPIO paths, but the
+U3 path's active serial endpoint is the stronger match for this device.
+
+The live post-boot inventory is consistent with that design. `/dev/ttyHS1`
+is absent, while `/dev/rscom` is a `492,1` character device and
+`/sys/class/tty/ttyHS1/dev` reports the same `492:1` identity; `/dev/rsinput`
+also exists as the pservice Unix socket. The mapping process startup produced
+permissive SELinux audit records for opening/using `/dev/rscom`, `/dev/uinput`,
+and the input directory. Those records are important initialization evidence,
+but they do not by themselves prove an enforced denial because the device is
+running permissive. The shell could not inspect the mapper's file descriptors
+because `/proc` access is restricted for the root shell context.
+
+The source-side live artifacts still show no physical source event and no
+raw-state transition. `/sys/class/hwmon` is empty; `keydetect` exposes
+`m1_value=1` and `m2_value=1`; and `persist.sys.mcu.checkerrs=2` remains set.
+The filtered logcat contains only the native debounce initialization messages,
+not a successful control-frame sample. The artifact hashes are:
+
+* source-filtered logcat:
+  `47511d3d5ca82eb3b069a9a3e681cf119e0b0e169e36c37d1d2ea30735bcf70f`;
+* full dmesg:
+  `ec438c801c5c86fd0719a1b4a94979eb6596a0097a0c4cbce2cff66647a87bb6`;
+* device input-source inventory:
+  `907fc1eba420dfc7589cfa640597a0ac0761c29e0fe5960e22f5e778b52ab3db`;
+* `/dev/rscom` identity:
+  `7b7d31de9da9c59220313268d865b3fff50c1129f4309d0afb9160c7bd866b74`;
+* sysfs source inventory:
+  `6f60f6241646a6092323ef8ca103e9b1213efd14ddd5ada28d7658eddfb88d52`;
+* mapper process inspection:
+  `f2ecca4081be7e5589919325b472c155883ecff09ea658dd09b9012d67999ad1`;
+* attempted root-shell termios/proc probe:
+  `143805f3f158ba69587e9355df2631531e1523b432570252934ebc0a007553d3`.
+
+This narrows the physical-control blocker below Steam and below the relay:
+the vendor mapper has created its virtual device, but the MCU/UART path is not
+delivering changing frames to the mapper. The next no-button experiment will
+capture `/dev/rscom` major/minor and mapper startup at several points after a
+fresh reboot, checking whether pservice's alias is transiently wrong when the
+native library initializes. It will also capture the native startup logs and
+raw-state baseline. No Steam session should be relaunched until that source
+gate changes.
+
 ## Cleanup
 
 Every attempt ended without a Nova Steam runtime. The exact helper returned
