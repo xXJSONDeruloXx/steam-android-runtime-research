@@ -14,12 +14,16 @@ STEAM_GID=${NOVA_TERMUX_X11_STEAM_GID:-20}
 CLIENT_TIMEOUT=${NOVA_TERMUX_X11_STEAM_TIMEOUT_SECONDS:-60}
 DBUS_SESSION_MODE=${NOVA_TERMUX_X11_DBUS_SESSION:-0}
 DBUS_SESSION_USER=${NOVA_TERMUX_X11_DBUS_SESSION_USER:-steam}
+DBUS_SESSION_UID_RECORD=${NOVA_TERMUX_X11_DBUS_SESSION_UID_RECORD:-0}
 client_pid=
 dbus_session_pid=
 dbus_session_dir=
 dbus_session_runtime_dir=
 dbus_session_socket=
 dbus_session_log=
+dbus_session_probe_log=
+dbus_passwd_backup=
+dbus_passwd_changed=0
 
 case "$STEAM_UID:$STEAM_GID" in
     ''|*[!0-9:]*|*:*:*)
@@ -50,6 +54,14 @@ case "$DBUS_SESSION_USER" in
         ;;
     *)
         echo "invalid NOVA_TERMUX_X11_DBUS_SESSION_USER: $DBUS_SESSION_USER" >&2
+        exit 2
+        ;;
+esac
+case "$DBUS_SESSION_UID_RECORD" in
+    0|1)
+        ;;
+    *)
+        echo "invalid NOVA_TERMUX_X11_DBUS_SESSION_UID_RECORD: $DBUS_SESSION_UID_RECORD" >&2
         exit 2
         ;;
 esac
@@ -104,6 +116,23 @@ stop_dbus_session() {
     fi
 }
 
+restore_dbus_passwd_record() {
+    if [ "$dbus_passwd_changed" -ne 1 ] || [ -z "$dbus_passwd_backup" ]; then
+        return 0
+    fi
+    if /usr/bin/cp -p "$dbus_passwd_backup" /etc/passwd; then
+        if /bin/rm -f "$dbus_passwd_backup"; then
+            log "dbus_session_passwd_restore=pass"
+        else
+            log "dbus_session_passwd_restore=fail reason=backup_cleanup"
+            return 1
+        fi
+    else
+        log "dbus_session_passwd_restore=fail"
+        return 1
+    fi
+}
+
 finish() {
     status=$?
     trap - EXIT INT TERM
@@ -121,6 +150,13 @@ finish() {
     if [ -n "${dbus_session_runtime_dir:-}" ]; then
         /bin/rm -rf "$dbus_session_runtime_dir"
         log "dbus_session_cleanup=pass path=$dbus_session_runtime_dir"
+    fi
+    if [ -n "${dbus_session_dir:-}" ]; then
+        /bin/rm -rf "$dbus_session_dir"
+        log "dbus_session_dir_cleanup=pass path=$dbus_session_dir"
+    fi
+    if ! restore_dbus_passwd_record; then
+        status=1
     fi
     if [ -f "$CLIENT_LOG" ]; then
         cat "$CLIENT_LOG"
@@ -144,6 +180,7 @@ log "client_xauthority=${XAUTHORITY:-unset}"
 log "client_runtime_dir=$RUNTIME_DIR"
 log "client_dbus_session_mode=$DBUS_SESSION_MODE"
 log "client_dbus_session_user=$DBUS_SESSION_USER"
+log "client_dbus_session_uid_record=$DBUS_SESSION_UID_RECORD"
 
 if [ ! -x "$STEAM_EXECUTABLE" ]; then
     log "client_started=fail"
@@ -232,6 +269,26 @@ start_dbus_session() {
         return 1
     fi
 
+    if [ "$DBUS_SESSION_USER" = steam ] && [ "$DBUS_SESSION_UID_RECORD" -eq 1 ]; then
+        if /usr/bin/awk -F: -v uid="$STEAM_UID" '$3 == uid { found=1 } END { exit(found ? 0 : 1) }' /etc/passwd; then
+            log "client_dbus_session_passwd_record=existing uid=$STEAM_UID"
+        else
+            dbus_passwd_backup="$RUNTIME_DIR/passwd.nova-original"
+            if ! /usr/bin/cp -p /etc/passwd "$dbus_passwd_backup"; then
+                log "client_dbus_session_passwd_record=fail reason=passwd_update"
+                return 1
+            fi
+            dbus_passwd_changed=1
+            if ! /bin/printf 'steam:x:%s:%s:Steam:/opt/nova-steam/home:/usr/bin/bash\n' "$STEAM_UID" "$STEAM_GID" >>/etc/passwd; then
+                log "client_dbus_session_passwd_record=fail reason=passwd_update"
+                return 1
+            fi
+            log "client_dbus_session_passwd_record=added uid=$STEAM_UID gid=$STEAM_GID"
+        fi
+    else
+        log "client_dbus_session_passwd_record=disabled"
+    fi
+
     dbus_session_runtime_dir="$RUNTIME_DIR/dbus-1"
     dbus_session_dir="$RUNTIME_DIR/dbus-session-$$"
     dbus_session_socket="$dbus_session_dir/bus"
@@ -291,6 +348,20 @@ start_dbus_session() {
     export DBUS_SESSION_BUS_ADDRESS="unix:path=$dbus_session_socket"
     log "client_dbus_session_status=pass"
     log "client_dbus_session_address=$DBUS_SESSION_BUS_ADDRESS"
+    dbus_session_probe_log="$dbus_session_dir/client-probe.log"
+    if run_as_steam /usr/bin/env -u LD_PRELOAD /usr/bin/dbus-send \
+        --session --print-reply --dest=org.freedesktop.DBus \
+        /org/freedesktop/DBus org.freedesktop.DBus.ListNames \
+        >"$dbus_session_probe_log" 2>&1; then
+        log "client_dbus_session_client_probe=pass"
+    else
+        log "client_dbus_session_client_probe=fail"
+    fi
+    if [ -f "$dbus_session_probe_log" ]; then
+        log "dbus_session_client_probe_output_begin"
+        /bin/cat "$dbus_session_probe_log" >>"$CLIENT_LOG"
+        log "dbus_session_client_probe_output_end"
+    fi
     return 0
 }
 
