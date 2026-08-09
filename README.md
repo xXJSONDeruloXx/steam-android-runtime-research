@@ -269,6 +269,7 @@ the gamescope frames on its own surface.
 - [Termux:X11 native Steam cleanup-control result](docs/151-termux-x11-native-steam-cleanup-control-result-2026-08-09.md)
 - [Termux:X11 native Steam `-cef-disable-gpu` experiment](docs/152-termux-x11-native-steam-cef-disable-gpu-experiment-2026-08-09.md)
 - [Termux:X11 native Steam `-cef-disable-gpu` result](docs/153-termux-x11-native-steam-cef-disable-gpu-result-2026-08-09.md)
+- [Termux:X11 native Steam delayed CEF capture experiment](docs/154-termux-x11-native-steam-cef-delayed-capture-experiment-2026-08-09.md)
 - [Retroid Pocket Nova flashing kit](tools/retroid-pocket-nova/README.md)
 
 ## Evidence standard

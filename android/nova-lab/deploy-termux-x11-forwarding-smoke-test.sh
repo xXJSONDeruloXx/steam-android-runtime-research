@@ -22,6 +22,7 @@ MOUNT_PRIVATE_HELPER=${NOVA_MOUNT_PRIVATE_HELPER:-$BUILD_DIR/nova-mount-private}
 DEVICE_RUNTIME_CLEANUP=/data/local/tmp/nova-runtime-cleanup.sh
 CLIENT_FRAMES=${NOVA_TERMUX_X11_CLIENT_FRAMES:-600}
 ALLOW_X11_CAPTURE_FAILURE=${NOVA_TERMUX_X11_ALLOW_X11_CAPTURE_FAILURE:-0}
+CAPTURE_DELAY_SECONDS=${NOVA_TERMUX_X11_CAPTURE_DELAY_SECONDS:-0}
 STEAM_UID=${NOVA_TERMUX_X11_STEAM_UID:-501}
 STEAM_GID=${NOVA_TERMUX_X11_STEAM_GID:-20}
 BIND_ANDROID_DEV=${NOVA_TERMUX_X11_BIND_ANDROID_DEV:-0}
@@ -93,6 +94,12 @@ if [ "$WINDOW_WAIT_SECONDS" -lt 1 ]; then
     echo "NOVA_TERMUX_X11_WINDOW_WAIT_SECONDS must be at least 1" >&2
     exit 2
 fi
+case "$CAPTURE_DELAY_SECONDS" in
+    ''|*[!0-9]*)
+        echo "NOVA_TERMUX_X11_CAPTURE_DELAY_SECONDS must be numeric" >&2
+        exit 2
+        ;;
+esac
 case "$STEAM_UID:$STEAM_GID" in
     ''|*[!0-9:]*|*:*:*)
         echo "NOVA_TERMUX_X11_STEAM_UID/GID must be numeric" >&2
@@ -336,6 +343,7 @@ adb shell am start --user 0 -n com.termux.x11/com.termux.x11.MainActivity >"$RUN
     echo "client_launch=foreground adb shell su command with host-side background"
     echo "client_frames=$CLIENT_FRAMES"
     echo "allow_x11_capture_failure=$ALLOW_X11_CAPTURE_FAILURE"
+    echo "capture_delay_seconds=$CAPTURE_DELAY_SECONDS"
     echo "steam_uid=$STEAM_UID:$STEAM_GID"
     echo "x11_window_name=${X11_WINDOW_NAME-any viewable depth-1 child}"
     echo "x11_window_wait_seconds=$WINDOW_WAIT_SECONDS"
@@ -421,6 +429,11 @@ if [[ ! "$window_id" =~ ^0x[0-9A-Fa-f]+$ ]]; then
     exit 1
 fi
 echo "termux_x11_window=pass id=$window_id"
+
+if [ "$CAPTURE_DELAY_SECONDS" -gt 0 ]; then
+    echo "termux_x11_capture_delay=pass seconds=$CAPTURE_DELAY_SECONDS"
+    sleep "$CAPTURE_DELAY_SECONDS"
+fi
 
 capture_status=0
 adb shell su -c \
