@@ -10,6 +10,7 @@ PATCH_FILES=(
     "$SCRIPT_DIR/patches/gamescope-headless-ahb-output.patch"
     "$SCRIPT_DIR/patches/gamescope-headless-ahb-transport-observability.patch"
     "$SCRIPT_DIR/patches/gamescope-headless-ahb-clock-trace.patch"
+    "$SCRIPT_DIR/patches/gamescope-headless-ahb-scheduler-trace.patch"
     "$SCRIPT_DIR/patches/gamescope-headless-libei-touch.patch"
 )
 SOURCE_DIR="${GAMESCOPE_SOURCE:-}"

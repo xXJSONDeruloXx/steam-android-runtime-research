@@ -95,6 +95,7 @@ The useful results are split across several projects:
 - [Nova AHB ancillary-data parser fix](docs/74-nova-ahb-ancillary-parser-fix-2026-08-09.md) records the frame-188 `__cmsg_nxthdr` producer stall, the bounded control-message parser, and a fresh 240-frame device pass.
 - [Nova continuous AHB quiet-scene fix](docs/75-nova-continuous-ahb-quiet-scene-fix-2026-08-09.md) records the device validation that keeps the live receiver blocked through Gamescope quiet scenes while retaining the bounded probe timeout.
 - [Nova AHB explicit cancellation](docs/76-nova-ahb-explicit-cancellation-2026-08-09.md) records the bounded regression and Activity-stop cancellation validation for the blocking native receiver.
+- [Nova Gamescope scheduler-trace integration](docs/77-nova-gamescope-scheduler-trace-integration-2026-08-09.md) makes the opt-in repaint/present diagnostic patch part of the reproducible Gamescope build sequence.
 
 ## Recommended direction
 
@@ -190,6 +191,7 @@ the gamescope frames on its own surface.
 - [Nova AHB ancillary-data parser fix](docs/74-nova-ahb-ancillary-parser-fix-2026-08-09.md)
 - [Nova continuous AHB quiet-scene fix](docs/75-nova-continuous-ahb-quiet-scene-fix-2026-08-09.md)
 - [Nova AHB explicit cancellation](docs/76-nova-ahb-explicit-cancellation-2026-08-09.md)
+- [Nova Gamescope scheduler-trace integration](docs/77-nova-gamescope-scheduler-trace-integration-2026-08-09.md)
 - [Retroid Pocket Nova flashing kit](tools/retroid-pocket-nova/README.md)
 
 ## Evidence standard

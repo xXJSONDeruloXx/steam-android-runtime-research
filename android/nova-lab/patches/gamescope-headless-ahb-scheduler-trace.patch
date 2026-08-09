@@ -1,0 +1,104 @@
+--- a/src/steamcompmgr.cpp
++++ b/src/steamcompmgr.cpp
+@@ -65,1 +65,2 @@
+ #include <sys/types.h>
++#include <sys/syscall.h>
+@@ -124,5 +125,41 @@
+ LogScope xwm_log("xwm");
+ LogScope focus_log("focus");
+ LogScope g_WaitableLog("waitable");
++static bool nova_ahb_scheduler_trace_enabled()
++{
++	const char *value = getenv( "NOVA_AHB_SCHEDULER_TRACE" );
++	return value != nullptr && value[0] == '1';
++}
++
++static unsigned long long nova_ahb_scheduler_monotonic_ns()
++{
++	timespec timestamp = {};
++	if ( clock_gettime( CLOCK_MONOTONIC, &timestamp ) != 0 )
++		return 0;
++	return (unsigned long long)timestamp.tv_sec * 1000000000ULL +
++		(unsigned long long)timestamp.tv_nsec;
++}
++
++static long nova_ahb_scheduler_thread_id()
++{
++	return (long)syscall( SYS_gettid );
++}
++
++static void nova_ahb_scheduler_trace( const char *phase,
++	uint64_t focusCommit, uint64_t overrideCommit, bool vblank,
++	bool hasRepaint, bool hasRepaintNonBasePlane, bool shouldPaint,
++	int flipType, int layerCount, int result )
++{
++	if ( !nova_ahb_scheduler_trace_enabled() )
++		return;
++	xwm_log.infof(
++		"nova_ahb_scheduler_trace monotonic_ns=%llu pid=%d tid=%ld phase=%s focus_commit=%llu override_commit=%llu vblank=%d has_repaint=%d has_repaint_non_base=%d should_paint=%d flip_type=%d layers=%d result=%d",
++		nova_ahb_scheduler_monotonic_ns(), (int)getpid(),
++		nova_ahb_scheduler_thread_id(), phase,
++		(unsigned long long)focusCommit, (unsigned long long)overrideCommit,
++		vblank ? 1 : 0, hasRepaint ? 1 : 0,
++		hasRepaintNonBasePlane ? 1 : 0, shouldPaint ? 1 : 0, flipType,
++		layerCount, result );
++}
+ 
+ gamescope::ConVar<bool> cv_overlay_unmultiplied_alpha{ "overlay_unmultiplied_alpha", false };
+@@ -2364,11 +2364,15 @@
+ 	uint64_t ulFocusCommitId = window_last_done_commit_id( pFocus->focusWindow );
+ 	uint64_t ulOverrideCommitId = window_last_done_commit_id( pFocus->overrideWindow );
+ 
+ 	if ( ulFocusCommitId == s_ulLastFocusCommitId &&
+ 	     ulOverrideCommitId == s_ulLastOverrideCommitId )
++	{
++		nova_ahb_scheduler_trace( "paint_all_skip_same_commit", ulFocusCommitId, ulOverrideCommitId, false, false, false, false, -1, 0, 0 );
+ 		return;
++	}
+ 
+ 	s_ulLastFocusCommitId = ulFocusCommitId;
+ 	s_ulLastOverrideCommitId = ulOverrideCommitId;
++	nova_ahb_scheduler_trace( "paint_all_begin", ulFocusCommitId, ulOverrideCommitId, false, false, false, true, -1, 0, 0 );
+ 
+ 	uint32_t uWidth = s_pPipewireBuffer->texture->width();
+@@ -2797,6 +2797,11 @@
+ 	}
+ 
+-	if ( pConnector && pConnector->Present( &frameInfo, async ) != 0 )
++	int presentResult = 0;
++	nova_ahb_scheduler_trace( "present_call", 0, 0, false, false, false, true, -1, frameInfo.layerCount, 0 );
++	if ( pConnector )
++		presentResult = pConnector->Present( &frameInfo, async );
++	nova_ahb_scheduler_trace( "present_return", 0, 0, false, false, false, true, -1, frameInfo.layerCount, presentResult );
++	if ( presentResult != 0 )
+ 	{
+ 		return;
+ 	}
+@@ -9055,8 +9055,27 @@
+ 			else
+ 			{
+ 				bShouldPaint = false;
+ 			}
+ 
++			if ( nova_ahb_scheduler_trace_enabled() )
++			{
++				static unsigned long long s_ulLastSchedulerTraceNs = 0;
++				unsigned long long now = nova_ahb_scheduler_monotonic_ns();
++				bool heartbeat = s_ulLastSchedulerTraceNs == 0 ||
++					now - s_ulLastSchedulerTraceNs >= 1000000000ULL;
++				if ( heartbeat || bShouldPaint )
++				{
++					nova_ahb_scheduler_trace(
++						"paint_decision", pPaintFocus->focusWindow
++							? window_last_done_commit_id( pPaintFocus->focusWindow ) : 0,
++						pPaintFocus->overrideWindow
++							? window_last_done_commit_id( pPaintFocus->overrideWindow ) : 0,
++						vblank, hasRepaint, hasRepaintNonBasePlane, bShouldPaint,
++						static_cast<int>( eFlipType ), 0, 0 );
++					s_ulLastSchedulerTraceNs = now;
++				}
++			}
++
+ 			if ( bShouldPaint )
+ 			{
+ 				paint_all( pPaintFocus, eFlipType == FlipType::Async );
