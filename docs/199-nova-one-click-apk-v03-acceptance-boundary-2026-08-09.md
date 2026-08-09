@@ -744,6 +744,59 @@ native library initializes. It will also capture the native startup logs and
 raw-state baseline. No Steam session should be relaunched until that source
 gate changes.
 
+### `input-20260809T221401Z-rscom-alias-timing`
+
+This was the planned no-button reboot experiment. Before reboot, the exact
+Nova cleanup returned `pass`, the test APK and Termux:X11 were force-stopped,
+and the runtime process audit was empty. The reboot was issued at
+`2026-08-09T22:14:56Z` host time. No Nova Steam runtime was launched and no
+physical control was pressed.
+
+ADB became available at about 24 seconds of device uptime. From that first
+available sample through 100 seconds of uptime, `/dev/rscom` remained a
+`499,1` character device and `/sys/class/tty/ttyHS1/dev` remained `499:1`;
+`/dev/ttyHS1` was absent, as expected for the pservice alias arrangement. The
+mode properties stayed `handle.mode=1`, `gamepad.type=1`, and
+`mcu.checkerrs=2`. This did not find a transient alias mismatch during the
+observable interval. It is not a claim about the first 24 seconds: the dmesg
+timeline independently shows pservice renaming `ttyHS1` at about 3.919 seconds,
+then `com.rp.mapping` opening `/dev/rscom` and issuing its UART ioctl at about
+10.573 seconds.
+
+The same boot log shows the mapper proceeding past UART setup: the kernel
+creates `Xbox Wireless Controller` immediately after the `/dev/rscom` access,
+and the mapper then opens `/dev/adckey` and initializes its debounce settings.
+There is no `uart_init false` message in the native log. A fresh 30-second
+all-node `getevent -lt` window contained only the nine device-announcement
+records (589 bytes; SHA-256
+`1b6d3617473c3e14a1a08480ad008c1da3c807d18ebb76e7f580980883f26b7e`). The
+post-boot input inventory still exposed only the virtual Xbox device at
+`/dev/input/event7` and the virtual mouse at `/dev/input/event8`; this
+no-input window intentionally does not assert what a physical press would do.
+
+The timing/state, post-boot input inventory, dmesg, logcat, and capture-script
+hashes are:
+
+* timed node/process/property samples:
+  `7dde62ca423d1bf064644da51be69872e044a303f4a4a51e6c353573a500df3f`;
+* post-boot `dumpsys input`/`getevent -p` state:
+  `a540f32ed0f95ab105b319a78b7e7dbbbd3a03c1d5ba7e3f4888bd10b8f177a1`;
+* dmesg from this boot:
+  `575c31b39d272b7d2fac32e695401e6d350a9cf477d2efd197bc24aa18ce6e5d`;
+* full logcat capture:
+  `fe2abce6f4c2d11d19ae806aa7c4188b305e9b7e3bb61cd35dc4c34f57b087cf`;
+* exact no-input capture script:
+  `6712784e8beeb5f73555e46a8f275d37820b47ef2ea8ff46475bacffb29dd336`.
+
+This eliminates the current boot-time alias mismatch as the leading
+explanation. Combined with the earlier run in which physical presses were
+held while the vendor raw-state binder returned the same values, the next
+boundary is now MCU protocol traffic or frame parsing—not profile selection,
+virtual-uinput creation, Steam mapping, or the post-boot `/dev/rscom` alias.
+The next read-only probe will request the vendor MCU version and capture its
+native logs. It will not invoke MCU power control, test-data sending, or
+firmware update.
+
 ## Cleanup
 
 Every attempt ended without a Nova Steam runtime. The exact helper returned
