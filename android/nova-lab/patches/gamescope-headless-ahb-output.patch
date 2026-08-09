@@ -573,12 +573,3 @@
 +gamescope::OwningRc<CVulkanTexture> vulkan_create_output_texture_from_dmabuf( struct wlr_dmabuf_attributes *pDMA );
 @@ -412,0 +414 @@
 +int vulkan_export_signaled_fence();
---- a/src/steamcompmgr.cpp
-+++ b/src/steamcompmgr.cpp
-@@ -8763,0 +8764,6 @@
-+		// The Android AHB connector is a continuously refreshed display. Its
-+		// consumer waits for the next submitted buffer even when the X11 scene
-+		// itself has no new dirty commit, so do not let repaint suppression starve
-+		// the per-buffer ACK/release ring.
-+		if ( vblank && getenv( "NOVA_AHB_OUTPUT_SOCKET" ) != nullptr )
-+			hasRepaint = true;

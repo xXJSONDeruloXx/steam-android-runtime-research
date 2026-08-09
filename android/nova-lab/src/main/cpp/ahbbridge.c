@@ -1203,7 +1203,14 @@ Java_com_xjsonderulo_steamandroid_novalab_MainActivity_nativeRunDmaBufDoubleBuff
     jboolean force_gpu_composition)
 {
     (void)object;
-    char report[65536] = "";
+    /*
+     * The bounded acceptance profile may run past the historical frame-149
+     * boundary.  A 64 KiB report truncated a successful 240-frame producer
+     * run before its final frames/releases/pass summary, making the harness
+     * reject valid transport evidence.  Keep the report bounded, but large
+     * enough for the maximum 600-frame diagnostic profile.
+     */
+    char report[262144] = "";
     size_t used = 0;
     append_line(report, sizeof(report), &used, "ahb_double_buffer_version=1\n");
     if (socket_path_string == NULL) {

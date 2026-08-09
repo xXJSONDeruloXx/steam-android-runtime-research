@@ -85,7 +85,8 @@ The useful results are split across several projects:
 - [Nova blocking-stream ACK correlation result](docs/68-nova-ahb-blocking-stream-correlation-result-2026-08-09.md) records the earlier paired ACK boundary and its downstream ring release timeout.
 - [Nova clock-correlated AHB socket trace experiment](docs/69-nova-ahb-clock-correlated-socket-trace-experiment-2026-08-09.md) predeclares shared-clock and thread identity instrumentation for the original stream transport.
 - [Nova clock-correlated AHB socket trace result](docs/70-nova-ahb-clock-correlated-socket-trace-result-2026-08-09.md) refines the deadlock ordering with a same-run 60-second frame-149 boundary.
-- [Nova AHB continuous-repaint fix](docs/71-nova-ahb-continuous-repaint-fix-2026-08-09.md) tests the source-level repaint-starvation hypothesis against that boundary.
+- [Nova AHB continuous-repaint A/B result](docs/71-nova-ahb-continuous-repaint-fix-2026-08-09.md) rejects the global repaint trigger after an exact-stack device comparison and records the retained transport/UI result.
+- [Nova AHB repaint acceptance and Steam UI boundary](docs/72-nova-ahb-repaint-acceptance-and-steam-ui-boundary-2026-08-09.md) records the current no-hunk acceptance, the visible Steam UI gate, and the test-bench report handoff repair.
 
 ## Recommended direction
 

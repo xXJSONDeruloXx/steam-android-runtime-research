@@ -57,6 +57,7 @@ BEFORE_SCREENSHOT="$BUILD_DIR/native-steam-controller-ui-before.png"
 AFTER_SCREENSHOT="$BUILD_DIR/native-steam-controller-ui-after.png"
 APP_LOG="$BUILD_DIR/native-steam-controller-ui-app-logcat.txt"
 APP_REPORT="$BUILD_DIR/native-steam-controller-ui-app-report.txt"
+RUN_DIR=${NOVA_RUN_DIR:-}
 
 case "$INPUT_MODE" in
     physical|android-keyevent)
@@ -571,8 +572,14 @@ cat "$FD_LOG" 2>/dev/null || true
 cat "$RUN_LOG"
 if [ "$INPUT_MODE" = "android-keyevent" ]; then
     "$ADB" logcat -d -v threadtime NovaLab:I '*:S' >"$APP_LOG"
-    "$ADB" shell run-as "$PACKAGE" cat files/android-input-bridge-report.txt \
-        >"$APP_REPORT" 2>/dev/null || true
+    if [ -n "$RUN_DIR" ] && [ -s "$RUN_DIR/android-input-bridge-report.txt" ]; then
+        cp "$RUN_DIR/android-input-bridge-report.txt" "$APP_REPORT"
+        echo "controller_ui_android_input_report_source=run_artifact"
+    else
+        "$ADB" shell run-as "$PACKAGE" cat files/android-input-bridge-report.txt \
+            >"$APP_REPORT" 2>/dev/null || true
+        echo "controller_ui_android_input_report_source=device_app"
+    fi
     cat "$APP_LOG"
     cat "$APP_REPORT"
 fi
