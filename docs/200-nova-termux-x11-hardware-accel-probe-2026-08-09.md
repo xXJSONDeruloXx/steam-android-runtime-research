@@ -109,3 +109,18 @@ set the validated ICD, remove the software-forcing Mesa variables, and omit
 capture the visible UI and fresh client logs, and revert to the default profile
 on any instability. Do not call the hardware path product-ready based on this
 capability pass alone.
+
+The profile gate is now implemented in the direct client and one-click root
+launcher. The default values are:
+
+```text
+NOVA_ANDROID_LAUNCHER_HARDWARE_ACCEL=0
+NOVA_ANDROID_LAUNCHER_VULKAN_ICD=/opt/nova-kgsl-driver/freedreno-kgsl.icd.json
+```
+
+For the bounded hardware experiment, invoke the root launcher with
+`NOVA_ANDROID_LAUNCHER_HARDWARE_ACCEL=1`. It passes
+`NOVA_TERMUX_X11_STEAM_HARDWARE_ACCEL=1` and the explicit
+`NOVA_TERMUX_X11_STEAM_VULKAN_ICD` into the private namespace. Invalid mode or
+relative ICD values fail before launch. Local `sh -n` and invalid-value tests
+passed; no device hardware-profile run has started yet.

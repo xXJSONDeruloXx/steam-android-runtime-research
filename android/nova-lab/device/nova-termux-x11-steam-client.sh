@@ -20,6 +20,8 @@ STEAM_FULLSCREEN=${NOVA_TERMUX_X11_STEAM_FULLSCREEN:-0}
 STEAM_FULLDESKTOPRES=${NOVA_TERMUX_X11_STEAM_FULLDESKTOPRES:-0}
 STEAM_WIDTH=${NOVA_TERMUX_X11_STEAM_WIDTH:-}
 STEAM_HEIGHT=${NOVA_TERMUX_X11_STEAM_HEIGHT:-}
+STEAM_HARDWARE_ACCEL=${NOVA_TERMUX_X11_STEAM_HARDWARE_ACCEL:-0}
+STEAM_VULKAN_ICD=${NOVA_TERMUX_X11_STEAM_VULKAN_ICD:-/opt/nova-kgsl-driver/freedreno-kgsl.icd.json}
 DBUS_SESSION_MODE=${NOVA_TERMUX_X11_DBUS_SESSION:-0}
 DBUS_SESSION_USER=${NOVA_TERMUX_X11_DBUS_SESSION_USER:-steam}
 DBUS_SESSION_UID_RECORD=${NOVA_TERMUX_X11_DBUS_SESSION_UID_RECORD:-0}
@@ -77,6 +79,22 @@ case "$STEAM_WIDTH:$STEAM_HEIGHT" in
         ;;
     ''|*[!0-9:]*|*:*:*|0:*|*:0)
         echo "invalid Steam window size: $STEAM_WIDTH:$STEAM_HEIGHT" >&2
+        exit 2
+        ;;
+esac
+case "$STEAM_HARDWARE_ACCEL" in
+    0|1)
+        ;;
+    *)
+        echo "invalid NOVA_TERMUX_X11_STEAM_HARDWARE_ACCEL: $STEAM_HARDWARE_ACCEL" >&2
+        exit 2
+        ;;
+esac
+case "$STEAM_VULKAN_ICD" in
+    /*)
+        ;;
+    *)
+        echo "NOVA_TERMUX_X11_STEAM_VULKAN_ICD must be an absolute path: $STEAM_VULKAN_ICD" >&2
         exit 2
         ;;
 esac
@@ -246,11 +264,17 @@ log "client_display=${DISPLAY:-unset}"
 log "client_home=$STEAM_HOME"
 log "client_root=$STEAM_ROOT"
 log "client_executable=$STEAM_EXECUTABLE"
-log "client_flags_base=-gamepadui -steamos3 -steampal -steamdeck -nobootstrapperupdate -skipinitialbootstrap -no-child-update-ui -no-cef-sandbox -cef-disable-gpu"
+if [ "$STEAM_HARDWARE_ACCEL" -eq 1 ]; then
+    log "client_flags_base=-gamepadui -steamos3 -steampal -steamdeck -nobootstrapperupdate -skipinitialbootstrap -no-child-update-ui -no-cef-sandbox"
+else
+    log "client_flags_base=-gamepadui -steamos3 -steampal -steamdeck -nobootstrapperupdate -skipinitialbootstrap -no-child-update-ui -no-cef-sandbox -cef-disable-gpu"
+fi
 log "client_fullscreen=$STEAM_FULLSCREEN"
 log "client_fulldesktopres=$STEAM_FULLDESKTOPRES"
 log "client_width=${STEAM_WIDTH:-unset}"
 log "client_height=${STEAM_HEIGHT:-unset}"
+log "client_hardware_accel=$STEAM_HARDWARE_ACCEL"
+log "client_vulkan_icd=$STEAM_VULKAN_ICD"
 log "client_uid=$STEAM_UID"
 log "client_gid=$STEAM_GID"
 log "client_audio_gid=$STEAM_AUDIO_GID"
@@ -270,6 +294,11 @@ fi
 if [ ! -x /usr/bin/setpriv ]; then
     log "client_started=fail"
     log "client_error=missing_setpriv"
+    exit 1
+fi
+if [ "$STEAM_HARDWARE_ACCEL" -eq 1 ] && [ ! -r "$STEAM_VULKAN_ICD" ]; then
+    log "client_started=fail"
+    log "client_error=missing_vulkan_icd path=$STEAM_VULKAN_ICD"
     exit 1
 fi
 
@@ -315,13 +344,26 @@ for candidate in "$STEAM_ROOT"/steam-runtime-steamrt-arm64/*/files/bin; do
 done
 export PATH="$STEAM_ROOT/steam-runtime-steamrt-arm64/bin${steam_runtime_files_bin:+:$steam_runtime_files_bin}:/usr/bin:/bin"
 log "client_runtime_files_bin=${steam_runtime_files_bin:-unset}"
-export MESA_LOADER_DRIVER_OVERRIDE=swrast
-export GALLIUM_DRIVER=softpipe
-export LIBGL_ALWAYS_SOFTWARE=1
+if [ "$STEAM_HARDWARE_ACCEL" -eq 1 ]; then
+    unset MESA_LOADER_DRIVER_OVERRIDE
+    unset GALLIUM_DRIVER
+    unset LIBGL_ALWAYS_SOFTWARE
+    export VK_ICD_FILENAMES="$STEAM_VULKAN_ICD"
+    log "client_mesa_driver=unset"
+    log "client_gallium_driver=unset"
+    log "client_libgl_always_software=unset"
+    log "client_vk_icd=$VK_ICD_FILENAMES"
+else
+    unset VK_ICD_FILENAMES
+    export MESA_LOADER_DRIVER_OVERRIDE=swrast
+    export GALLIUM_DRIVER=softpipe
+    export LIBGL_ALWAYS_SOFTWARE=1
+    log "client_mesa_driver=$MESA_LOADER_DRIVER_OVERRIDE"
+    log "client_gallium_driver=$GALLIUM_DRIVER"
+    log "client_libgl_always_software=1"
+    log "client_vk_icd=unset"
+fi
 export LD_LIBRARY_PATH="$STEAM_ROOT/steamrtarm64:$STEAM_ROOT/lib/aarch64-linux-gnu:/usr/lib${steam_runtime_files_bin:+:${steam_runtime_files_bin%/bin}/lib/aarch64-linux-gnu}${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
-log "client_mesa_driver=$MESA_LOADER_DRIVER_OVERRIDE"
-log "client_gallium_driver=$GALLIUM_DRIVER"
-log "client_libgl_always_software=1"
 if [ -f /opt/nova-kgsl-driver/libsysv-sem-shim.so ]; then
     export LD_PRELOAD=/opt/nova-kgsl-driver/libsysv-sem-shim.so
     log "client_preload=/opt/nova-kgsl-driver/libsysv-sem-shim.so"
@@ -536,7 +578,10 @@ fi
 set -- "$STEAM_EXECUTABLE" \
     -gamepadui -steamos3 -steampal -steamdeck \
     -nobootstrapperupdate -skipinitialbootstrap -no-child-update-ui \
-    -no-cef-sandbox -cef-disable-gpu
+    -no-cef-sandbox
+if [ "$STEAM_HARDWARE_ACCEL" -eq 0 ]; then
+    set -- "$@" -cef-disable-gpu
+fi
 if [ "$STEAM_FULLSCREEN" -eq 1 ]; then
     set -- "$@" -fullscreen
 fi

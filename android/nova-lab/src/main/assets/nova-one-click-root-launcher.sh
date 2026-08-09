@@ -9,6 +9,8 @@ TERMUX_APK="${4:-}"
 APP_DIR="${5:-}"
 DISPLAY_NUMBER="${NOVA_ANDROID_LAUNCHER_DISPLAY:-0}"
 DISPLAY_VALUE=":$DISPLAY_NUMBER"
+HARDWARE_ACCEL="${NOVA_ANDROID_LAUNCHER_HARDWARE_ACCEL:-0}"
+VULKAN_ICD="${NOVA_ANDROID_LAUNCHER_VULKAN_ICD:-/opt/nova-kgsl-driver/freedreno-kgsl.icd.json}"
 X11_SOCKET="$ROOT/tmp/.X11-unix/X$DISPLAY_NUMBER"
 PRIVATE_HELPER="$APP_DIR/nova-x11-private-namespace.sh"
 CLEANUP_HELPER="$APP_DIR/nova-termux-x11-cleanup.sh"
@@ -19,6 +21,23 @@ MOUNT_PRIVATE="$APP_DIR/nova-mount-private"
 NETWORK_COMPAT_SOURCE="$APP_DIR/nova-steam-network-api-compat.sh"
 STEAMOS_UPDATE_COMPAT_SOURCE="$APP_DIR/nova-steamos-update-compat.sh"
 DRIVER_DIR="$ROOT/opt/nova-kgsl-driver"
+
+case "$HARDWARE_ACCEL" in
+    0|1)
+        ;;
+    *)
+        echo "invalid NOVA_ANDROID_LAUNCHER_HARDWARE_ACCEL: $HARDWARE_ACCEL" >&2
+        exit 2
+        ;;
+esac
+case "$VULKAN_ICD" in
+    /*)
+        ;;
+    *)
+        echo "NOVA_ANDROID_LAUNCHER_VULKAN_ICD must be an absolute path: $VULKAN_ICD" >&2
+        exit 2
+        ;;
+esac
 
 if [ ! -x "$MOUNT_PRIVATE" ]; then
     if [ -x /data/local/tmp/nova-mount-private ]; then
@@ -179,6 +198,8 @@ printf '%s\n' "termux-x11" >"$STATE/server-token"
 printf '%s\n' "$CLIENT_STAGE_NAME" >"$STATE/client-token"
 printf '%s\n' "1" >"$STATE/client-active"
 printf '%s\n' "$session" >"$STATE/session"
+log "nova_launcher_hardware_accel=$HARDWARE_ACCEL"
+log "nova_launcher_vulkan_icd=$VULKAN_ICD"
 
 if [ -x "$RELAY_BINARY" ]; then
     allow_input_events=
@@ -267,6 +288,8 @@ fi
     NOVA_TERMUX_X11_DBUS_SYSTEM=1 \
     NOVA_TERMUX_X11_STEAM_FULLSCREEN=1 \
     NOVA_TERMUX_X11_STEAM_FULLDESKTOPRES=1 \
+    NOVA_TERMUX_X11_STEAM_HARDWARE_ACCEL="$HARDWARE_ACCEL" \
+    NOVA_TERMUX_X11_STEAM_VULKAN_ICD="$VULKAN_ICD" \
     NOVA_X11_ALLOW_INPUT_EVENTS="$allow_input_events" \
     NOVA_X11_HIDE_INPUT_EVENTS="$hide_input_events" \
     "$PRIVATE_HELPER" chroot-dev "$MOUNT_PRIVATE" "$ROOT" \
