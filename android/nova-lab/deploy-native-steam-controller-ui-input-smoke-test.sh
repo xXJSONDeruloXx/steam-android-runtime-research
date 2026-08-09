@@ -70,9 +70,11 @@ APP_REPORT="$BUILD_DIR/native-steam-controller-ui-app-report.txt"
 RUN_DIR=${NOVA_RUN_DIR:-}
 RUN_ID=${NOVA_RUN_ID:-}
 X11_CAPTURE_DURING_UI=${NOVA_CONTROLLER_UI_X11_CAPTURE:-0}
+X11_CAPTURE_AFTER_SETTLE=${NOVA_CONTROLLER_UI_X11_CAPTURE_AFTER_SETTLE:-0}
 X11_CAPTURE_SCRIPT="$SCRIPT_DIR/capture-nova-x11-window.sh"
 X11_CAPTURE_HELPER=${NOVA_X11_CAPTURE:-$BUILD_DIR/nova-x11-capture}
 X11_CAPTURE_LOG=
+X11_CAPTURE_PHASE=
 X11_CAPTURE_PROVENANCE=
 X11_CAPTURE_HELPER_SHA256=
 
@@ -84,6 +86,22 @@ case "$X11_CAPTURE_DURING_UI" in
         exit 2
         ;;
 esac
+case "$X11_CAPTURE_AFTER_SETTLE" in
+    0|1)
+        ;;
+    *)
+        echo "NOVA_CONTROLLER_UI_X11_CAPTURE_AFTER_SETTLE must be 0 or 1" >&2
+        exit 2
+        ;;
+esac
+if [ "$X11_CAPTURE_AFTER_SETTLE" = "1" ] && [ "$X11_CAPTURE_DURING_UI" != "1" ]; then
+    echo "NOVA_CONTROLLER_UI_X11_CAPTURE_AFTER_SETTLE=1 requires NOVA_CONTROLLER_UI_X11_CAPTURE=1" >&2
+    exit 2
+fi
+if [ "$X11_CAPTURE_AFTER_SETTLE" = "1" ] && [ "$MANUAL_SESSION" = "1" ]; then
+    echo "NOVA_CONTROLLER_UI_X11_CAPTURE_AFTER_SETTLE=1 is only supported for bounded UI runs" >&2
+    exit 2
+fi
 if [ "$X11_CAPTURE_DURING_UI" = "1" ]; then
     if [ -z "$RUN_ID" ] || [ -z "$RUN_DIR" ]; then
         echo "NOVA_CONTROLLER_UI_X11_CAPTURE=1 requires NOVA_RUN_ID and NOVA_RUN_DIR" >&2
@@ -103,15 +121,20 @@ if [ "$X11_CAPTURE_DURING_UI" = "1" ]; then
         exit 1
     fi
     X11_CAPTURE_HELPER_SHA256=$(sha256sum "$X11_CAPTURE_HELPER" | awk '{print $1}')
+    if [ "$X11_CAPTURE_AFTER_SETTLE" = "1" ]; then
+        X11_CAPTURE_PHASE=settled
+    else
+        X11_CAPTURE_PHASE=baseline
+    fi
     X11_CAPTURE_PROVENANCE="$RUN_DIR/x11-helper-provenance.txt"
     for x11_artifact in \
         "$X11_CAPTURE_PROVENANCE" \
-        "$RUN_DIR/x11-helper-push-baseline.txt" \
-        "$RUN_DIR/x11-tree-baseline.txt" \
-        "$RUN_DIR/x11-capture-baseline.txt" \
-        "$RUN_DIR/x11-pull-baseline.txt" \
-        "$RUN_DIR/x11-steam-baseline.ppm" \
-        "$RUN_DIR/x11-capture-baseline-status.txt" \
+        "$RUN_DIR/x11-helper-push-$X11_CAPTURE_PHASE.txt" \
+        "$RUN_DIR/x11-tree-$X11_CAPTURE_PHASE.txt" \
+        "$RUN_DIR/x11-capture-$X11_CAPTURE_PHASE.txt" \
+        "$RUN_DIR/x11-pull-$X11_CAPTURE_PHASE.txt" \
+        "$RUN_DIR/x11-steam-$X11_CAPTURE_PHASE.ppm" \
+        "$RUN_DIR/x11-capture-$X11_CAPTURE_PHASE-status.txt" \
         "$RUN_DIR/x11-window-id.txt"; do
         if [ -e "$x11_artifact" ]; then
             echo "X11 run artifact already exists; use a fresh run id: $x11_artifact" >&2
@@ -120,11 +143,12 @@ if [ "$X11_CAPTURE_DURING_UI" = "1" ]; then
     done
     {
         echo "nova_run_id=$RUN_ID"
+        echo "x11_capture_phase=$X11_CAPTURE_PHASE"
         echo "x11_capture_helper=$X11_CAPTURE_HELPER"
         echo "x11_capture_helper_sha256=$X11_CAPTURE_HELPER_SHA256"
         echo "x11_capture_script=$X11_CAPTURE_SCRIPT"
     } >"$X11_CAPTURE_PROVENANCE"
-    X11_CAPTURE_LOG="$RUN_DIR/controller-ui-x11-capture-baseline.log"
+    X11_CAPTURE_LOG="$RUN_DIR/controller-ui-x11-capture-$X11_CAPTURE_PHASE.log"
 fi
 
 case "$INPUT_MODE" in
@@ -413,7 +437,7 @@ capture_x11_baseline() {
 
     if NOVA_RUN_ID="$RUN_ID" NOVA_RUN_DIR="$RUN_DIR" \
         NOVA_X11_CAPTURE="$X11_CAPTURE_HELPER" ADB="$ADB" \
-        DEVICE_ROOT="$DEVICE_ROOT" "$X11_CAPTURE_SCRIPT" baseline \
+        DEVICE_ROOT="$DEVICE_ROOT" "$X11_CAPTURE_SCRIPT" "$X11_CAPTURE_PHASE" \
         >"$X11_CAPTURE_LOG" 2>&1; then
         capture_status=0
     else
@@ -552,7 +576,9 @@ if [ "$ui_ready" -eq 0 ]; then
     # only around the input event.
     dismiss_android_overlay
     start_overlay_guard
-    capture_x11_baseline
+    if [ "$X11_CAPTURE_AFTER_SETTLE" != "1" ]; then
+        capture_x11_baseline
+    fi
 fi
 
 if [ "$MANUAL_SESSION" = "1" ]; then
@@ -592,6 +618,9 @@ if [ "$ui_ready" -eq 0 ]; then
     # surface during an ADB-connected run.  It intercepts physical controls
     # too, so clear it before sampling regardless of the input transport.
     dismiss_android_overlay
+    if [ "$X11_CAPTURE_AFTER_SETTLE" = "1" ]; then
+        capture_x11_baseline
+    fi
     if capture_ready_screenshot "$BEFORE_SCREENSHOT"; then
         if [ "$INPUT_MODE" = "physical" ]; then
             "$ADB" shell su -c \

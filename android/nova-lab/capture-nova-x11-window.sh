@@ -18,10 +18,10 @@ case "$RUN_ID" in
         ;;
 esac
 case "$PHASE" in
-    baseline|after-a|final)
+    baseline|settled|after-a|final)
         ;;
     *)
-        echo "usage: $0 baseline|after-a|final" >&2
+        echo "usage: $0 baseline|settled|after-a|final" >&2
         exit 2
         ;;
 esac
@@ -86,7 +86,8 @@ if [[ ! "$window_id" =~ ^0x[0-9A-Fa-f]+$ ]]; then
     exit 1
 fi
 
-if [ "$PHASE" = "baseline" ]; then
+if [ "$PHASE" = "baseline" ] || \
+    { [ "$PHASE" = "settled" ] && [ ! -s "$WINDOW_MANIFEST" ]; }; then
     {
         printf 'nova_run_id=%s\n' "$RUN_ID"
         printf 'x11_window_id=%s\n' "$window_id"
