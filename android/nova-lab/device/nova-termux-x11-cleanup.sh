@@ -126,9 +126,12 @@ verify_mode() {
 
 if [ "${1:-}" = "verify" ]; then
     shift
-    SERVER_CMDLINE="${3:-$SERVER_CMDLINE}"
-    CLIENT_TOKEN="${4:-$CLIENT_TOKEN}"
-    verify_mode "$@"
+    state_dir="${1:-}"
+    SERVER_CMDLINE="$(read_file "$state_dir/server-token")"
+    CLIENT_TOKEN="$(read_file "$state_dir/client-token")"
+    [ -n "$SERVER_CMDLINE" ] || SERVER_CMDLINE=termux-x11
+    [ -n "$CLIENT_TOKEN" ] || CLIENT_TOKEN=nova-x11-animate
+    verify_mode "$state_dir" "$(read_file "$state_dir/socket.path")"
     exit $?
 fi
 
@@ -139,14 +142,16 @@ fi
 shift
 
 state_dir="${1:-}"
-client="${2:-}"
-capture="${3:-}"
-ppm="${4:-}"
-socket="${5:-}"
-lock="${6:-}"
-private_helper="${7:-}"
-SERVER_CMDLINE="${8:-$SERVER_CMDLINE}"
-CLIENT_TOKEN="${9:-$CLIENT_TOKEN}"
+private_helper="${2:-}"
+client="$(read_file "$state_dir/client.path")"
+capture="$(read_file "$state_dir/capture.path")"
+ppm="$(read_file "$state_dir/ppm.path")"
+socket="$(read_file "$state_dir/socket.path")"
+lock="$(read_file "$state_dir/lock.path")"
+SERVER_CMDLINE="$(read_file "$state_dir/server-token")"
+CLIENT_TOKEN="$(read_file "$state_dir/client-token")"
+[ -n "$SERVER_CMDLINE" ] || SERVER_CMDLINE=termux-x11
+[ -n "$CLIENT_TOKEN" ] || CLIENT_TOKEN=nova-x11-animate
 if [ -z "$state_dir" ] || [ -z "$private_helper" ]; then
     echo "x11_cleanup_error=missing_arguments" >&2
     exit 2

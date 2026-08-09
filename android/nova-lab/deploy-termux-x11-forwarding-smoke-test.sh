@@ -108,7 +108,7 @@ adb() {
 }
 
 prepare_remote_state() {
-    adb shell "mkdir -p $REMOTE_STATE_DIR; chmod 777 $REMOTE_STATE_DIR"
+    adb shell "mkdir -p $REMOTE_STATE_DIR; chmod 777 $REMOTE_STATE_DIR; echo $REMOTE_CLIENT >$REMOTE_STATE_DIR/client.path; echo $REMOTE_CAPTURE >$REMOTE_STATE_DIR/capture.path; echo $REMOTE_X11_PPM >$REMOTE_STATE_DIR/ppm.path; echo $REMOTE_X11_SOCKET >$REMOTE_STATE_DIR/socket.path; echo $REMOTE_X11_LOCK >$REMOTE_STATE_DIR/lock.path; echo $SERVER_PROCESS_TOKEN >$REMOTE_STATE_DIR/server-token; echo $CLIENT_PROCESS_TOKEN >$REMOTE_STATE_DIR/client-token"
 }
 
 stage_x11_helpers() {
@@ -137,7 +137,7 @@ cleanup_remote() {
     local cleanup_output status=0
     prepare_remote_state >/dev/null 2>&1 || true
     cleanup_output=$(adb shell su -c \
-        "$REMOTE_X11_CLEANUP_HELPER cleanup $REMOTE_STATE_DIR $REMOTE_CLIENT $REMOTE_CAPTURE $REMOTE_X11_PPM $REMOTE_X11_SOCKET $REMOTE_X11_LOCK $REMOTE_PRIVATE_NAMESPACE_HELPER $SERVER_PROCESS_TOKEN $CLIENT_PROCESS_TOKEN" 2>&1) || status=$?
+        "$REMOTE_X11_CLEANUP_HELPER cleanup $REMOTE_STATE_DIR $REMOTE_PRIVATE_NAMESPACE_HELPER" 2>&1) || status=$?
     cleanup_output=$(printf '%s\n' "$cleanup_output" | tr -d '\r')
     printf '%s\n' "$cleanup_output"
     return "$status"
@@ -146,7 +146,7 @@ cleanup_remote() {
 post_stop_verify() {
     local output status=0
     output=$(adb shell su -c \
-        "$REMOTE_X11_CLEANUP_HELPER verify $REMOTE_STATE_DIR $REMOTE_X11_SOCKET $SERVER_PROCESS_TOKEN $CLIENT_PROCESS_TOKEN" 2>&1) || status=$?
+        "$REMOTE_X11_CLEANUP_HELPER verify $REMOTE_STATE_DIR" 2>&1) || status=$?
     output=$(printf '%s\n' "$output" | tr -d '\r')
     printf '%s\n' "$output" >"$RUN_DIR/post-stop-verification.txt"
     if [ "$status" -eq 0 ] && printf '%s\n' "$output" | rg -q 'server_state=absent client_state=absent server_parent_state=absent socket_state=absent'; then

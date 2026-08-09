@@ -100,3 +100,6 @@ The harness now:
 The next run changes only this launch/identity repair. It must pass the
 synthetic mapped-window, X11 PPM, Android screenshot, and automatic teardown
 gates before any Steam process is introduced.
+
+The following preflight failure is recorded separately in
+[doc 121](121-termux-x11-cleanup-token-self-match-result-2026-08-09.md).
