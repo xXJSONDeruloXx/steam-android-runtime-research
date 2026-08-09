@@ -12,7 +12,12 @@ RUNTIME_DIR=/tmp/nova-steam-runtime
 STEAM_UID=${NOVA_TERMUX_X11_STEAM_UID:-501}
 STEAM_GID=${NOVA_TERMUX_X11_STEAM_GID:-20}
 CLIENT_TIMEOUT=${NOVA_TERMUX_X11_STEAM_TIMEOUT_SECONDS:-60}
+DBUS_SESSION_MODE=${NOVA_TERMUX_X11_DBUS_SESSION:-0}
 client_pid=
+dbus_session_pid=
+dbus_session_dir=
+dbus_session_socket=
+dbus_session_log=
 
 case "$STEAM_UID:$STEAM_GID" in
     ''|*[!0-9:]*|*:*:*)
@@ -30,6 +35,14 @@ if [ "$CLIENT_TIMEOUT" -lt 1 ]; then
     echo "Steam timeout must be at least 1 second" >&2
     exit 2
 fi
+case "$DBUS_SESSION_MODE" in
+    0|1)
+        ;;
+    *)
+        echo "invalid NOVA_TERMUX_X11_DBUS_SESSION: $DBUS_SESSION_MODE" >&2
+        exit 2
+        ;;
+esac
 
 log() {
     echo "$1" >>"$CLIENT_LOG"
@@ -47,6 +60,23 @@ finish() {
         /usr/bin/kill "$client_pid" 2>/dev/null || true
         /usr/bin/sleep 0.2
         /usr/bin/kill -9 "$client_pid" 2>/dev/null || true
+    fi
+    if [ -n "${dbus_session_pid:-}" ] && /usr/bin/kill -0 "$dbus_session_pid" 2>/dev/null; then
+        /usr/bin/kill "$dbus_session_pid" 2>/dev/null || true
+        /usr/bin/sleep 0.2
+        /usr/bin/kill -9 "$dbus_session_pid" 2>/dev/null || true
+    fi
+    if [ -n "${dbus_session_pid:-}" ]; then
+        /usr/bin/wait "$dbus_session_pid" 2>/dev/null || true
+    fi
+    if [ -n "${dbus_session_log:-}" ] && [ -f "$dbus_session_log" ]; then
+        log "dbus_session_daemon_output_begin"
+        /bin/cat "$dbus_session_log" >>"$CLIENT_LOG"
+        log "dbus_session_daemon_output_end"
+    fi
+    if [ -n "${dbus_session_dir:-}" ]; then
+        /bin/rm -rf "$dbus_session_dir"
+        log "dbus_session_cleanup=pass path=$dbus_session_dir"
     fi
     if [ -f "$CLIENT_LOG" ]; then
         cat "$CLIENT_LOG"
@@ -68,6 +98,7 @@ log "client_gid=$STEAM_GID"
 log "client_timeout_seconds=$CLIENT_TIMEOUT"
 log "client_xauthority=${XAUTHORITY:-unset}"
 log "client_runtime_dir=$RUNTIME_DIR"
+log "client_dbus_session_mode=$DBUS_SESSION_MODE"
 
 if [ ! -x "$STEAM_EXECUTABLE" ]; then
     log "client_started=fail"
@@ -131,6 +162,78 @@ log "client_mesa_driver=$MESA_LOADER_DRIVER_OVERRIDE"
 log "client_gallium_driver=$GALLIUM_DRIVER"
 log "client_libgl_always_software=1"
 log "client_preload=/opt/nova-kgsl-driver/libsysv-sem-shim.so"
+
+start_dbus_session() {
+    if [ "$DBUS_SESSION_MODE" -eq 0 ]; then
+        log "client_dbus_session=disabled"
+        return 0
+    fi
+
+    log "client_dbus_session=enabled"
+    if [ ! -x /usr/bin/dbus-daemon ]; then
+        log "client_dbus_session_status=fail reason=missing_dbus_daemon"
+        return 1
+    fi
+
+    DBUS_SESSION_CONFIG=
+    for candidate in /usr/share/dbus-1/session.conf /etc/dbus-1/session.conf; do
+        if [ -r "$candidate" ]; then
+            DBUS_SESSION_CONFIG=$candidate
+            break
+        fi
+    done
+    if [ -z "$DBUS_SESSION_CONFIG" ]; then
+        log "client_dbus_session_status=fail reason=missing_session_config"
+        return 1
+    fi
+
+    dbus_session_dir="$RUNTIME_DIR/dbus-session-$$"
+    dbus_session_socket="$dbus_session_dir/bus"
+    dbus_session_log="$dbus_session_dir/daemon.log"
+    /bin/rm -rf "$dbus_session_dir"
+    if ! /bin/mkdir -p "$dbus_session_dir" ||
+        ! /usr/bin/chown "$STEAM_UID:$STEAM_GID" "$dbus_session_dir" ||
+        ! /usr/bin/chmod 700 "$dbus_session_dir"; then
+        log "client_dbus_session_status=fail reason=session_dir_setup"
+        return 1
+    fi
+    log "client_dbus_session_config=$DBUS_SESSION_CONFIG"
+    log "client_dbus_session_socket=$dbus_session_socket"
+
+    run_as_steam /usr/bin/env -u LD_PRELOAD /usr/bin/dbus-daemon \
+        --config-file="$DBUS_SESSION_CONFIG" --nofork \
+        --address="unix:path=$dbus_session_socket" \
+        >"$dbus_session_log" 2>&1 &
+    dbus_session_pid=$!
+    log "client_dbus_session_pid=$dbus_session_pid"
+
+    dbus_session_ready=0
+    dbus_session_attempt=0
+    while [ "$dbus_session_attempt" -lt 50 ]; do
+        if [ -S "$dbus_session_socket" ]; then
+            dbus_session_ready=1
+            break
+        fi
+        if ! /usr/bin/kill -0 "$dbus_session_pid" 2>/dev/null; then
+            break
+        fi
+        /usr/bin/sleep 0.1
+        dbus_session_attempt=$((dbus_session_attempt + 1))
+    done
+    if [ "$dbus_session_ready" -ne 1 ]; then
+        log "client_dbus_session_status=fail reason=socket_not_ready"
+        return 1
+    fi
+
+    export DBUS_SESSION_BUS_ADDRESS="unix:path=$dbus_session_socket"
+    log "client_dbus_session_status=pass"
+    log "client_dbus_session_address=$DBUS_SESSION_BUS_ADDRESS"
+    return 0
+}
+
+if ! start_dbus_session; then
+    exit 1
+fi
 
 run_as_steam /usr/bin/timeout "$CLIENT_TIMEOUT" "$STEAM_EXECUTABLE" \
     -gamepadui -steamos3 -steampal -steamdeck \

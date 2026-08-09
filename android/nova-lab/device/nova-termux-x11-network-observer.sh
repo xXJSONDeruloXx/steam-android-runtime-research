@@ -69,7 +69,8 @@ process_snapshot() {
         "$ps_path" -eo pid,args 2>/dev/null |
             /usr/bin/awk -v self="$SELF_PID" '
                 NR > 1 && $1 != self &&
-                ($0 ~ /steam/ || $0 ~ /webhelper/ || $0 ~ /steamui/) &&
+                ($0 ~ /steam/ || $0 ~ /webhelper/ || $0 ~ /steamui/ ||
+                 $0 ~ /dbus-daemon/ || $0 ~ /NetworkManager/) &&
                 $0 !~ /awk/ && $0 !~ /network-observer/ { print $1 }
             ' | sort -n -u
     )
@@ -139,6 +140,17 @@ service_snapshot() {
             echo "absent=$path"
         fi
     done
+    dbus_session_path_found=0
+    for path in /tmp/nova-steam-runtime/dbus-session-*; do
+        if [ -e "$path" ]; then
+            dbus_session_path_found=1
+            echo "private_session_bus_path=$path"
+            ls -ld "$path" "$path/bus" 2>&1 || true
+        fi
+    done
+    if [ "$dbus_session_path_found" -eq 0 ]; then
+        echo "private_session_bus_path=absent"
+    fi
     for service in dbus-daemon NetworkManager nmcli; do
         echo "command=$service path=$(command_path "$service")"
     done
