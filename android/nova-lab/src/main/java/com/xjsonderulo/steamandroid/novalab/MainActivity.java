@@ -10,6 +10,8 @@ import android.hardware.input.InputManager;
 import android.net.LocalServerSocket;
 import android.net.LocalSocket;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
 import android.util.DisplayMetrics;
 import android.util.Log;
 import android.util.SparseBooleanArray;
@@ -42,12 +44,21 @@ import java.util.concurrent.TimeUnit;
 public final class MainActivity extends Activity implements SurfaceHolder.Callback {
     private static final String TAG = "NovaLab";
     private static final int SURFACE_FRAMES = 120;
+    private static final long NATIVE_PRESENTATION_STOP_GRACE_MS = 5000;
 
     static {
         System.loadLibrary("novabridge");
     }
 
     private final ExecutorService worker = Executors.newSingleThreadExecutor();
+    private final Handler mainHandler = new Handler(Looper.getMainLooper());
+    private final Runnable delayedNativePresentationCancel = new Runnable() {
+        @Override
+        public void run() {
+            Log.i(TAG, "activity_stop_grace_expired");
+            cancelNativePresentationBridge();
+        }
+    };
     private volatile boolean surfaceProbeRunning;
     private volatile Surface presentationSurface;
     private TextView surfaceStatus;
@@ -351,9 +362,19 @@ public final class MainActivity extends Activity implements SurfaceHolder.Callba
     }
 
     @Override
+    protected void onStart() {
+        super.onStart();
+        mainHandler.removeCallbacks(delayedNativePresentationCancel);
+        Log.i(TAG, "activity_on_start");
+    }
+
+    @Override
     protected void onStop() {
-        Log.i(TAG, "activity_on_stop");
-        cancelNativePresentationBridge();
+        Log.i(TAG, "activity_on_stop scheduling_grace_ms="
+                + NATIVE_PRESENTATION_STOP_GRACE_MS);
+        mainHandler.removeCallbacks(delayedNativePresentationCancel);
+        mainHandler.postDelayed(delayedNativePresentationCancel,
+                NATIVE_PRESENTATION_STOP_GRACE_MS);
         super.onStop();
     }
 
@@ -366,6 +387,7 @@ public final class MainActivity extends Activity implements SurfaceHolder.Callba
     @Override
     protected void onDestroy() {
         Log.i(TAG, "activity_on_destroy");
+        mainHandler.removeCallbacks(delayedNativePresentationCancel);
         surfaceProbeRunning = false;
         cancelNativePresentationBridge();
         stopAndroidInputBridge();
