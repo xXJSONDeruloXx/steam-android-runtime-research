@@ -276,6 +276,8 @@ the gamescope frames on its own surface.
 - [Termux:X11 native Steam OOBE Enter retry experiment](docs/158-termux-x11-native-steam-oobe-enter-retry-experiment-2026-08-09.md)
 - [Termux:X11 native Steam OOBE timezone result](docs/159-termux-x11-native-steam-oobe-timezone-result-2026-08-09.md)
 - [Termux:X11 native Steam OOBE timezone Enter experiment](docs/160-termux-x11-native-steam-oobe-timezone-enter-experiment-2026-08-09.md)
+- [Termux:X11 native Steam OOBE timezone persistence result](docs/161-termux-x11-native-steam-oobe-timezone-persistence-result-2026-08-09.md)
+- [Termux:X11 native Steam OOBE two-Enter sequence experiment](docs/162-termux-x11-native-steam-oobe-two-enter-sequence-experiment-2026-08-09.md)
 - [Retroid Pocket Nova flashing kit](tools/retroid-pocket-nova/README.md)
 
 ## Evidence standard

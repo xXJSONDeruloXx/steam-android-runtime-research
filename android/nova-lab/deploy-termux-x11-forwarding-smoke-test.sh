@@ -25,6 +25,7 @@ ALLOW_X11_CAPTURE_FAILURE=${NOVA_TERMUX_X11_ALLOW_X11_CAPTURE_FAILURE:-0}
 CAPTURE_DELAY_SECONDS=${NOVA_TERMUX_X11_CAPTURE_DELAY_SECONDS:-0}
 INPUT_MODE=${NOVA_TERMUX_X11_INPUT_MODE:-none}
 INPUT_KEYCODE=${NOVA_TERMUX_X11_INPUT_KEYCODE:-66}
+INPUT_KEYCODES=${NOVA_TERMUX_X11_INPUT_KEYCODES:-}
 INPUT_KEY_NAME=${NOVA_TERMUX_X11_INPUT_KEY_NAME:-KEYCODE_ENTER}
 INPUT_DELAY_SECONDS=${NOVA_TERMUX_X11_INPUT_DELAY_SECONDS:-1}
 INPUT_AFTER_DELAY_SECONDS=${NOVA_TERMUX_X11_INPUT_AFTER_DELAY_SECONDS:-4}
@@ -106,10 +107,10 @@ case "$CAPTURE_DELAY_SECONDS" in
         ;;
 esac
 case "$INPUT_MODE" in
-    none|android-keyevent)
+    none|android-keyevent|android-keyevent-sequence)
         ;;
     *)
-        echo "NOVA_TERMUX_X11_INPUT_MODE must be none or android-keyevent" >&2
+        echo "NOVA_TERMUX_X11_INPUT_MODE must be none, android-keyevent, or android-keyevent-sequence" >&2
         exit 2
         ;;
 esac
@@ -119,6 +120,22 @@ case "$INPUT_KEYCODE:$INPUT_DELAY_SECONDS:$INPUT_AFTER_DELAY_SECONDS" in
         exit 2
         ;;
 esac
+INPUT_SEQUENCE_CODES=()
+if [ "$INPUT_MODE" = "android-keyevent-sequence" ]; then
+    case "$INPUT_KEYCODES" in
+        ''|*[!0-9,]*|,*|*,|*,,*)
+            echo "NOVA_TERMUX_X11_INPUT_KEYCODES must be a comma-separated numeric sequence" >&2
+            exit 2
+            ;;
+    esac
+    IFS=',' read -r -a INPUT_SEQUENCE_CODES <<<"$INPUT_KEYCODES"
+    if [ "${#INPUT_SEQUENCE_CODES[@]}" -lt 2 ]; then
+        echo "NOVA_TERMUX_X11_INPUT_KEYCODES must contain at least two events" >&2
+        exit 2
+    fi
+else
+    INPUT_SEQUENCE_CODES=("$INPUT_KEYCODE")
+fi
 case "$STEAM_UID:$STEAM_GID" in
     ''|*[!0-9:]*|*:*:*)
         echo "NOVA_TERMUX_X11_STEAM_UID/GID must be numeric" >&2
@@ -191,6 +208,7 @@ for artifact in \
     nova-mount-private.sha256 \
     android-input-focus.txt android-input-focus-before-input.txt \
     android-input-focus-after-input.txt \
+    android-input-sequence.txt \
     post-stop-verification.txt android-window-state-before-input.txt \
     android-window-state-after-input.txt android-input-keyevent.txt \
     android-screenshot-before-input.png android-screenshot-after-input.png \
@@ -372,6 +390,7 @@ adb shell am start --user 0 -n com.termux.x11/com.termux.x11.MainActivity >"$RUN
     echo "capture_delay_seconds=$CAPTURE_DELAY_SECONDS"
     echo "input_mode=$INPUT_MODE"
     echo "input_keycode=$INPUT_KEYCODE"
+    echo "input_keycodes=${INPUT_KEYCODES:-unset}"
     echo "input_key_name=$INPUT_KEY_NAME"
     echo "input_delay_seconds=$INPUT_DELAY_SECONDS"
     echo "input_after_delay_seconds=$INPUT_AFTER_DELAY_SECONDS"
@@ -495,98 +514,197 @@ if [ "$capture_status" -eq 0 ]; then
     echo "termux_x11_x11_capture=pass sha256=$(sha256sum "$RUN_DIR/x11-window.ppm" | awk '{print $1}')"
 fi
 
-if [ "$INPUT_MODE" = "android-keyevent" ]; then
-    cp "$RUN_DIR/android-screenshot.png" "$RUN_DIR/android-screenshot-before-input.png"
-    if [ "$capture_status" -eq 0 ]; then
-        cp "$RUN_DIR/x11-window.ppm" "$RUN_DIR/x11-window-before-input.ppm"
+if [ "$INPUT_MODE" != "none" ]; then
+    focus_contains() {
+        local focus_file="$1"
+        local package_pattern="$2"
+        sed -n '/FocusedWindows:/{n;p;q;}' "$focus_file" | rg -q "$package_pattern"
+    }
+
+    if [ "$INPUT_MODE" = "android-keyevent" ]; then
+        INPUT_SEQUENCE_LOG="$RUN_DIR/android-input-keyevent.txt"
+    else
+        INPUT_SEQUENCE_LOG="$RUN_DIR/android-input-sequence.txt"
     fi
-    sleep "$INPUT_DELAY_SECONDS"
-    adb shell dumpsys window windows >"$RUN_DIR/android-window-state-before-input.txt"
-    adb shell dumpsys input >"$RUN_DIR/android-input-focus-before-input.txt"
-    if ! sed -n '/FocusedWindows:/{n;p;q;}' \
-        "$RUN_DIR/android-input-focus-before-input.txt" | rg -q 'com\.termux\.x11'; then
-        if sed -n '/FocusedWindows:/{n;p;q;}' \
-            "$RUN_DIR/android-input-focus-before-input.txt" | rg -q 'com\.rp\.settings'; then
-            adb shell input keyevent 4 >/dev/null 2>&1 || true
-            sleep 1
-            adb shell dumpsys window windows >"$RUN_DIR/android-window-state-before-input.txt"
-            adb shell dumpsys input >"$RUN_DIR/android-input-focus-before-input.txt"
+    : >"$INPUT_SEQUENCE_LOG"
+    if [ "$INPUT_MODE" = "android-keyevent-sequence" ]; then
+        echo "input_mode=android-keyevent-sequence" >>"$INPUT_SEQUENCE_LOG"
+        echo "input_keycodes=$INPUT_KEYCODES" >>"$INPUT_SEQUENCE_LOG"
+    fi
+
+    previous_android="$RUN_DIR/android-screenshot.png"
+    previous_x11="$RUN_DIR/x11-window.ppm"
+    previous_x11_status=$capture_status
+    input_step=0
+    for input_code in "${INPUT_SEQUENCE_CODES[@]}"; do
+        input_step=$((input_step + 1))
+        step_label=$(printf '%02d' "$input_step")
+        if [ "$INPUT_MODE" = "android-keyevent" ]; then
+            before_android="$RUN_DIR/android-screenshot-before-input.png"
+            after_android="$RUN_DIR/android-screenshot-after-input.png"
+            before_window="$RUN_DIR/android-window-state-before-input.txt"
+            before_focus="$RUN_DIR/android-input-focus-before-input.txt"
+            after_window="$RUN_DIR/android-window-state-after-input.txt"
+            after_focus="$RUN_DIR/android-input-focus-after-input.txt"
+            after_tree="$RUN_DIR/x11-tree-after-input.txt"
+            after_capture="$RUN_DIR/x11-capture-after-input.txt"
+            after_ppm="$RUN_DIR/x11-window-after-input.ppm"
+            after_pull="$RUN_DIR/x11-pull-after-input.txt"
+        else
+            before_android="$RUN_DIR/android-screenshot-step-${step_label}-before-input.png"
+            after_android="$RUN_DIR/android-screenshot-step-${step_label}-after-input.png"
+            before_window="$RUN_DIR/android-window-state-step-${step_label}-before-input.txt"
+            before_focus="$RUN_DIR/android-input-focus-step-${step_label}-before-input.txt"
+            after_window="$RUN_DIR/android-window-state-step-${step_label}-after-input.txt"
+            after_focus="$RUN_DIR/android-input-focus-step-${step_label}-after-input.txt"
+            after_tree="$RUN_DIR/x11-tree-step-${step_label}-after-input.txt"
+            after_capture="$RUN_DIR/x11-capture-step-${step_label}-after-input.txt"
+            after_ppm="$RUN_DIR/x11-window-step-${step_label}-after-input.ppm"
+            after_pull="$RUN_DIR/x11-pull-step-${step_label}-after-input.txt"
         fi
-    fi
-    if ! sed -n '/FocusedWindows:/{n;p;q;}' \
-        "$RUN_DIR/android-input-focus-before-input.txt" | rg -q 'com\.termux\.x11'; then
-        echo "termux_x11_input_focus=fail" >&2
-        exit 1
-    fi
-    {
-        echo "input_mode=android-keyevent"
-        echo "input_keycode=$INPUT_KEYCODE"
-        echo "input_key_name=$INPUT_KEY_NAME"
-        echo "input_focus=pass package=com.termux.x11"
-        echo "input_command=adb shell input keyevent $INPUT_KEYCODE"
-    } >"$RUN_DIR/android-input-keyevent.txt"
-    input_status=0
-    adb shell input keyevent "$INPUT_KEYCODE" >>"$RUN_DIR/android-input-keyevent.txt" 2>&1 || input_status=$?
-    echo "input_exit_status=$input_status" >>"$RUN_DIR/android-input-keyevent.txt"
-    if [ "$input_status" -ne 0 ]; then
-        echo "termux_x11_input=fail status=$input_status" >&2
-        exit 1
-    fi
-    echo "termux_x11_input=pass keycode=$INPUT_KEYCODE name=$INPUT_KEY_NAME"
-    sleep "$INPUT_AFTER_DELAY_SECONDS"
+        cp "$previous_android" "$before_android"
+        if [ "$previous_x11_status" -eq 0 ]; then
+            before_ppm="$RUN_DIR/x11-window-before-input.ppm"
+            if [ "$INPUT_MODE" = "android-keyevent-sequence" ]; then
+                before_ppm="$RUN_DIR/x11-window-step-${step_label}-before-input.ppm"
+            fi
+            cp "$previous_x11" "$before_ppm"
+        fi
 
-    after_tree_status=0
-    adb shell su -c \
-        "$REMOTE_PRIVATE_NAMESPACE_HELPER chroot $DEVICE_ROOT /usr/bin/env -i PATH=/usr/bin:/bin HOME=/tmp XDG_RUNTIME_DIR=/tmp TMPDIR=/tmp DISPLAY=$DISPLAY_VALUE XKB_CONFIG_ROOT=$XKB_CONFIG_ROOT_RELATIVE $CHROOT_CAPTURE --tree" \
-        >"$RUN_DIR/x11-tree-after-input.txt" 2>&1 || after_tree_status=$?
-    if [ "$after_tree_status" -ne 0 ] || ! rg -q "^nova_x11_window id=$window_id " "$RUN_DIR/x11-tree-after-input.txt"; then
-        echo "termux_x11_window_after_input=fail" >&2
-        exit 1
-    fi
-    echo "termux_x11_window_after_input=pass id=$window_id"
-
-    after_capture_status=0
-    adb shell su -c \
-        "$REMOTE_PRIVATE_NAMESPACE_HELPER chroot $DEVICE_ROOT /usr/bin/env -i PATH=/usr/bin:/bin HOME=/tmp XDG_RUNTIME_DIR=/tmp TMPDIR=/tmp DISPLAY=$DISPLAY_VALUE XKB_CONFIG_ROOT=$XKB_CONFIG_ROOT_RELATIVE $CHROOT_CAPTURE --window-ppm $window_id $CHROOT_X11_PPM" \
-        >"$RUN_DIR/x11-capture-after-input.txt" 2>&1 || after_capture_status=$?
-    echo "termux_x11_capture_status=$after_capture_status" >>"$RUN_DIR/x11-capture-after-input.txt"
-    if [ "$after_capture_status" -ne 0 ]; then
-        if [ "$ALLOW_X11_CAPTURE_FAILURE" -ne 1 ]; then
+        sleep "$INPUT_DELAY_SECONDS"
+        adb shell dumpsys window windows >"$before_window"
+        adb shell dumpsys input >"$before_focus"
+        if ! focus_contains "$before_focus" 'com\.termux\.x11'; then
+            if focus_contains "$before_focus" 'com\.rp\.settings'; then
+                adb shell input keyevent 4 >/dev/null 2>&1 || true
+                echo "input_overlay_dismissed=pass step=$input_step" >>"$INPUT_SEQUENCE_LOG"
+                sleep 1
+                adb shell dumpsys window windows >"$before_window"
+                adb shell dumpsys input >"$before_focus"
+            fi
+        fi
+        if ! focus_contains "$before_focus" 'com\.termux\.x11'; then
+            echo "termux_x11_input_focus=fail step=$input_step" >&2
             exit 1
         fi
-        echo "termux_x11_x11_capture_after_input=observational_failure status=$after_capture_status"
-    else
-        adb pull "$REMOTE_X11_PPM" "$RUN_DIR/x11-window-after-input.ppm" >"$RUN_DIR/x11-pull-after-input.txt" 2>&1
-        [ -s "$RUN_DIR/x11-window-after-input.ppm" ]
-        echo "termux_x11_x11_capture_after_input=pass sha256=$(sha256sum "$RUN_DIR/x11-window-after-input.ppm" | awk '{print $1}')"
-    fi
 
-    adb exec-out screencap -p >"$RUN_DIR/android-screenshot-after-input.png"
-    [ -s "$RUN_DIR/android-screenshot-after-input.png" ]
-    adb shell dumpsys window windows >"$RUN_DIR/android-window-state-after-input.txt"
-    adb shell dumpsys input >"$RUN_DIR/android-input-focus-after-input.txt"
-    if ! sed -n '/FocusedWindows:/{n;p;q;}' \
-        "$RUN_DIR/android-input-focus-after-input.txt" | rg -q 'com\.termux\.x11'; then
-        echo "termux_x11_input_focus_after=unknown_or_missing" >&2
-    else
-        echo "termux_x11_input_focus_after=pass"
-    fi
-    before_android_sha=$(sha256sum "$RUN_DIR/android-screenshot-before-input.png" | awk '{print $1}')
-    after_android_sha=$(sha256sum "$RUN_DIR/android-screenshot-after-input.png" | awk '{print $1}')
-    echo "termux_x11_android_capture_after_input=pass sha256=$after_android_sha"
-    if [ "$before_android_sha" = "$after_android_sha" ]; then
-        echo "termux_x11_input_android_screen_changed=none"
-    else
-        echo "termux_x11_input_android_screen_changed=pass"
-    fi
-    if [ "$after_capture_status" -eq 0 ]; then
-        before_x11_sha=$(sha256sum "$RUN_DIR/x11-window-before-input.ppm" | awk '{print $1}')
-        after_x11_sha=$(sha256sum "$RUN_DIR/x11-window-after-input.ppm" | awk '{print $1}')
-        if [ "$before_x11_sha" = "$after_x11_sha" ]; then
-            echo "termux_x11_input_x11_screen_changed=none"
-        else
-            echo "termux_x11_input_x11_screen_changed=pass"
+        {
+            echo "input_step=$input_step"
+            echo "input_keycode=$input_code"
+            echo "input_key_name=$INPUT_KEY_NAME"
+            echo "input_focus=pass package=com.termux.x11"
+            echo "input_command=adb shell input keyevent $input_code"
+        } >>"$INPUT_SEQUENCE_LOG"
+        input_status=0
+        adb shell input keyevent "$input_code" >>"$INPUT_SEQUENCE_LOG" 2>&1 || input_status=$?
+        echo "input_exit_status=$input_status step=$input_step" >>"$INPUT_SEQUENCE_LOG"
+        if [ "$input_status" -ne 0 ]; then
+            echo "termux_x11_input=fail step=$input_step status=$input_status" >&2
+            exit 1
         fi
+        if [ "$INPUT_MODE" = "android-keyevent" ]; then
+            echo "termux_x11_input=pass keycode=$input_code name=$INPUT_KEY_NAME"
+        else
+            echo "termux_x11_input_step=pass step=$input_step keycode=$input_code name=$INPUT_KEY_NAME"
+        fi
+        sleep "$INPUT_AFTER_DELAY_SECONDS"
+
+        after_tree_status=0
+        adb shell su -c \
+            "$REMOTE_PRIVATE_NAMESPACE_HELPER chroot $DEVICE_ROOT /usr/bin/env -i PATH=/usr/bin:/bin HOME=/tmp XDG_RUNTIME_DIR=/tmp TMPDIR=/tmp DISPLAY=$DISPLAY_VALUE XKB_CONFIG_ROOT=$XKB_CONFIG_ROOT_RELATIVE $CHROOT_CAPTURE --tree" \
+            >"$after_tree" 2>&1 || after_tree_status=$?
+        if [ "$after_tree_status" -ne 0 ] || ! rg -q "^nova_x11_window id=$window_id " "$after_tree"; then
+            echo "termux_x11_window_after_input=fail step=$input_step" >&2
+            exit 1
+        fi
+        if [ "$INPUT_MODE" = "android-keyevent" ]; then
+            echo "termux_x11_window_after_input=pass id=$window_id"
+        else
+            echo "termux_x11_window_step_after_input=pass step=$input_step id=$window_id"
+        fi
+
+        after_capture_status=0
+        adb shell su -c \
+            "$REMOTE_PRIVATE_NAMESPACE_HELPER chroot $DEVICE_ROOT /usr/bin/env -i PATH=/usr/bin:/bin HOME=/tmp XDG_RUNTIME_DIR=/tmp TMPDIR=/tmp DISPLAY=$DISPLAY_VALUE XKB_CONFIG_ROOT=$XKB_CONFIG_ROOT_RELATIVE $CHROOT_CAPTURE --window-ppm $window_id $CHROOT_X11_PPM" \
+            >"$after_capture" 2>&1 || after_capture_status=$?
+        echo "termux_x11_capture_status=$after_capture_status" >>"$after_capture"
+        if [ "$after_capture_status" -ne 0 ]; then
+            if [ "$ALLOW_X11_CAPTURE_FAILURE" -ne 1 ]; then
+                exit 1
+            fi
+            echo "termux_x11_x11_capture_after_input=observational_failure step=$input_step status=$after_capture_status"
+        else
+            adb pull "$REMOTE_X11_PPM" "$after_ppm" >"$after_pull" 2>&1
+            [ -s "$after_ppm" ]
+            after_x11_sha=$(sha256sum "$after_ppm" | awk '{print $1}')
+            if [ "$INPUT_MODE" = "android-keyevent" ]; then
+                echo "termux_x11_x11_capture_after_input=pass sha256=$after_x11_sha"
+            else
+                echo "termux_x11_x11_capture_step_after_input=pass step=$input_step sha256=$after_x11_sha"
+            fi
+        fi
+
+        adb exec-out screencap -p >"$after_android"
+        [ -s "$after_android" ]
+        adb shell dumpsys window windows >"$after_window"
+        adb shell dumpsys input >"$after_focus"
+        if ! focus_contains "$after_focus" 'com\.termux\.x11'; then
+            if [ "$INPUT_MODE" = "android-keyevent" ]; then
+                echo "termux_x11_input_focus_after=unknown_or_missing" >&2
+            else
+                echo "termux_x11_input_focus_after=fail step=$input_step" >&2
+                exit 1
+            fi
+        else
+            if [ "$INPUT_MODE" = "android-keyevent" ]; then
+                echo "termux_x11_input_focus_after=pass"
+            else
+                echo "termux_x11_input_focus_after=pass step=$input_step"
+            fi
+        fi
+        before_android_sha=$(sha256sum "$before_android" | awk '{print $1}')
+        after_android_sha=$(sha256sum "$after_android" | awk '{print $1}')
+        if [ "$INPUT_MODE" = "android-keyevent" ]; then
+            echo "termux_x11_android_capture_after_input=pass sha256=$after_android_sha"
+        else
+            echo "termux_x11_android_capture_step_after_input=pass step=$input_step sha256=$after_android_sha"
+        fi
+        if [ "$before_android_sha" = "$after_android_sha" ]; then
+            if [ "$INPUT_MODE" = "android-keyevent" ]; then
+                echo "termux_x11_input_android_screen_changed=none"
+            else
+                echo "termux_x11_input_android_screen_changed=none step=$input_step"
+            fi
+        else
+            if [ "$INPUT_MODE" = "android-keyevent" ]; then
+                echo "termux_x11_input_android_screen_changed=pass"
+            else
+                echo "termux_x11_input_android_screen_changed=pass step=$input_step"
+            fi
+        fi
+        if [ "$previous_x11_status" -eq 0 ] && [ "$after_capture_status" -eq 0 ]; then
+            before_x11_sha=$(sha256sum "$before_ppm" | awk '{print $1}')
+            after_x11_sha=$(sha256sum "$after_ppm" | awk '{print $1}')
+            if [ "$before_x11_sha" = "$after_x11_sha" ]; then
+                if [ "$INPUT_MODE" = "android-keyevent" ]; then
+                    echo "termux_x11_input_x11_screen_changed=none"
+                else
+                    echo "termux_x11_input_x11_screen_changed=none step=$input_step"
+                fi
+            else
+                if [ "$INPUT_MODE" = "android-keyevent" ]; then
+                    echo "termux_x11_input_x11_screen_changed=pass"
+                else
+                    echo "termux_x11_input_x11_screen_changed=pass step=$input_step"
+                fi
+            fi
+        fi
+        previous_android="$after_android"
+        previous_x11="$after_ppm"
+        previous_x11_status=$after_capture_status
+    done
+    if [ "$INPUT_MODE" = "android-keyevent-sequence" ]; then
+        echo "termux_x11_input_sequence=pass events=${#INPUT_SEQUENCE_CODES[@]}"
     fi
 fi
 
