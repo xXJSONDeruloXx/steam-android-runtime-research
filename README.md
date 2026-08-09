@@ -85,6 +85,7 @@ The useful results are split across several projects:
 - [Nova blocking-stream ACK correlation result](docs/68-nova-ahb-blocking-stream-correlation-result-2026-08-09.md) records the earlier paired ACK boundary and its downstream ring release timeout.
 - [Nova clock-correlated AHB socket trace experiment](docs/69-nova-ahb-clock-correlated-socket-trace-experiment-2026-08-09.md) predeclares shared-clock and thread identity instrumentation for the original stream transport.
 - [Nova clock-correlated AHB socket trace result](docs/70-nova-ahb-clock-correlated-socket-trace-result-2026-08-09.md) refines the deadlock ordering with a same-run 60-second frame-149 boundary.
+- [Nova AHB continuous-repaint fix](docs/71-nova-ahb-continuous-repaint-fix-2026-08-09.md) tests the source-level repaint-starvation hypothesis against that boundary.
 
 ## Recommended direction
 
@@ -174,6 +175,7 @@ the gamescope frames on its own surface.
 - [Nova blocking-stream ACK correlation result](docs/68-nova-ahb-blocking-stream-correlation-result-2026-08-09.md)
 - [Nova clock-correlated AHB socket trace experiment](docs/69-nova-ahb-clock-correlated-socket-trace-experiment-2026-08-09.md)
 - [Nova clock-correlated AHB socket trace result](docs/70-nova-ahb-clock-correlated-socket-trace-result-2026-08-09.md)
+- [Nova AHB continuous-repaint fix](docs/71-nova-ahb-continuous-repaint-fix-2026-08-09.md)
 - [Retroid Pocket Nova flashing kit](tools/retroid-pocket-nova/README.md)
 
 ## Evidence standard
