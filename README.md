@@ -75,6 +75,7 @@ The useful results are split across several projects:
 - [Nova AHB read-queue result](docs/58-nova-ahb-read-queue-result-2026-08-09.md) records the reproduced frame-133 ACK wait, absent receive-timeout return, and clean guarded teardown.
 - [Nova AHB receive-timeout observability experiment](docs/59-nova-ahb-receive-timeout-observability-experiment-2026-08-09.md) predeclares logging and readback of Android's `SO_RCVTIMEO` setup without changing transport behavior.
 - [Nova AHB receive-timeout observability result](docs/60-nova-ahb-receive-timeout-observability-result-2026-08-09.md) records valid 15-second socket readback followed by the unchanged frame-273 blocking ACK boundary.
+- [Parent session process-audit follow-up 6](docs/61-parent-session-process-audit-followup-2026-08-09.md) records the remaining hard-coded X11, stale-log correlation, teardown, and capture-status risks.
 
 ## Recommended direction
 
@@ -154,6 +155,7 @@ the gamescope frames on its own surface.
 - [Nova AHB read-queue result](docs/58-nova-ahb-read-queue-result-2026-08-09.md)
 - [Nova AHB receive-timeout observability experiment](docs/59-nova-ahb-receive-timeout-observability-experiment-2026-08-09.md)
 - [Nova AHB receive-timeout observability result](docs/60-nova-ahb-receive-timeout-observability-result-2026-08-09.md)
+- [Parent session process-audit follow-up 6](docs/61-parent-session-process-audit-followup-2026-08-09.md)
 - [Retroid Pocket Nova flashing kit](tools/retroid-pocket-nova/README.md)
 
 ## Evidence standard
