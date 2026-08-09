@@ -26,7 +26,8 @@ keystore, and verified by `apksigner`.
 | initial launch | `8fb5c20` | `1f64fc080989652422de52e7f159432113399564442eaffad22a5af6e8f1c155` | 0.3 |
 | window-order retry | `d641095` | `c0b57de4ee3fbe75ed4a90a0dc4f289d36a45f2f502985d2b26baddd436da21c` | 0.3 |
 | preflight-guard fix, pending device retest | `0d137c6` | `a5f4a5512fc89da9380eb275a81d1f408ed11796f0655be83f1f512b3f56b2a0` | 0.3 |
-| relay-corrected build, pending device retest | working tree after `0d137c6` | `d9288c9f7843c215441c074d51491e473b7b53453a1e4454adb4a576db766306` | 0.3 |
+| relay-corrected build | `00ed01c` | `d9288c9f7843c215441c074d51491e473b7b53453a1e4454adb4a576db766306` | 0.3 |
+| timeout/cleanup fix, pending device retest | working tree after `00ed01c` | `9124807429ff6d21a3c7556865cf6a33b0c8999ac8673cc4b5629b46839b3ec1` | 0.3 |
 
 The runtime inputs for both attempts were the direct launcher mode: Termux:X11
 APK `/data/app/~~EaHbYh5LSrJyPyjYrj44Wg==/com.termux.x11-Yy3Sfe-6FUYa5hx2OcDldw==/base.apk`,
@@ -131,6 +132,28 @@ returned `pass` and the residual process audit was empty. The next run will
 retain the cleanup log before removing state so that sub-gate can be repaired
 or explained rather than hidden.
 
+### `launcher-20260809T200616Z-apk-v03-relay-fixed`
+
+The relay-wrapper correction was installed as APK `d9288c9f7843c215441c074d51491e473b7b53453a1e4454adb4a576db766306`.
+The wrapper now found and executed the binary inside the chroot; its result
+changed from `No such file or directory` to the binary's own validation:
+
+```text
+uinput_error=invalid_timeout
+```
+
+That separated the path bug from the timeout contract. The launcher requests
+86400000 ms for a long-lived session, while the relay binary had a 3600000 ms
+maximum. The relay source now accepts the requested 24-hour bound and the APK
+has been rebuilt as `9124807429ff6d21a3c7556865cf6a33b0c8999ac8673cc4b5629b46839b3ec1`.
+
+This run also retained the Termux:X11 stop log. Its final client residual was
+the cleanup verifier's own `awk` command, because `client_pids()` passed the
+client token as an `awk -v` argument and did not exclude `awk`. The exact Nova
+runtime cleanup still returned `pass` and the final matching process set was
+empty. The cleanup verifier now excludes its own `awk` process; that change is
+included in the pending APK above.
+
 ## Cleanup
 
 Both attempts ended without a Nova Steam runtime. The retry's teardown still
@@ -146,7 +169,8 @@ matching runtime. No broad process kill was used.
 
 ## Next gate
 
-Install the relay-corrected build as a new run identity and confirm, in order:
+Install the timeout/cleanup-corrected build as a new run identity and confirm,
+in order:
 
 1. the APK launcher renders;
 2. the root-side preflight passes without a stale-process match;

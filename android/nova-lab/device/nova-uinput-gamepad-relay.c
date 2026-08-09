@@ -23,6 +23,7 @@
 
 #define NOVA_GAMEPAD_NAME "Nova Virtual Xbox Controller"
 #define NOVA_MAX_EVENT_NODES 64
+#define NOVA_MAX_RELAY_TIMEOUT_MS 86400000u
 
 static volatile sig_atomic_t stop_requested;
 
@@ -65,7 +66,8 @@ static int parse_timeout(const char *text, unsigned int *timeout_ms)
 
     errno = 0;
     value = strtoul(text, &end, 10);
-    if (errno != 0 || end == text || *end != '\0' || value == 0 || value > 3600000u) {
+    if (errno != 0 || end == text || *end != '\0' || value == 0 ||
+        value > NOVA_MAX_RELAY_TIMEOUT_MS) {
         return -1;
     }
     *timeout_ms = (unsigned int)value;
