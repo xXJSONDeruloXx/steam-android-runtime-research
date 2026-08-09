@@ -8,6 +8,7 @@ OUTPUT_HEIGHT=${NOVA_AHB_HEIGHT:-64}
 NOVA_AHB_TRACE=${NOVA_AHB_TRACE:-0}
 NOVA_AHB_SOCKET_TRACE=${NOVA_AHB_SOCKET_TRACE:-0}
 NOVA_AHB_SCHEDULER_TRACE=${NOVA_AHB_SCHEDULER_TRACE:-0}
+NOVA_AHB_OUTPUT_TILING=${NOVA_AHB_OUTPUT_TILING:-linear}
 if [ -r /opt/nova-steam/ahb-trace ]; then
     NOVA_AHB_TRACE=$(cat /opt/nova-steam/ahb-trace)
 fi
@@ -17,9 +18,13 @@ fi
 if [ -r /opt/nova-steam/ahb-scheduler-trace ]; then
     NOVA_AHB_SCHEDULER_TRACE=$(cat /opt/nova-steam/ahb-scheduler-trace)
 fi
+if [ -r /opt/nova-steam/ahb-output-tiling ]; then
+    NOVA_AHB_OUTPUT_TILING=$(cat /opt/nova-steam/ahb-output-tiling)
+fi
 export NOVA_AHB_TRACE
 export NOVA_AHB_SOCKET_TRACE
 export NOVA_AHB_SCHEDULER_TRACE
+export NOVA_AHB_OUTPUT_TILING
 export NOVA_WAYLAND_SHM_MAX_FRAMES="${NOVA_AHB_FRAME_COUNT:-5}"
 export NOVA_WAYLAND_SHM_RELEASE_GRACE_MS="${NOVA_WAYLAND_SHM_RELEASE_GRACE_MS:-1000}"
 

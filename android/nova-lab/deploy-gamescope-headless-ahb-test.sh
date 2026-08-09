@@ -20,6 +20,7 @@ ANDROID_VULKAN_LAYOUT_PROBE=${NOVA_ANDROID_VULKAN_LAYOUT_PROBE:-0}
 ANDROID_VULKAN_LAYOUT_WIDTH=${NOVA_ANDROID_VULKAN_LAYOUT_WIDTH:-$BUFFER_WIDTH}
 ANDROID_VULKAN_LAYOUT_HEIGHT=${NOVA_ANDROID_VULKAN_LAYOUT_HEIGHT:-$BUFFER_HEIGHT}
 ANDROID_VULKAN_LAYOUT_USAGE=${NOVA_ANDROID_VULKAN_LAYOUT_USAGE:-0x333}
+OUTPUT_TILING=${NOVA_AHB_OUTPUT_TILING:-linear}
 ACK_POLL_TIMEOUT_MS=${NOVA_AHB_ACK_POLL_TIMEOUT_MS:-0}
 BINARY=${NOVA_GAMESCOPE_HEADLESS:-$BUILD_DIR/gamescope-headless-build/src/gamescope}
 APK="$BUILD_DIR/nova-lab-debug.apk"
@@ -149,6 +150,15 @@ case "$ANDROID_VULKAN_LAYOUT_USAGE" in
         ;;
     *)
         echo "NOVA_ANDROID_VULKAN_LAYOUT_USAGE must be decimal or hexadecimal" >&2
+        exit 2
+        ;;
+esac
+
+case "$OUTPUT_TILING" in
+    linear|optimal)
+        ;;
+    *)
+        echo "NOVA_AHB_OUTPUT_TILING must be linear or optimal" >&2
         exit 2
         ;;
 esac
@@ -626,6 +636,7 @@ run_preflight_gate() {
         echo "preflight_remote_frame_marker_reset=adb shell setprop debug.nova.ahb_frame_marker 0"
         echo "preflight_remote_content_probe_reset=adb shell setprop debug.nova.ahb_content_probe 0"
         echo "preflight_remote_android_vulkan_layout_reset=adb shell setprop debug.nova.ahb_layout_width 0; setprop debug.nova.ahb_layout_height 0; setprop debug.nova.ahb_layout_usage 0"
+        echo "preflight_ahb_output_tiling=$OUTPUT_TILING"
         echo "preflight_remote_ack_poll_timeout_reset=adb shell setprop debug.nova.ahb_ack_poll_timeout_ms 0"
         echo "preflight_expected_artifact=$BINARY"
         echo "preflight_expected_artifact=$APK"
@@ -837,6 +848,7 @@ trap cleanup_on_exit EXIT
     echo "nova_ahb_content_probe=$AHB_CONTENT_PROBE"
     echo "android_vulkan_layout_probe=$ANDROID_VULKAN_LAYOUT_PROBE"
     echo "android_vulkan_layout_profile=${ANDROID_VULKAN_LAYOUT_WIDTH}x${ANDROID_VULKAN_LAYOUT_HEIGHT} usage=$ANDROID_VULKAN_LAYOUT_USAGE"
+    echo "nova_ahb_output_tiling=$OUTPUT_TILING"
     echo "nova_ahb_ack_poll_timeout_ms=$ACK_POLL_TIMEOUT_MS"
     echo "presentation_diagnostics=$PRESENTATION_DIAGNOSTICS"
     echo "steam_client_timeout=${NOVA_STEAM_CLIENT_TIMEOUT:-unset}"
@@ -961,6 +973,7 @@ VULKAN_AHB_FRAME_COUNT="$FRAME_COUNT" \
 VULKAN_AHB_WIDTH="$BUFFER_WIDTH" \
 VULKAN_AHB_HEIGHT="$BUFFER_HEIGHT" \
 VULKAN_AHB_OUTPUT_SOCKET="/run/nova-lab-app/$SOCKET_NAME" \
+NOVA_AHB_OUTPUT_TILING="$OUTPUT_TILING" \
     "$SCRIPT_DIR/deploy-holo-probe.sh"
 probe_status=$?
 set -e
@@ -1056,6 +1069,7 @@ fi
 if [ "${NOVA_GAMESCOPE_AHB_SKIP_WAYLAND_SHM:-0}" != "1" ]; then
     report_markers+=("wayland_shm_frames=$FRAME_COUNT")
 fi
+report_markers+=("Android AHardwareBuffer output import begin tiling=$OUTPUT_TILING")
 for marker in "${report_markers[@]}"; do
     if ! rg -q -- "$marker" "$REPORT"; then
         echo "missing report marker: $marker" >&2

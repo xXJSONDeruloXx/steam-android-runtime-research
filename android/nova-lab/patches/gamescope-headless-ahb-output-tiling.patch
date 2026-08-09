@@ -1,0 +1,26 @@
+diff --git a/src/rendervulkan.cpp b/src/rendervulkan.cpp
+--- a/src/rendervulkan.cpp
++++ b/src/rendervulkan.cpp
+@@ -3624,1 +3624,11 @@
+-	texCreateFlags.bLinear = true;
++	const char *requestedTiling = getenv( "NOVA_AHB_OUTPUT_TILING" );
++	const bool useOptimalTiling = requestedTiling != nullptr &&
++		strcmp( requestedTiling, "optimal" ) == 0;
++	const bool useLinearTiling = !useOptimalTiling;
++	const char *selectedTiling = useOptimalTiling ? "optimal" : "linear";
++	texCreateFlags.bLinear = useLinearTiling;
++	vk_log.infof( "Android AHardwareBuffer output import begin tiling=%s requested=%s width=%u height=%u format=0x%x modifier=0x%llx stride=%u",
++		selectedTiling,
++		requestedTiling == nullptr || requestedTiling[0] == '\0' ? "default" : requestedTiling,
++		pDMA->width, pDMA->height, pDMA->format,
++		(unsigned long long)pDMA->modifier, pDMA->stride[0] );
+@@ -3628,2 +3638,5 @@
+-		texCreateFlags, pDMA ) )
+-		return nullptr;
++		texCreateFlags, pDMA ) )
++	{
++		vk_log.errorf( "Android AHardwareBuffer output import result=fail tiling=%s", selectedTiling );
++		return nullptr;
++	}
+@@ -3631,0 +3644,1 @@
++	vk_log.infof( "Android AHardwareBuffer output import result=pass tiling=%s", selectedTiling );
