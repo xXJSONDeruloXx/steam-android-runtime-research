@@ -11,6 +11,8 @@ DISPLAY_NUMBER=${NOVA_TERMUX_X11_DISPLAY:-0}
 APK=${NOVA_TERMUX_X11_APK:?set NOVA_TERMUX_X11_APK to the official Termux:X11 APK}
 X11_ANIMATE=${NOVA_X11_ANIMATE:-$BUILD_DIR/nova-x11-animate}
 X11_CAPTURE=${NOVA_X11_CAPTURE:-$BUILD_DIR/nova-x11-capture}
+X11_WINDOW_NAME=${NOVA_TERMUX_X11_WINDOW_NAME:-Nova animated Xwayland Gamescope probe}
+WINDOW_WAIT_SECONDS=${NOVA_TERMUX_X11_WINDOW_WAIT_SECONDS:-1}
 RUNTIME_CLEANUP="$SCRIPT_DIR/device/nova-runtime-cleanup.sh"
 X11_PRIVATE_NAMESPACE_HELPER="$SCRIPT_DIR/device/nova-x11-private-namespace.sh"
 X11_CLEANUP_HELPER="$SCRIPT_DIR/device/nova-termux-x11-cleanup.sh"
@@ -71,6 +73,16 @@ case "$ALLOW_X11_CAPTURE_FAILURE" in
         exit 2
         ;;
 esac
+case "$WINDOW_WAIT_SECONDS" in
+    ''|*[!0-9]*)
+        echo "NOVA_TERMUX_X11_WINDOW_WAIT_SECONDS must be numeric" >&2
+        exit 2
+        ;;
+esac
+if [ "$WINDOW_WAIT_SECONDS" -lt 1 ]; then
+    echo "NOVA_TERMUX_X11_WINDOW_WAIT_SECONDS must be at least 1" >&2
+    exit 2
+fi
 
 if [ ! -f "$APK" ]; then
     echo "missing Termux:X11 APK: $APK" >&2
@@ -247,6 +259,8 @@ adb shell am start --user 0 -n com.termux.x11/com.termux.x11.MainActivity >"$RUN
     echo "client_launch=foreground adb shell su command with host-side background"
     echo "client_frames=$CLIENT_FRAMES"
     echo "allow_x11_capture_failure=$ALLOW_X11_CAPTURE_FAILURE"
+    echo "x11_window_name=${X11_WINDOW_NAME:-any viewable depth-1 child}"
+    echo "x11_window_wait_seconds=$WINDOW_WAIT_SECONDS"
     echo "presentation=Termux:X11 Android SurfaceView"
     echo "gamescope=not_used"
     echo "ahb_bridge=not_used"
@@ -289,14 +303,27 @@ adb shell su -c \
 REMOTE_CLIENT_HOST_PID=$!
 printf '%s\n' "$REMOTE_CLIENT_HOST_PID" >"$RUN_DIR/client-host-pid.txt"
 
-sleep 1
-adb shell su -c \
-    "$REMOTE_PRIVATE_NAMESPACE_HELPER chroot $DEVICE_ROOT /usr/bin/env -i PATH=/usr/bin:/bin HOME=/tmp XDG_RUNTIME_DIR=/tmp TMPDIR=/tmp DISPLAY=$DISPLAY_VALUE XKB_CONFIG_ROOT=$XKB_CONFIG_ROOT_RELATIVE $CHROOT_CAPTURE --tree" \
-    >"$RUN_DIR/x11-tree.txt"
-
-window_id=$(sed -n 's/^nova_x11_window id=\([^ ]*\).*name="Nova animated Xwayland Gamescope probe".*/\1/p' "$RUN_DIR/x11-tree.txt" | head -n 1)
+window_id=
+for attempt in $(seq 1 "$WINDOW_WAIT_SECONDS"); do
+    tree_status=0
+    adb shell su -c \
+        "$REMOTE_PRIVATE_NAMESPACE_HELPER chroot $DEVICE_ROOT /usr/bin/env -i PATH=/usr/bin:/bin HOME=/tmp XDG_RUNTIME_DIR=/tmp TMPDIR=/tmp DISPLAY=$DISPLAY_VALUE XKB_CONFIG_ROOT=$XKB_CONFIG_ROOT_RELATIVE $CHROOT_CAPTURE --tree" \
+        >"$RUN_DIR/x11-tree.txt" 2>&1 || tree_status=$?
+    if [ -n "$X11_WINDOW_NAME" ]; then
+        window_id=$(sed -n "s/^nova_x11_window id=\\([^ ]*\\).*name=\"$X11_WINDOW_NAME\".*/\\1/p" "$RUN_DIR/x11-tree.txt" | head -n 1)
+    else
+        window_id=$(sed -n 's/^nova_x11_window id=\([^ ]*\).*depth=1 map_state=viewable.*/\1/p' "$RUN_DIR/x11-tree.txt" | head -n 1)
+    fi
+    if [[ "$window_id" =~ ^0x[0-9A-Fa-f]+$ ]]; then
+        break
+    fi
+    window_id=
+    if [ "$attempt" -lt "$WINDOW_WAIT_SECONDS" ]; then
+        sleep 1
+    fi
+done
 if [[ ! "$window_id" =~ ^0x[0-9A-Fa-f]+$ ]]; then
-    echo "synthetic X11 window was not discovered" >&2
+    echo "X11 window was not discovered after ${WINDOW_WAIT_SECONDS}s" >&2
     exit 1
 fi
 echo "termux_x11_window=pass id=$window_id"

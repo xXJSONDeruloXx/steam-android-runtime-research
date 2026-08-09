@@ -1,0 +1,142 @@
+#!/bin/sh
+
+set -u
+
+STEAM_HOME=/opt/nova-steam/home
+STEAM_ROOT="$STEAM_HOME/.local/share/Steam"
+STEAM_EXECUTABLE="$STEAM_ROOT/steamrtarm64/steam"
+CLIENT_LOG=/tmp/nova-steam-client.log
+CLIENT_STDOUT=/tmp/nova-steam-client.stdout
+CLIENT_STDERR=/tmp/nova-steam-client.stderr
+RUNTIME_DIR=/tmp/nova-steam-runtime
+STEAM_UID=501
+STEAM_GID=20
+CLIENT_TIMEOUT=60
+client_pid=
+
+log() {
+    echo "$1" >>"$CLIENT_LOG"
+}
+
+run_as_steam() {
+    /usr/bin/setpriv --reuid="$STEAM_UID" --regid="$STEAM_GID" \
+        --clear-groups "$@"
+}
+
+finish() {
+    status=$?
+    trap - EXIT INT TERM
+    if [ -n "${client_pid:-}" ] && /usr/bin/kill -0 "$client_pid" 2>/dev/null; then
+        /usr/bin/kill "$client_pid" 2>/dev/null || true
+        /usr/bin/sleep 0.2
+        /usr/bin/kill -9 "$client_pid" 2>/dev/null || true
+    fi
+    if [ -f "$CLIENT_LOG" ]; then
+        cat "$CLIENT_LOG"
+    fi
+    exit "$status"
+}
+trap finish EXIT INT TERM
+
+: >"$CLIENT_LOG"
+log "client_begin $(date +%s)"
+log "client_kind=steam_arm64_direct_termux_x11"
+log "client_display=${DISPLAY:-unset}"
+log "client_home=$STEAM_HOME"
+log "client_root=$STEAM_ROOT"
+log "client_executable=$STEAM_EXECUTABLE"
+log "client_flags=-gamepadui -steamos3 -steampal -steamdeck -nobootstrapperupdate -skipinitialbootstrap -no-child-update-ui -no-cef-sandbox"
+log "client_uid=$STEAM_UID"
+log "client_gid=$STEAM_GID"
+log "client_xauthority=${XAUTHORITY:-unset}"
+log "client_runtime_dir=$RUNTIME_DIR"
+
+if [ ! -x "$STEAM_EXECUTABLE" ]; then
+    log "client_started=fail"
+    log "client_error=missing_or_nonexecutable_executable"
+    exit 1
+fi
+if [ ! -x /usr/bin/setpriv ]; then
+    log "client_started=fail"
+    log "client_error=missing_setpriv"
+    exit 1
+fi
+
+mkdir -p "$STEAM_HOME" "$RUNTIME_DIR"
+if ! /usr/bin/chown "$STEAM_UID:$STEAM_GID" "$RUNTIME_DIR" ||
+    ! /usr/bin/chmod 700 "$RUNTIME_DIR"; then
+    log "client_runtime_owner_status=fail"
+    exit 1
+fi
+log "client_runtime_owner_status=pass"
+
+if [ -x /opt/nova-kgsl-driver/nova-steam-network-api-compat.sh ]; then
+    /opt/nova-kgsl-driver/nova-steam-network-api-compat.sh "$STEAM_ROOT" \
+        >>"$CLIENT_LOG" 2>&1
+    network_status=$?
+    log "client_network_api_compat_status=$network_status"
+    if [ "$network_status" -ne 0 ]; then
+        exit 1
+    fi
+else
+    log "client_network_api_compat_status=missing_helper"
+    exit 1
+fi
+
+if [ -x /usr/bin/xhost ]; then
+    env -u LD_PRELOAD DISPLAY=:0 /usr/bin/xhost +local: >>"$CLIENT_LOG" 2>&1
+    log "client_xhost_local_status=$?"
+fi
+
+export HOME="$STEAM_HOME"
+export USER=steam
+export LOGNAME=steam
+export DISPLAY=:0
+export XDG_RUNTIME_DIR="$RUNTIME_DIR"
+export LANG=C
+export LC_ALL=C
+steam_runtime_files_bin=
+for candidate in "$STEAM_ROOT"/steam-runtime-steamrt-arm64/*/files/bin; do
+    if [ -d "$candidate" ]; then
+        steam_runtime_files_bin=$candidate
+        break
+    fi
+done
+export PATH="$STEAM_ROOT/steam-runtime-steamrt-arm64/bin${steam_runtime_files_bin:+:$steam_runtime_files_bin}:/usr/bin:/bin"
+log "client_runtime_files_bin=${steam_runtime_files_bin:-unset}"
+export MESA_LOADER_DRIVER_OVERRIDE=swrast
+export GALLIUM_DRIVER=softpipe
+export LIBGL_ALWAYS_SOFTWARE=1
+export LD_LIBRARY_PATH="$STEAM_ROOT/steamrtarm64:$STEAM_ROOT/lib/aarch64-linux-gnu:/usr/lib${steam_runtime_files_bin:+:${steam_runtime_files_bin%/bin}/lib/aarch64-linux-gnu}${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+export LD_PRELOAD=/opt/nova-kgsl-driver/libsysv-sem-shim.so
+log "client_mesa_driver=$MESA_LOADER_DRIVER_OVERRIDE"
+log "client_gallium_driver=$GALLIUM_DRIVER"
+log "client_libgl_always_software=1"
+log "client_preload=/opt/nova-kgsl-driver/libsysv-sem-shim.so"
+
+run_as_steam /usr/bin/timeout "$CLIENT_TIMEOUT" "$STEAM_EXECUTABLE" \
+    -gamepadui -steamos3 -steampal -steamdeck \
+    -nobootstrapperupdate -skipinitialbootstrap -no-child-update-ui \
+    -no-cef-sandbox >"$CLIENT_STDOUT" 2>"$CLIENT_STDERR" &
+client_pid=$!
+log "client_pid=$client_pid"
+if /usr/bin/kill -0 "$client_pid" 2>/dev/null; then
+    log "client_started=pass"
+else
+    log "client_started=fail"
+fi
+wait "$client_pid" 2>/dev/null
+client_status=$?
+log "client_status=$client_status"
+if [ "$client_status" -eq 124 ]; then
+    log "client_timeout=expected"
+fi
+if [ -f "$STEAM_ROOT/package/steam_client_steamdeck_publicbeta_linuxarm64.installed" ]; then
+    log "client_installed=pass"
+else
+    log "client_installed=absent"
+fi
+log "client_stdout=$(wc -c <"$CLIENT_STDOUT")"
+log "client_stderr=$(wc -c <"$CLIENT_STDERR")"
+log "client_end $(date +%s)"
+exit 0
