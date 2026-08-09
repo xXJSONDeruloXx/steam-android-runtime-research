@@ -25,7 +25,8 @@ keystore, and verified by `apksigner`.
 | --- | --- | --- | --- |
 | initial launch | `8fb5c20` | `1f64fc080989652422de52e7f159432113399564442eaffad22a5af6e8f1c155` | 0.3 |
 | window-order retry | `d641095` | `c0b57de4ee3fbe75ed4a90a0dc4f289d36a45f2f502985d2b26baddd436da21c` | 0.3 |
-| preflight-guard fix, pending device retest | working tree after this record | `a5f4a5512fc89da9380eb275a81d1f408ed11796f0655be83f1f512b3f56b2a0` | 0.3 |
+| preflight-guard fix, pending device retest | `0d137c6` | `a5f4a5512fc89da9380eb275a81d1f408ed11796f0655be83f1f512b3f56b2a0` | 0.3 |
+| relay-corrected build, pending device retest | working tree after `0d137c6` | `d9288c9f7843c215441c074d51491e473b7b53453a1e4454adb4a576db766306` | 0.3 |
 
 The runtime inputs for both attempts were the direct launcher mode: Termux:X11
 APK `/data/app/~~EaHbYh5LSrJyPyjYrj44Wg==/com.termux.x11-Yy3Sfe-6FUYa5hx2OcDldw==/base.apk`,
@@ -79,6 +80,57 @@ The corrected preflight build is `a5f4a5512fc89da9380eb275a81d1f408ed11796f0655b
 It has not yet been installed and run on the device at the time of this
 record, so standalone APK-to-Steam acceptance remains pending.
 
+### `launcher-20260809T200145Z-apk-v03-preflight-guard`
+
+The preflight-guard build (`a5f4a5512fc89da9380eb275a81d1f408ed11796f0655be83f1f512b3f56b2a0`)
+was installed successfully. The APK rendered, the root launcher passed its
+preflight, and the fresh state reached:
+
+```text
+nova_launcher_ready=pass display=:0 geometry=1280x960
+```
+
+The APK therefore launched native ARM64 Steam and `steamwebhelper` from the
+rootfs. The Android capture reached the signed-in Steam home screen; its SHA is
+`5f4ac46dfbcc2261ee232ea28f521dc3c6771caf5dad14bb72b6b10e8cfe877b`.
+The X11 tree and window capture were both fresh and stable: the root was
+1280x960, while `Steam Big Picture Mode` was explicitly created as
+1280x800. The baseline and settled X11 PPM hashes were
+`3b1d600afb64cbe3eb5c886559a7270763250a68c5e3c1453a1b72f6457da174` and
+`c02a9eb80c69975825f1d54a6d608e9fad82ef0f1036ff48551fd7592f26db8d`.
+This confirms the remaining black bottom band is a Steam/X11 window-size
+decision, not an Android SurfaceView crop; `-fullscreen -fulldesktopres` did
+not make the Big Picture window 4:3.
+
+The physical input relay did not reach readiness:
+
+```text
+nova_launcher_gamepad=not_ready
+env: '/data/local/tmp/nova-holo-rootfs/opt/nova-kgsl-driver/nova-uinput-gamepad-relay': No such file or directory
+```
+
+The binary was present in the staged rootfs. The failure is in
+`nova-uinput-gamepad-relay-launcher.sh`: it passed a host-root absolute helper
+path into `chroot`, which caused the chroot to look for the path a second time
+under the root. The wrapper now strips the root prefix before `chroot`.
+
+This does not mean controller support was absent in this run. Steam's fresh
+`controller.txt` detected the Android Xbox device as an Xbox 360 Controller and
+loaded the complete SDL mapping, including `a`, `b`, `x`, `y`, `leftshoulder`,
+`rightshoulder`, and the D-pad. `dumpsys input` named Termux:X11 as the focused
+window. The relay correction still needs a fresh device run before physical
+button forwarding is accepted as a product gate.
+
+Steam's client stdout still records Vulkan enumeration failure, but the same
+run reached the signed-in UI through the deliberate software CEF path. This is
+not evidence of hardware-accelerated Steam UI or game rendering.
+
+The product stop command removed the runtime, but returned failure because the
+Termux:X11 cleanup sub-gate failed; the subsequent exact runtime helper
+returned `pass` and the residual process audit was empty. The next run will
+retain the cleanup log before removing state so that sub-gate can be repaired
+or explained rather than hidden.
+
 ## Cleanup
 
 Both attempts ended without a Nova Steam runtime. The retry's teardown still
@@ -94,7 +146,7 @@ matching runtime. No broad process kill was used.
 
 ## Next gate
 
-Install the preflight-guard build as a new run identity and confirm, in order:
+Install the relay-corrected build as a new run identity and confirm, in order:
 
 1. the APK launcher renders;
 2. the root-side preflight passes without a stale-process match;

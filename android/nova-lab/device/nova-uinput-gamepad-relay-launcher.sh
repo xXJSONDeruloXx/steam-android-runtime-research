@@ -53,6 +53,13 @@ if ! /system/bin/mount -o bind /proc "$ROOT/proc" >/dev/null 2>&1; then
 fi
 echo "relay_mount_proc=pass"
 
+HELPER_IN_ROOT="$HELPER"
+case "$HELPER_IN_ROOT" in
+    "$ROOT"/*)
+        HELPER_IN_ROOT="${HELPER_IN_ROOT#"$ROOT"}"
+        ;;
+esac
+
 exec /system/bin/chroot "$ROOT" /usr/bin/env -i \
     PATH=/usr/bin:/bin HOME=/tmp XDG_RUNTIME_DIR=/tmp \
-    "$HELPER" "$SOURCE" "$TIMEOUT" "$MODE" "$@"
+    "$HELPER_IN_ROOT" "$SOURCE" "$TIMEOUT" "$MODE" "$@"
