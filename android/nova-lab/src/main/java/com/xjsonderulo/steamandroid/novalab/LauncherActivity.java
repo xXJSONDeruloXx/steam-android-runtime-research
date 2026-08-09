@@ -63,7 +63,6 @@ public final class LauncherActivity extends Activity {
     protected void onCreate(Bundle state) {
         super.onCreate(state);
         getWindow().addFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
-        enterImmersiveMode();
 
         LinearLayout page = new LinearLayout(this);
         page.setOrientation(LinearLayout.VERTICAL);
@@ -128,6 +127,7 @@ public final class LauncherActivity extends Activity {
         page.addView(note, new LinearLayout.LayoutParams(-1, -2));
 
         setContentView(page);
+        enterImmersiveMode();
         handler.post(statusRefresh);
     }
 
