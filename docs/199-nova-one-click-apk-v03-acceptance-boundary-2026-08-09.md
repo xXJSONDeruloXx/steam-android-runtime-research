@@ -956,6 +956,62 @@ No product default is changed by this result. Once the device is awake, the
 same profile can be repeated for a real Android-surface visual check; the
 input blocker remains intentionally out of scope for that check.
 
+### `audio-20260809T224305Z-inventory-v2`
+
+This was a read-only audio inventory performed after the geometry runs. The
+exact Nova cleanup passed before the inventory, the test APK was force-stopped,
+and no Steam runtime, physical input, synthetic input, or screen unlock was
+used. The device remained locked/asleep.
+
+The Android side has a real audio path available. `/dev/snd` exists with
+`controlC0`, playback and capture PCM nodes, and a `kalama-qrd-snd-card` ALSA
+card. Android also has `audiopd`, `android.hardware.audio.service_64`, and
+`audioserver` running. Audio policy reports a 48 kHz stereo Speaker output and
+AudioFlinger reports the primary mixer routed to `AUDIO_DEVICE_OUT_SPEAKER`.
+Those are capability and routing facts, not an audible acceptance result: no
+controlled tone or Steam audio stream was played in this run.
+
+The rootfs is the missing boundary. Under
+`/data/local/tmp/nova-holo-rootfs`, `/dev/snd` is absent, `/run/pulse` is
+absent, and `/run/pipewire` is absent. The rootfs contains a `pactl` client and
+the libpulse/libpipewire libraries, but the inventory found no `pulseaudio`,
+`pipewire`, `pw-cli`, `aplay`, or `arecord` executable. Running the rootfs
+`pactl info` client directly returned `Connection refused`, so the existing
+Steam `default` audio path has no server/socket to reach. This points to an
+Android-facing audio bridge or server endpoint, not a missing Nova speaker or
+Android codec.
+
+The first attempt at a nested root-side client probe was discarded because
+Android shell quoting produced a syntax error. Its exact-scope cleanup passed;
+the accepted client result above came from a fresh cleanup followed by simple
+non-nested commands. The final exact cleanup also passed with no matching Nova
+runtime remaining.
+
+Artifacts are under
+`android/nova-lab/build/manual-runs/audio-20260809T224305Z-inventory-v2/`:
+
+* Android audio device nodes:
+  `ccf238ca9e56a0472a063eac0c3eac084f03efe95a92e1ac18ae58344cc5c25b`;
+* Android ALSA cards:
+  `1279176372a51050ccf4b87ce84d5f6d8b916631e7c9b0fb6b6a5c2574ef120c`;
+* Android ALSA PCM inventory:
+  `ab5451c8fe47943c7399aeae665e2b46265b4b1e113c0a411a701bcf9b44e335`;
+* AudioFlinger dump:
+  `6e2901a13a45adb98fbadb31ea265eb2d995992be847f4b1918f9f8092da67d0`;
+* audio-policy dump:
+  `31bd115c94befbaac31d2221c382c777a8f140e8838d211ad03804aa0ddd9671`;
+* rootfs audio inventory:
+  `bc054f3befc9a76eb65856520fc10d81772bbfe822ab8f48c48fa887f758c41b`;
+* rootfs `pactl info` result:
+  `606c6b913b950eb3047f3250bfb41e291771292efe943fda08776ce936137da1`;
+* final exact cleanup:
+  `f2f26e1240aa3ff2c64857dcec98b9ea666933d19c02443fc688e453544949f1`.
+
+The next non-input experiment is an Android `AudioTrack` proof-of-life in the
+test APK, followed by a narrow bridge design that can present Steam's PCM to
+that Android sink. It should record the Android audio-service track state and
+remain separate from the physical-controller investigation.
+
 ## Cleanup
 
 Every attempt ended without a Nova Steam runtime. The exact helper returned
@@ -971,22 +1027,20 @@ matching runtime. No broad process kill was used.
 
 ## Next gate
 
-The direct APK path is now repeatable through signed-in Steam UI and the
-single-controller namespace gate is accepted, but physical-controller
-forwarding is not yet accepted. The next run should focus on the remaining
-product boundaries, in order:
+The direct APK path is now repeatable through signed-in Steam UI, while
+physical-controller forwarding remains intentionally untested in the current
+operator-away window. The next product work is deliberately off the button
+path:
 
-1. inspect the Retroid `keydetect`/`/dev/adckey` and MCU source path, including
-   the effect of `persist.sys.handle.mode=1`, and require a real physical
-   event before re-running the relay gate;
-2. test and fix the 1280x800 Steam window geometry against the 1280x960 Nova
-   surface;
-3. establish whether the `default` Steam audio manager reaches an Android
-   sink;
-4. preserve the direct APK fallback while adding a separately identified
+1. add an Android `AudioTrack` proof-of-life to the test APK and determine the
+   smallest PCM bridge boundary for Steam audio;
+2. repeat the 1280x800 Termux:X11 stretch profile against the awake 1280x960
+   Nova surface for a real visual check;
+3. preserve the direct APK fallback while adding a separately identified
    Gamescope/AHardwareBuffer product mode; and
-5. keep 198X/game launch as a separate translation-runtime phase because its
-   current blocker is x86-64 execution, not display or controller input.
+4. keep physical controls and 198X/game launch as separate phases, because
+   the former needs one known real press and the latter currently has an
+   x86-64 execution blocker rather than a display blocker.
 
 Only after that direct product path is repeatable should the APK gain the
 separate Gamescope/AHardwareBuffer product mode.
