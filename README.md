@@ -292,6 +292,7 @@ the gamescope frames on its own surface.
 - [Termux:X11 network inventory window-wait result](docs/174-termux-x11-network-inventory-window-wait-result-2026-08-09.md)
 - [Termux:X11 network inventory client-selection result](docs/175-termux-x11-network-inventory-client-selection-result-2026-08-09.md)
 - [Termux:X11 network inventory observer-path result](docs/176-termux-x11-network-inventory-observer-path-result-2026-08-09.md)
+- [Termux:X11 network inventory result](docs/177-termux-x11-network-inventory-result-2026-08-09.md)
 - [Retroid Pocket Nova flashing kit](tools/retroid-pocket-nova/README.md)
 
 ## Evidence standard
