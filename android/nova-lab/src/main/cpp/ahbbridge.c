@@ -10,6 +10,7 @@
 #include <errno.h>
 #include <poll.h>
 #include <pthread.h>
+#include <stddef.h>
 #include <stdarg.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -19,6 +20,7 @@
 #include <sys/stat.h>
 #include <sys/system_properties.h>
 #include <sys/time.h>
+#include <sys/types.h>
 #include <sys/un.h>
 #include <sys/uio.h>
 #include <time.h>
@@ -81,6 +83,154 @@ ahb_socket_type(int fd)
     return -1;
 }
 
+static int ahb_socket_connection_fds[3] = {-1, -1, -1};
+static unsigned int ahb_socket_connection_generations[3] = {0, 0, 0};
+
+static void
+ahb_socket_register_connection(int buffer, int fd)
+{
+    if (buffer < 0 || buffer >= 3 || fd < 0) {
+        return;
+    }
+    ahb_socket_connection_fds[buffer] = fd;
+    ahb_socket_connection_generations[buffer] += 1;
+    if (ahb_socket_connection_generations[buffer] == 0) {
+        ahb_socket_connection_generations[buffer] = 1;
+    }
+}
+
+static unsigned int
+ahb_socket_connection_generation(int buffer, int fd)
+{
+    if (buffer < 0 || buffer >= 3 || fd < 0 ||
+        ahb_socket_connection_fds[buffer] != fd) {
+        return 0;
+    }
+    return ahb_socket_connection_generations[buffer];
+}
+
+static unsigned long long
+ahb_socket_cookie(int fd)
+{
+#ifdef SO_COOKIE
+    uint64_t cookie = 0;
+    socklen_t length = sizeof(cookie);
+    if (fd >= 0 && getsockopt(fd, SOL_SOCKET, SO_COOKIE, &cookie, &length) ==
+                        0) {
+        return (unsigned long long)cookie;
+    }
+#else
+    (void)fd;
+#endif
+    return 0;
+}
+
+static void
+ahb_socket_peer_credentials(int fd, int *pid, int *uid, int *gid)
+{
+    *pid = -1;
+    *uid = -1;
+    *gid = -1;
+#ifdef SO_PEERCRED
+    struct {
+        pid_t pid;
+        uid_t uid;
+        gid_t gid;
+    } credentials = {0};
+    socklen_t length = sizeof(credentials);
+    if (fd >= 0 && getsockopt(fd, SOL_SOCKET, SO_PEERCRED, &credentials,
+                              &length) == 0) {
+        *pid = (int)credentials.pid;
+        *uid = (int)credentials.uid;
+        *gid = (int)credentials.gid;
+    }
+#else
+    (void)fd;
+#endif
+}
+
+static void
+ahb_socket_name(int fd, int peer, char *name, size_t capacity)
+{
+    if (capacity == 0) {
+        return;
+    }
+    name[0] = '\0';
+    struct sockaddr_un address = {0};
+    socklen_t length = sizeof(address);
+    int status = peer
+                     ? getpeername(fd, (struct sockaddr *)&address, &length)
+                     : getsockname(fd, (struct sockaddr *)&address, &length);
+    if (status != 0 || length <= offsetof(struct sockaddr_un, sun_path)) {
+        snprintf(name, capacity, "<unnamed>");
+        return;
+    }
+    size_t path_length =
+        length - offsetof(struct sockaddr_un, sun_path);
+    if (path_length > sizeof(address.sun_path)) {
+        path_length = sizeof(address.sun_path);
+    }
+    if (address.sun_path[0] == '\0') {
+        name[0] = '@';
+        if (capacity == 1) {
+            return;
+        }
+        size_t copy_length = path_length > 1 ? path_length - 1 : 0;
+        if (copy_length > capacity - 2) {
+            copy_length = capacity - 2;
+        }
+        memcpy(name + 1, address.sun_path + 1, copy_length);
+        name[copy_length + 1] = '\0';
+        return;
+    }
+    size_t copy_length = strnlen(address.sun_path, path_length);
+    if (copy_length > capacity - 1) {
+        copy_length = capacity - 1;
+    }
+    memcpy(name, address.sun_path, copy_length);
+    name[copy_length] = '\0';
+}
+
+static void
+ahb_socket_cmsg_summary(const struct msghdr *message, char *summary,
+                        size_t capacity)
+{
+    if (capacity == 0) {
+        return;
+    }
+    summary[0] = '\0';
+    if (message == NULL) {
+        snprintf(summary, capacity, "none");
+        return;
+    }
+    size_t used = 0;
+    int header_index = 0;
+    for (struct cmsghdr *header = CMSG_FIRSTHDR(message); header != NULL;
+         header = CMSG_NXTHDR((struct msghdr *)message, header)) {
+        size_t bytes = 0;
+        int valid = header->cmsg_len >= CMSG_LEN(0) &&
+                    header->cmsg_len <= message->msg_controllen;
+        if (valid) {
+            bytes = header->cmsg_len - CMSG_LEN(0);
+        }
+        int written = snprintf(
+            summary + used, capacity - used, "%s%d:%d:%zu:%s",
+            header_index == 0 ? "" : ";", header->cmsg_level,
+            header->cmsg_type, header->cmsg_len,
+            valid ? (bytes % sizeof(int) == 0 ? "aligned" : "unaligned")
+                  : "invalid");
+        if (written < 0 || (size_t)written >= capacity - used) {
+            used = capacity - 1;
+            break;
+        }
+        used += (size_t)written;
+        header_index += 1;
+    }
+    if (header_index == 0) {
+        snprintf(summary, capacity, "none");
+    }
+}
+
 static int
 ahb_socket_rights_count(const struct msghdr *message)
 {
@@ -92,7 +242,8 @@ ahb_socket_rights_count(const struct msghdr *message)
          header = CMSG_NXTHDR((struct msghdr *)message, header)) {
         if (header->cmsg_level == SOL_SOCKET &&
             header->cmsg_type == SCM_RIGHTS &&
-            header->cmsg_len >= CMSG_LEN(0)) {
+            header->cmsg_len >= CMSG_LEN(0) &&
+            header->cmsg_len <= message->msg_controllen) {
             count += (int)((header->cmsg_len - CMSG_LEN(0)) / sizeof(int));
         }
     }
@@ -108,12 +259,25 @@ ahb_socket_trace(const char *operation, int frame, int buffer, int fd,
     if (!ahb_socket_trace_enabled()) {
         return;
     }
+    char local_name[sizeof(((struct sockaddr_un *)0)->sun_path) + 1] = {0};
+    char peer_name[sizeof(((struct sockaddr_un *)0)->sun_path) + 1] = {0};
+    char cmsg_summary[128] = {0};
+    int peer_pid = -1;
+    int peer_uid = -1;
+    int peer_gid = -1;
+    ahb_socket_name(fd, 0, local_name, sizeof(local_name));
+    ahb_socket_name(fd, 1, peer_name, sizeof(peer_name));
+    ahb_socket_peer_credentials(fd, &peer_pid, &peer_uid, &peer_gid);
+    ahb_socket_cmsg_summary(message, cmsg_summary, sizeof(cmsg_summary));
     __android_log_print(
         ANDROID_LOG_INFO, "NovaLab",
-        "ahb_socket_trace op=%s frame=%d buffer=%d fd=%d inode=%llu type=%d result=%zd errno=%d msg_flags=0x%x rights=%d fence_fd=%d payload=%s",
+        "ahb_socket_trace op=%s frame=%d buffer=%d fd=%d inode=%llu type=%d generation=%u cookie=%llu peer_pid=%d peer_uid=%d peer_gid=%d local=%s peer=%s result=%zd errno=%d msg_flags=0x%x msg_controllen=%zu cmsgs=%s rights=%d fence_fd=%d payload=%s",
         operation, frame, buffer, fd, ahb_socket_inode(fd),
-        ahb_socket_type(fd), result, error_number,
+        ahb_socket_type(fd), ahb_socket_connection_generation(buffer, fd),
+        ahb_socket_cookie(fd), peer_pid, peer_uid, peer_gid, local_name,
+        peer_name, result, error_number,
         message != NULL ? message->msg_flags : 0,
+        message != NULL ? message->msg_controllen : 0, cmsg_summary,
         ahb_socket_rights_count(message), fence_fd,
         payload != NULL ? payload : "");
 }
@@ -127,9 +291,10 @@ ahb_socket_poll_trace(const char *operation, int frame, int buffer, int fd,
     }
     __android_log_print(
         ANDROID_LOG_INFO, "NovaLab",
-        "ahb_socket_poll op=%s frame=%d buffer=%d fd=%d inode=%llu type=%d result=%d revents=0x%x errno=%d",
+        "ahb_socket_poll op=%s frame=%d buffer=%d fd=%d inode=%llu type=%d generation=%u cookie=%llu result=%d revents=0x%x errno=%d",
         operation, frame, buffer, fd, ahb_socket_inode(fd),
-        ahb_socket_type(fd), result, (unsigned int)revents, error_number);
+        ahb_socket_type(fd), ahb_socket_connection_generation(buffer, fd),
+        ahb_socket_cookie(fd), result, (unsigned int)revents, error_number);
 }
 
 static void
@@ -520,8 +685,10 @@ receive_bridge_acknowledgement(int client, char *acknowledgement,
                      "blocking_recvmsg=begin");
     ahb_socket_wait_probe(frame, buffer, client);
     errno = 0;
-    ssize_t bytes = recvmsg(client, &message, 0);
+    ssize_t bytes = recvmsg(client, &message, MSG_CMSG_CLOEXEC);
     int error_number = bytes < 0 ? errno : 0;
+    int protocol_error = bytes >= 0 &&
+                         (message.msg_flags & (MSG_CTRUNC | MSG_TRUNC)) != 0;
     if (bytes > 0) {
         acknowledgement[bytes < (ssize_t)capacity ? bytes : capacity - 1] =
             '\0';
@@ -530,11 +697,20 @@ receive_bridge_acknowledgement(int client, char *acknowledgement,
     }
     for (struct cmsghdr *header = CMSG_FIRSTHDR(&message); header != NULL;
          header = CMSG_NXTHDR(&message, header)) {
+        if (header->cmsg_len < CMSG_LEN(0) ||
+            header->cmsg_len > message.msg_controllen) {
+            protocol_error = 1;
+            continue;
+        }
         if (header->cmsg_level != SOL_SOCKET ||
             header->cmsg_type != SCM_RIGHTS) {
             continue;
         }
         size_t byte_count = header->cmsg_len - CMSG_LEN(0);
+        if (byte_count % sizeof(int) != 0) {
+            protocol_error = 1;
+            continue;
+        }
         size_t descriptor_count = byte_count / sizeof(int);
         int *descriptors = (int *)CMSG_DATA(header);
         for (size_t index = 0; index < descriptor_count; ++index) {
@@ -548,6 +724,15 @@ receive_bridge_acknowledgement(int client, char *acknowledgement,
     ahb_socket_trace("ack_wait_end", frame, buffer, client, bytes,
                      error_number, &message, *acquire_fence_fd,
                      acknowledgement);
+    if (protocol_error) {
+        if (*acquire_fence_fd >= 0) {
+            close(*acquire_fence_fd);
+            *acquire_fence_fd = -1;
+        }
+        ahb_socket_trace("ack_protocol_error", frame, buffer, client, bytes,
+                         0, &message, -1, "ancillary_or_message_truncated");
+        return -1;
+    }
     ahb_socket_trace("ack_recv", frame, buffer, client, bytes, error_number,
                      &message, *acquire_fence_fd, acknowledgement);
     return bytes;
@@ -732,7 +917,7 @@ Java_com_xjsonderulo_steamandroid_novalab_MainActivity_nativeRunDmaBufBridge(
         .msg_controllen = sizeof(acknowledgement_control),
     };
     ssize_t acknowledgement_bytes =
-        recvmsg(client, &acknowledgement_message, 0);
+        recvmsg(client, &acknowledgement_message, MSG_CMSG_CLOEXEC);
     if (acknowledgement_bytes > 0) {
         acknowledgement[acknowledgement_bytes] = '\0';
     }
@@ -983,6 +1168,7 @@ Java_com_xjsonderulo_steamandroid_novalab_MainActivity_nativeRunDmaBufDoubleBuff
         errno = 0;
         clients[index] = accept(servers[index], NULL, NULL);
         int accept_error = clients[index] < 0 ? errno : 0;
+        ahb_socket_register_connection(index, clients[index]);
         ahb_socket_trace("accept", -1, index, clients[index],
                          clients[index] >= 0 ? 0 : -1, accept_error, NULL,
                          -1, NULL);

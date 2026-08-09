@@ -1,0 +1,253 @@
+--- a/src/Backends/HeadlessBackend.cpp
++++ b/src/Backends/HeadlessBackend.cpp
+@@ -5,0 +6,3 @@
++#include <cstddef>
++#include <cstdint>
++#include <cstdio>
+@@ -7,0 +11 @@
++#include <cstring>
+@@ -10,0 +15 @@
++#include <sys/types.h>
+@@ -73,0 +79,131 @@
++    }
++
++    static int android_socket_connection_fds[3] = {-1, -1, -1};
++    static unsigned int android_socket_connection_generations[3] = {0, 0, 0};
++
++    static void android_socket_register_connection( int index, int fd )
++    {
++        if ( index < 0 || index >= 3 || fd < 0 )
++            return;
++        android_socket_connection_fds[index] = fd;
++        android_socket_connection_generations[index]++;
++        if ( android_socket_connection_generations[index] == 0 )
++            android_socket_connection_generations[index] = 1;
++    }
++
++    static unsigned int android_socket_connection_generation( int index, int fd )
++    {
++        if ( index < 0 || index >= 3 || fd < 0 ||
++             android_socket_connection_fds[index] != fd )
++            return 0;
++        return android_socket_connection_generations[index];
++    }
++
++    static unsigned long long android_socket_cookie( int fd )
++    {
++#ifdef SO_COOKIE
++        uint64_t cookie = 0;
++        socklen_t length = sizeof( cookie );
++        if ( fd >= 0 && getsockopt( fd, SOL_SOCKET, SO_COOKIE, &cookie, &length ) == 0 )
++            return (unsigned long long)cookie;
++#else
++        (void)fd;
++#endif
++        return 0;
++    }
++
++    static void android_socket_peer_credentials( int fd, int *pid, int *uid, int *gid )
++    {
++        *pid = -1;
++        *uid = -1;
++        *gid = -1;
++#ifdef SO_PEERCRED
++        struct
++        {
++            pid_t pid;
++            uid_t uid;
++            gid_t gid;
++        } credentials = {};
++        socklen_t length = sizeof( credentials );
++        if ( fd >= 0 && getsockopt( fd, SOL_SOCKET, SO_PEERCRED, &credentials, &length ) == 0 )
++        {
++            *pid = (int)credentials.pid;
++            *uid = (int)credentials.uid;
++            *gid = (int)credentials.gid;
++        }
++#else
++        (void)fd;
++#endif
++    }
++
++    static void android_socket_name( int fd, bool peer, char *name, size_t capacity )
++    {
++        if ( capacity == 0 )
++            return;
++        name[0] = '\0';
++        sockaddr_un address = {};
++        socklen_t length = sizeof( address );
++        int status = peer
++            ? getpeername( fd, reinterpret_cast<sockaddr *>( &address ), &length )
++            : getsockname( fd, reinterpret_cast<sockaddr *>( &address ), &length );
++        if ( status != 0 || length <= offsetof( sockaddr_un, sun_path ) )
++        {
++            snprintf( name, capacity, "<unnamed>" );
++            return;
++        }
++        size_t pathLength = length - offsetof( sockaddr_un, sun_path );
++        if ( pathLength > sizeof( address.sun_path ) )
++            pathLength = sizeof( address.sun_path );
++        if ( address.sun_path[0] == '\0' )
++        {
++            name[0] = '@';
++            if ( capacity == 1 )
++                return;
++            size_t copyLength = pathLength > 1 ? pathLength - 1 : 0;
++            if ( copyLength > capacity - 2 )
++                copyLength = capacity - 2;
++            memcpy( name + 1, address.sun_path + 1, copyLength );
++            name[copyLength + 1] = '\0';
++            return;
++        }
++        size_t copyLength = strnlen( address.sun_path, pathLength );
++        if ( copyLength > capacity - 1 )
++            copyLength = capacity - 1;
++        memcpy( name, address.sun_path, copyLength );
++        name[copyLength] = '\0';
++    }
++
++    static void android_socket_cmsg_summary( const msghdr *message, char *summary, size_t capacity )
++    {
++        if ( capacity == 0 )
++            return;
++        summary[0] = '\0';
++        if ( message == nullptr )
++        {
++            snprintf( summary, capacity, "none" );
++            return;
++        }
++        size_t used = 0;
++        int headerIndex = 0;
++        for ( cmsghdr *header = CMSG_FIRSTHDR( const_cast<msghdr *>( message ) );
++              header != nullptr;
++              header = CMSG_NXTHDR( const_cast<msghdr *>( message ), header ) )
++        {
++            bool valid = header->cmsg_len >= CMSG_LEN( 0 ) &&
++                header->cmsg_len <= message->msg_controllen;
++            size_t bytes = valid ? header->cmsg_len - CMSG_LEN( 0 ) : 0;
++            int written = snprintf(
++                summary + used, capacity - used, "%s%d:%d:%zu:%s",
++                headerIndex == 0 ? "" : ";", header->cmsg_level,
++                header->cmsg_type, header->cmsg_len,
++                !valid ? "invalid" : ( bytes % sizeof( int ) == 0 ? "aligned" : "unaligned" ) );
++            if ( written < 0 || (size_t)written >= capacity - used )
++            {
++                used = capacity - 1;
++                break;
++            }
++            used += (size_t)written;
++            headerIndex++;
++        }
++        if ( headerIndex == 0 )
++            snprintf( summary, capacity, "none" );
+@@ -85 +221,2 @@
+-                 header->cmsg_len >= CMSG_LEN( 0 ) )
++                 header->cmsg_len >= CMSG_LEN( 0 ) &&
++                 header->cmsg_len <= message->msg_controllen )
+@@ -96,0 +234,10 @@
++        char localName[sizeof( ( (sockaddr_un *)nullptr )->sun_path ) + 1] = {};
++        char peerName[sizeof( ( (sockaddr_un *)nullptr )->sun_path ) + 1] = {};
++        char cmsgSummary[128] = {};
++        int peerPid = -1;
++        int peerUid = -1;
++        int peerGid = -1;
++        android_socket_name( fd, false, localName, sizeof( localName ) );
++        android_socket_name( fd, true, peerName, sizeof( peerName ) );
++        android_socket_peer_credentials( fd, &peerPid, &peerUid, &peerGid );
++        android_socket_cmsg_summary( message, cmsgSummary, sizeof( cmsgSummary ) );
+@@ -98 +245 @@
+-            "android_ahb_socket_trace op=%s frame=%llu index=%d fd=%d inode=%llu type=%d result=%zd errno=%d msg_flags=0x%x rights=%d fence_fd=%d payload=%s",
++            "android_ahb_socket_trace op=%s frame=%llu index=%d fd=%d inode=%llu type=%d generation=%u cookie=%llu peer_pid=%d peer_uid=%d peer_gid=%d local=%s peer=%s result=%zd errno=%d msg_flags=0x%x msg_controllen=%zu cmsgs=%s rights=%d fence_fd=%d payload=%s",
+@@ -100,2 +247,6 @@
+-            android_socket_inode( fd ), android_socket_type( fd ), result,
+-            errorNumber, message != nullptr ? message->msg_flags : 0,
++            android_socket_inode( fd ), android_socket_type( fd ),
++            android_socket_connection_generation( index, fd ),
++            android_socket_cookie( fd ), peerPid, peerUid, peerGid, localName,
++            peerName, result, errorNumber,
++            message != nullptr ? message->msg_flags : 0,
++            message != nullptr ? message->msg_controllen : 0, cmsgSummary,
+@@ -113 +264 @@
+-            "android_ahb_socket_poll op=%s frame=%llu index=%d fd=%d inode=%llu type=%d result=%d revents=0x%x errno=%d",
++            "android_ahb_socket_poll op=%s frame=%llu index=%d fd=%d inode=%llu type=%d generation=%u cookie=%llu result=%d revents=0x%x errno=%d",
+@@ -115,2 +266,4 @@
+-            android_socket_inode( fd ), android_socket_type( fd ), result,
+-            (unsigned int)revents, errorNumber );
++            android_socket_inode( fd ), android_socket_type( fd ),
++            android_socket_connection_generation( index, fd ),
++            android_socket_cookie( fd ), result, (unsigned int)revents,
++            errorNumber );
+@@ -119 +272 @@
+-    static int connect_android_socket( const char *path )
++    static int connect_android_socket( const char *path, int index )
+@@ -135 +288,2 @@
+-                android_socket_trace( "connect", 0, -1, fd, 0, 0, nullptr, -1, path );
++                android_socket_register_connection( index, fd );
++                android_socket_trace( "connect", 0, index, fd, 0, 0, nullptr, -1, path );
+@@ -169 +323 @@
+-        ssize_t received = recvmsg( connection, &message, 0 );
++        ssize_t received = recvmsg( connection, &message, MSG_CMSG_CLOEXEC );
+@@ -170,0 +325,2 @@
++        bool protocolError = received >= 0 &&
++            ( message.msg_flags & ( MSG_CTRUNC | MSG_TRUNC ) ) != 0;
+@@ -179,0 +336,5 @@
++            if ( header->cmsg_len < CMSG_LEN( 0 ) || header->cmsg_len > message.msg_controllen )
++            {
++                protocolError = true;
++                continue;
++            }
+@@ -183 +344,7 @@
+-            size_t descriptorCount = ( header->cmsg_len - CMSG_LEN( 0 ) ) / sizeof( int );
++            size_t byteCount = header->cmsg_len - CMSG_LEN( 0 );
++            if ( byteCount % sizeof( int ) != 0 )
++            {
++                protocolError = true;
++                continue;
++            }
++            size_t descriptorCount = byteCount / sizeof( int );
+@@ -202,0 +370,6 @@
++        if ( protocolError )
++        {
++            close( receivedFd );
++            headless_log.errorf( "Android output handle message had invalid ancillary data" );
++            return -1;
++        }
+@@ -257 +430 @@
+-                expectedBuffer, pollResult, socketPoll.revents, errno );
++                expectedBuffer, pollResult, socketPoll.revents, pollError );
+@@ -274 +447 @@
+-        ssize_t received = recvmsg( connection, &message, 0 );
++        ssize_t received = recvmsg( connection, &message, MSG_CMSG_CLOEXEC );
+@@ -275,0 +449,2 @@
++        bool protocolError = received >= 0 &&
++            ( message.msg_flags & ( MSG_CTRUNC | MSG_TRUNC ) ) != 0;
+@@ -278,0 +454,5 @@
++            if ( header->cmsg_len < CMSG_LEN( 0 ) || header->cmsg_len > message.msg_controllen )
++            {
++                protocolError = true;
++                continue;
++            }
+@@ -282 +462,7 @@
+-            size_t descriptorCount = ( header->cmsg_len - CMSG_LEN( 0 ) ) / sizeof( int );
++            size_t byteCount = header->cmsg_len - CMSG_LEN( 0 );
++            if ( byteCount % sizeof( int ) != 0 )
++            {
++                protocolError = true;
++                continue;
++            }
++            size_t descriptorCount = byteCount / sizeof( int );
+@@ -295,0 +482,8 @@
++        if ( protocolError )
++        {
++            if ( releaseFenceFd >= 0 )
++                close( releaseFenceFd );
++            headless_log.errorf( "Android release message had invalid ancillary data" );
++            return false;
++        }
++
+@@ -327 +521 @@
+-                expectedBuffer, pollResult, fencePoll.revents, errno );
++                expectedBuffer, pollResult, fencePoll.revents, pollError );
+@@ -364 +558 @@
+-				m_androidConnections[index] = connect_android_socket( socketPath );
++                m_androidConnections[index] = connect_android_socket( socketPath, index );

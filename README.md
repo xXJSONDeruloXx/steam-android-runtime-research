@@ -139,6 +139,7 @@ the gamescope frames on its own surface.
 - [Parent session process-audit follow-up 4](docs/50-parent-session-process-audit-followup-2026-08-08.md)
 - [Nova Android receive-wait experiment](docs/51-nova-ahb-app-receive-wait-experiment-2026-08-08.md)
 - [Nova Android receive-wait result](docs/52-nova-ahb-app-receive-wait-result-2026-08-09.md)
+- [Nova AHB transport observability experiment](docs/53-nova-ahb-transport-observability-experiment-2026-08-09.md)
 - [Retroid Pocket Nova flashing kit](tools/retroid-pocket-nova/README.md)
 
 ## Evidence standard
