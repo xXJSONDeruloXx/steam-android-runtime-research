@@ -314,6 +314,7 @@ the gamescope frames on its own surface.
 - [Termux:X11 post-login subsystem boundary result](docs/196-termux-x11-post-login-subsystem-boundary-result-2026-08-09.md)
 - [Nova one-click launcher implementation](docs/197-nova-one-click-launcher-implementation-2026-08-09.md)
 - [Termux:X11 198X game-launch boundary result](docs/198-termux-x11-198x-game-launch-result-2026-08-09.md)
+- [Nova one-click APK v0.3 acceptance boundary](docs/199-nova-one-click-apk-v03-acceptance-boundary-2026-08-09.md)
 - [Retroid Pocket Nova flashing kit](tools/retroid-pocket-nova/README.md)
 
 ## Evidence standard

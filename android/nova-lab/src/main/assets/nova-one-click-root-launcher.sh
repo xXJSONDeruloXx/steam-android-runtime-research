@@ -47,7 +47,8 @@ read_state() {
 runtime_present() {
     /system/bin/ps -A -o PID,ARGS 2>/dev/null |
         /system/bin/awk -v root="$ROOT" '
-            NR > 1 && (index($0, "/opt/nova-steam") ||
+            NR > 1 && !index($0, "awk") &&
+                (index($0, "/opt/nova-steam") ||
                        index($0, "/opt/nova-kgsl-driver/gamescope-headless") ||
                        index($0, "/opt/nova-kgsl-driver/nova-uinput-gamepad-relay")) {
                 found = 1
