@@ -38,7 +38,12 @@ case "$mode" in
         fi
         mounted=1
         shm_mounted=0
+        proc_mounted=0
         cleanup_mount() {
+            if [ "$proc_mounted" -eq 1 ]; then
+                /system/bin/umount -l "$root/proc" >/dev/null 2>&1 || true
+                proc_mounted=0
+            fi
             if [ "$shm_mounted" -eq 1 ]; then
                 /system/bin/umount -l "$root/dev/shm" >/dev/null 2>&1 || true
                 shm_mounted=0
@@ -54,6 +59,11 @@ case "$mode" in
             exit 1
         fi
         shm_mounted=1
+        if ! /system/bin/mount -o bind /proc "$root/proc"; then
+            echo "x11_namespace_error=bind_proc" >&2
+            exit 1
+        fi
+        proc_mounted=1
         /system/bin/chroot "$root" "$@"
         status=$?
         trap - EXIT INT TERM
