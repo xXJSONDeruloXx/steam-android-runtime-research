@@ -126,6 +126,62 @@ sequence opens that Activity first, then starts `CmdEntryPoint`; the wrapper is
 now corrected to use that order. This source fix must be rebuilt and pushed
 before repeating the hardware UI profile.
 
+## Second UI-profile attempt — `gpu-20260809T233603Z-steam-hardware-accel`
+
+The corrected one-click wrapper reached the full X11 and Steam-client launch
+boundary, but the hardware Steam profile crashed before a usable UI:
+
+```text
+nova_launcher_ready=pass display=:0 geometry=1280x960
+client_hardware_accel=1
+client_mesa_driver=unset
+client_gallium_driver=unset
+client_libgl_always_software=unset
+client_vk_icd=/opt/nova-kgsl-driver/freedreno-kgsl.icd.json
+client_flags_final=... -no-cef-sandbox -fullscreen -fulldesktopres
+client_started=pass
+client_status=139
+```
+
+The fresh Termux:X11 server log reached `CmdEntryPoint`, Android Adreno EGL,
+the 1280×960 surface, and `XCB connection is successfull`. Steam's fresh
+stderr then reported its startup banner, failure to create the Mesa shader
+cache under the Steam home, and a segmentation fault. The Steam webhelper did
+not produce a fresh run entry, so this is not a successful Steam UI or CEF
+rendering result. Steam's crash handler reported
+`CrashID=bp-23f05aec-44f9-4a53-983b-c908b2260809`; the minidump was
+`/tmp/dumps03/crash_20260809233609_3.dmp`, 201152 bytes, SHA-256
+`7a75608de12e921fdf049dfe0549d1dd0055c33ee497a75403c3b6a7455655fd`.
+
+Provenance for this run:
+
+- installed APK SHA-256:
+  `78b19472bf711ebdac7e56c4338c2e6589afce8b2ef62339da6c3e85d32b65c4`;
+- packaged one-click wrapper SHA-256:
+  `e56991b69f18214d280b1d06df417697fc384d270c0cce024e1271f5b7c62386`;
+- packaged Steam client SHA-256:
+  `f97a94c7f5927efa9774f8e24eefc47e259e8f38870f1c708a16479dceee4f89`;
+- rootfs Steam executable SHA-256:
+  `6d6c94ef1c8a4d5710bdfac8281090e67b8ef0ea756925daca9ad82c1a024ddf`.
+
+Fresh artifact hashes:
+
+| Artifact | SHA-256 |
+| --- | --- |
+| root launcher log | `9921cd49db610686f0b8f38dd667beda6788869894dc96e8d94976eaee96b94e` |
+| Termux:X11 server log | `1a16b2a1bd7d8c496665aa58a95cc4b2a1bd980e06da3a26a2d8550d88752c24` |
+| direct client log | `35a425887db5ff616ffda3cc5520c428ede55f31423af7131d1808386f1f8b7e` |
+| Steam stderr | `99ce4d0fb5151d6923e2f7365cad4eb4b4385a93ffcde59aa880c4eb2fec6ab5` |
+| relay log | `cb2344204db9a3863bd33a3e141cfee4b63d032c8ce81bb1dd31b4b3332859a5` |
+
+The relay initialized but recorded `uinput_event_forwarded=none`; no physical
+or synthetic button event was generated or tested. Exact runtime cleanup
+returned `nova_runtime_cleanup=pass`, and no matching Steam, X11, Gamescope,
+or rootfs runtime process remained afterward. Hardware mode is therefore
+rejected as a product default for now. The next useful experiment is to
+separate the CEF GPU flag from the Mesa/Vulkan environment, because this run
+changed both at once; the software profile remains the known-good fallback.
+
 ## Next bounded experiment
 
 Add an explicit opt-in hardware profile to the direct Steam client. It will
