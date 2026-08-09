@@ -31,6 +31,7 @@ height=960
 usage=AHARDWAREBUFFER_USAGE_CPU_READ_OFTEN|CPU_WRITE_OFTEN|GPU_SAMPLED_IMAGE|GPU_FRAMEBUFFER
 usage_hex=0x333
 composer_overlay=disabled
+launch_flag=force_gpu_composition=true
 ```
 
 The run must use a fresh APK identity and fresh log baseline on the attached
@@ -52,9 +53,27 @@ gate changes are part of this experiment.
   identifies a valid Android-side layout and keeps the end-user gates closed
   until the Gamescope pre-marker probe becomes nonzero and frame-variable.
 
+## Invalid preliminary attempt
+
+The first execution was not accepted as the declared result:
+
+```text
+run_id=controller-ui-20260809T-ahb-import-layout-1280x960
+android_vulkan_probe_usage=0x333
+activity_force_gpu_composition=false
+loop_report_usage=0xb33
+```
+
+The probe allocation had composer-overlay disabled, while the actual loop had
+composer-overlay enabled. Because usage is an allocation input, those are not
+the same layout experiment. The attempt still passed the Android Vulkan clear
+(`vulkan_clear_pixel=4080c0ff`) and reproduced all-zero pre-marker bytes, but
+it is retained only as a profile-mismatch diagnostic. A valid run must set
+`force_gpu_composition=true` and confirm `usage=0x333` in the loop report
+before using its layout result.
+
 ## Acceptance artifacts
 
 The result document will include the exact run ID, APK and source provenance,
 the complete bounded Android Vulkan report, the modifier/layout fields, hashes
 of retained artifacts, and the cleanup verifier result.
-
