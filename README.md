@@ -311,6 +311,7 @@ the gamescope frames on its own surface.
 - [Termux:X11 system-bus-only result](docs/193-termux-x11-system-bus-without-session-bus-result-2026-08-09.md)
 - [Termux:X11 two-bus interactive QR login session](docs/194-termux-x11-two-bus-qr-login-interactive-experiment-2026-08-09.md)
 - [Termux:X11 interactive QR login result](docs/195-termux-x11-interactive-qr-login-result-2026-08-09.md)
+- [Termux:X11 post-login subsystem boundary result](docs/196-termux-x11-post-login-subsystem-boundary-result-2026-08-09.md)
 - [Retroid Pocket Nova flashing kit](tools/retroid-pocket-nova/README.md)
 
 ## Evidence standard
