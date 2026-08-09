@@ -87,5 +87,6 @@ x11-window.ppm
 android-screenshot.png
 android-window-state.txt
 android-logcat.txt
+nova-runtime-cleanup.txt
 post-stop-verification.txt
 ```

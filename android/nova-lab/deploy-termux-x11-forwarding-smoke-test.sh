@@ -11,6 +11,8 @@ DISPLAY_NUMBER=${NOVA_TERMUX_X11_DISPLAY:-0}
 APK=${NOVA_TERMUX_X11_APK:?set NOVA_TERMUX_X11_APK to the official Termux:X11 APK}
 X11_ANIMATE=${NOVA_X11_ANIMATE:-$BUILD_DIR/nova-x11-animate}
 X11_CAPTURE=${NOVA_X11_CAPTURE:-$BUILD_DIR/nova-x11-capture}
+RUNTIME_CLEANUP="$SCRIPT_DIR/device/nova-runtime-cleanup.sh"
+DEVICE_RUNTIME_CLEANUP=/data/local/tmp/nova-runtime-cleanup.sh
 CLIENT_FRAMES=${NOVA_TERMUX_X11_CLIENT_FRAMES:-600}
 RUN_ID=${NOVA_RUN_ID:-termux-x11-$(date -u +%Y%m%dT%H%M%SZ)-display-${DISPLAY_NUMBER}}
 RUN_DIR=${NOVA_RUN_DIR:-$BUILD_DIR/manual-runs/$RUN_ID}
@@ -71,7 +73,8 @@ for artifact in \
     run-metadata.txt termux-x11-apk.sha256 nova-x11-animate.sha256 \
     nova-x11-capture.sha256 termux-x11-server.log termux-x11-client.log \
     x11-tree.txt x11-capture.txt x11-window.ppm android-screenshot.png \
-    android-window-state.txt android-logcat.txt post-stop-verification.txt; do
+    android-window-state.txt android-logcat.txt nova-runtime-cleanup.txt \
+    post-stop-verification.txt; do
     if [ -e "$RUN_DIR/$artifact" ]; then
         echo "run artifact already exists; choose a fresh NOVA_RUN_ID: $RUN_DIR/$artifact" >&2
         exit 2
@@ -81,6 +84,22 @@ done
 ADB_ARGS=(-s "$ADB_SERIAL")
 adb() {
     "$ADB" "${ADB_ARGS[@]}" "$@"
+}
+
+cleanup_nova_runtime() {
+    local output status=0
+    adb push "$RUNTIME_CLEANUP" "$DEVICE_RUNTIME_CLEANUP" >/dev/null 2>&1 || status=$?
+    if [ "$status" -eq 0 ]; then
+        output=$(adb shell su -c "/system/bin/sh $DEVICE_RUNTIME_CLEANUP $DEVICE_ROOT" 2>&1) || status=$?
+    else
+        output=
+    fi
+    output=$(printf '%s\n' "$output" | tr -d '\r')
+    printf '%s\n' "$output"
+    if [ "$status" -ne 0 ] || ! printf '%s\n' "$output" | rg -q '^nova_runtime_cleanup=pass '; then
+        echo "nova_runtime_cleanup=fail" >&2
+        return 1
+    fi
 }
 
 cleanup_remote() {
@@ -113,12 +132,14 @@ on_exit() {
         adb shell su -c "cat $REMOTE_CLIENT_LOG" >"$RUN_DIR/termux-x11-client.log" 2>/dev/null || true
         cleanup_remote >"$RUN_DIR/cleanup-output.txt" || true
         post_stop_verify || status=1
+        cleanup_nova_runtime >"$RUN_DIR/nova-runtime-cleanup.txt" || status=1
     fi
     exit "$status"
 }
 trap on_exit EXIT INT TERM
 
 cleanup_remote >"$RUN_DIR/pre-run-cleanup.txt"
+cleanup_nova_runtime >"$RUN_DIR/nova-runtime-cleanup-preflight.txt"
 if adb shell su -c "test -S $REMOTE_X11_SOCKET" >/dev/null 2>&1; then
     echo "termux_x11_pre_run=fail socket_still_present=$REMOTE_X11_SOCKET" >&2
     exit 1
