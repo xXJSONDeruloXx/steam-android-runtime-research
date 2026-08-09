@@ -387,7 +387,7 @@ cleanup_on_exit() {
     exit 0
 }
 clear_app_runtime_files() {
-    if "$ADB" shell "run-as $PACKAGE sh -c 'rm -f files/nova-input.sock files/nova-touch.sock files/nova-lab-ahb-double-buffer.sock.* files/dmabuf-double-buffer-report.txt files/android-input-bridge-report.txt files/android-touch-bridge-report.txt'" \
+    if "$ADB" shell "run-as $PACKAGE sh -c 'rm -f files/nova-input.sock files/nova-touch.sock files/nova-lab-ahb-double-buffer.sock.* files/dmabuf-double-buffer-report.txt files/android-vulkan-layout-report.txt files/android-input-bridge-report.txt files/android-touch-bridge-report.txt'" \
         >/dev/null 2>&1; then
         echo "nova_app_runtime_files_cleanup=pass"
     else
@@ -618,7 +618,7 @@ run_preflight_gate() {
         echo "preflight_remote_force_stop=adb shell am force-stop $PACKAGE"
         echo "preflight_remote_cleanup=adb shell su -c '/system/bin/sh $DEVICE_RUNTIME_CLEANUP $DEVICE_ROOT'"
         echo "preflight_remote_process_check=adb shell su -c '/system/bin/ps -A -o PID,PPID,ARGS'"
-        echo "preflight_remote_app_file_cleanup=adb shell run-as $PACKAGE sh -c 'rm -f files/nova-input.sock files/nova-touch.sock files/nova-lab-ahb-double-buffer.sock.* files/dmabuf-double-buffer-report.txt files/android-input-bridge-report.txt files/android-touch-bridge-report.txt'"
+        echo "preflight_remote_app_file_cleanup=adb shell run-as $PACKAGE sh -c 'rm -f files/nova-input.sock files/nova-touch.sock files/nova-lab-ahb-double-buffer.sock.* files/dmabuf-double-buffer-report.txt files/android-vulkan-layout-report.txt files/android-input-bridge-report.txt files/android-touch-bridge-report.txt'"
         echo "preflight_remote_ahb_trace_reset=adb shell setprop debug.nova.ahb_trace 0; adb shell su -c 'printf 0 > $DEVICE_ROOT/opt/nova-steam/ahb-trace'"
         echo "preflight_remote_socket_trace_reset=adb shell setprop debug.nova.ahb_socket_trace 0; adb shell su -c 'printf 0 > $DEVICE_ROOT/opt/nova-steam/ahb-socket-trace'"
         echo "preflight_remote_scheduler_trace_reset=adb shell setprop debug.nova.ahb_scheduler_trace 0; adb shell su -c 'printf 0 > $DEVICE_ROOT/opt/nova-steam/ahb-scheduler-trace'"
@@ -971,6 +971,11 @@ capture_presentation_diagnostics
 "$ADB" logcat -d -v threadtime -s NovaLab:I > "$LOGCAT"
 "$ADB" shell run-as "$PACKAGE" cat files/dmabuf-double-buffer-report.txt \
     > "$APP_REPORT" 2>/dev/null || true
+if [ "$ANDROID_VULKAN_LAYOUT_PROBE" = "1" ]; then
+    : > "$ANDROID_VULKAN_REPORT"
+    "$ADB" shell run-as "$PACKAGE" cat files/android-vulkan-layout-report.txt \
+        > "$ANDROID_VULKAN_REPORT" 2>/dev/null || :
+fi
 if [ "${NOVA_ANDROID_INPUT_BRIDGE:-0}" = "1" ]; then
     if ! "$ADB" shell run-as "$PACKAGE" cat files/android-input-bridge-report.txt \
         > "$ANDROID_INPUT_REPORT" 2>/dev/null; then
@@ -984,7 +989,12 @@ if [ "${NOVA_ANDROID_TOUCH_BRIDGE:-0}" = "1" ]; then
     fi
 fi
 "$ADB" exec-out screencap -p > "$SCREENSHOT"
-for artifact in "$REPORT" "$LOGCAT" "$APP_REPORT" "$ANDROID_INPUT_REPORT" "$ANDROID_TOUCH_REPORT"; do
+if [ "$ANDROID_VULKAN_LAYOUT_PROBE" = "1" ] && \
+    ! rg -q '^android_vulkan_probe_version=1$' "$ANDROID_VULKAN_REPORT"; then
+    rg 'android_vulkan_hardware_buffer_probe|android_vulkan_probe_version=|ahardwarebuffer\.(profile|supported|allocate_status|describe)|vk(CreateImage|GetAndroidHardwareBufferProperties|AllocateMemory|BindImageMemory)_status=|android_vulkan_image_modifier_status=|vulkan_clear_pixel=|android_vulkan_ahardwarebuffer=|android_vulkan_probe=' \
+        "$LOGCAT" >"$ANDROID_VULKAN_REPORT" || :
+fi
+for artifact in "$REPORT" "$LOGCAT" "$APP_REPORT" "$ANDROID_INPUT_REPORT" "$ANDROID_TOUCH_REPORT" "$ANDROID_VULKAN_REPORT"; do
     if [ -f "$artifact" ]; then
         artifact_tmp="$artifact.tmp"
         {
@@ -994,16 +1004,6 @@ for artifact in "$REPORT" "$LOGCAT" "$APP_REPORT" "$ANDROID_INPUT_REPORT" "$ANDR
         mv "$artifact_tmp" "$artifact"
     fi
 done
-if [ "$ANDROID_VULKAN_LAYOUT_PROBE" = "1" ]; then
-    rg 'android_vulkan_hardware_buffer_probe|android_vulkan_probe_version=|ahardwarebuffer\.(profile|supported|allocate_status|describe)|vk(CreateImage|GetAndroidHardwareBufferProperties|AllocateMemory|BindImageMemory)_status=|android_vulkan_image_modifier_status=|vulkan_clear_pixel=|android_vulkan_ahardwarebuffer=|android_vulkan_probe=' \
-        "$LOGCAT" >"$ANDROID_VULKAN_REPORT" || :
-    android_vulkan_report_tmp="$ANDROID_VULKAN_REPORT.tmp"
-    {
-        echo "nova_run_id=$RUN_ID"
-        cat "$ANDROID_VULKAN_REPORT"
-    } >"$android_vulkan_report_tmp"
-    mv "$android_vulkan_report_tmp" "$ANDROID_VULKAN_REPORT"
-fi
 if [ "$AHB_FRAME_MARKER" = "1" ]; then
     if ! python3 "$FRAME_MARKER_DECODER" "$SCREENSHOT" >"$FRAME_MARKER_CAPTURE"; then
         echo "frame-marker screenshot decode failed; inspect $FRAME_MARKER_CAPTURE" >&2
@@ -1108,7 +1108,7 @@ if [ "$ANDROID_VULKAN_LAYOUT_PROBE" = "1" ]; then
     )
 fi
 for marker in "${logcat_markers[@]}"; do
-    if ! rg -q -- "$marker" "$LOGCAT" "$APP_REPORT"; then
+    if ! rg -q -- "$marker" "$LOGCAT" "$APP_REPORT" "$ANDROID_VULKAN_REPORT"; then
         echo "missing app marker: $marker" >&2
         exit 1
     fi

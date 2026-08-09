@@ -68,6 +68,7 @@ public final class MainActivity extends Activity implements SurfaceHolder.Callba
     private TextView bridgeStatus;
     private boolean doubleBufferPresentationMode;
     private File doubleBufferReportFile;
+    private File androidVulkanReportFile;
     private boolean androidInputKeyOnly;
     private volatile boolean androidInputBridgeRunning;
     private Thread androidInputBridgeThread;
@@ -286,6 +287,15 @@ public final class MainActivity extends Activity implements SurfaceHolder.Callba
             if (doubleBufferReportFile.exists() && !doubleBufferReportFile.delete()) {
                 Log.w(TAG, "double_buffer_report_delete_failed path="
                         + doubleBufferReportFile.getAbsolutePath());
+            }
+        }
+
+        if (getIntent().getBooleanExtra("run_android_vulkan", false)) {
+            androidVulkanReportFile = new File(getFilesDir(),
+                    "android-vulkan-layout-report.txt");
+            if (androidVulkanReportFile.exists() && !androidVulkanReportFile.delete()) {
+                Log.w(TAG, "android_vulkan_report_delete_failed path="
+                        + androidVulkanReportFile.getAbsolutePath());
             }
         }
 
@@ -1047,6 +1057,7 @@ public final class MainActivity extends Activity implements SurfaceHolder.Callba
                     result = "native_exception=" + error;
                 }
                 final String report = result;
+                writeAndroidVulkanReport(report);
                 Log.i(TAG, "android_vulkan_hardware_buffer_probe\n" + report);
                 runOnUiThread(new Runnable() {
                     @Override
@@ -1135,6 +1146,19 @@ public final class MainActivity extends Activity implements SurfaceHolder.Callba
             output.close();
         } catch (IOException error) {
             Log.w(TAG, "double_buffer_report_write_failed", error);
+        }
+    }
+
+    private void writeAndroidVulkanReport(String report) {
+        if (androidVulkanReportFile == null) {
+            return;
+        }
+        try {
+            FileOutputStream output = new FileOutputStream(androidVulkanReportFile, false);
+            output.write(report.getBytes(StandardCharsets.UTF_8));
+            output.close();
+        } catch (IOException error) {
+            Log.w(TAG, "android_vulkan_report_write_failed", error);
         }
     }
 
