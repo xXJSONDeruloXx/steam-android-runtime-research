@@ -2,7 +2,7 @@
 
 Date: 2026-08-08
 
-Status: predeclared; no device result yet.
+Status: executed; result recorded in [doc 52](52-nova-ahb-app-receive-wait-result-2026-08-09.md).
 
 ## Motivation
 

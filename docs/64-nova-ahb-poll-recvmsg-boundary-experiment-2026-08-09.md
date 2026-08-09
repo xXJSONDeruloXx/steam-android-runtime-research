@@ -1,6 +1,6 @@
 # Nova AHardwareBuffer poll/recvmsg boundary experiment — 2026-08-09
 
-Status: predeclared; no device result yet.
+Status: executed; result recorded in [doc 66](66-nova-ahb-poll-recvmsg-boundary-result-2026-08-09.md).
 
 This experiment follows the attached handshake-deadlock research synthesized
 in [`docs/63-nova-ahb-handshake-deadlock-research-synthesis-2026-08-09.md`](63-nova-ahb-handshake-deadlock-research-synthesis-2026-08-09.md)

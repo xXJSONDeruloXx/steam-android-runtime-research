@@ -9,7 +9,7 @@
 | Holo ARM64 package channel | Native ARM64 client supplied separately by Valve | No by itself | Provides Arch/glibc/graphics/gamescope packages | High as a dependency source | Live aarch64 package/rootfs channel; not a complete client/session | Dependency source and ABI reference |
 | Armada | Native ARM64 Steam + ARM Proton; FEX for x86 games | Root for ABL/image installation; non-root Steam user | DRM/KMS gamescope session | High | Repository documents first-run/login path on tested Snapdragon devices | Full-session reference and fastest end-to-end Linux proof |
 | PockNix | Native ARM64 Steam + ARM Proton; FEX for x86 games | Root for image build/ABL and system services; non-root `deck` session | DRM/KMS gamescope session | High | Explicit Big Picture launcher, build-time ARM client bake, controller/audio/session plumbing | Closest minimal session recipe to port |
-| Holo/chroot + gamescope Android backend | Native ARM64 Linux Steam | Yes | AHardwareBuffer + SurfaceControl | High | 600 compositor frames proven; Steam not yet booted | Primary Android-managed runtime direction |
+| Holo/chroot + gamescope Android backend | Native ARM64 Linux Steam | Yes | AHardwareBuffer + SurfaceControl | High | Native Steam reaches pre-login Gamepad UI and SteamUI readiness; software CEF, account login, and trusted frame synchronization remain open | Primary Android-managed runtime direction |
 | deck-in-a-box | x86 Steam through FEX | No/rootless target | Not completed | High in theory | FEX and Steam bootstrap partial; thread crash | Experimental no-root backend |
 | steam-droid | Valve ARM64 Android libraries | No | Android/WebView intended | High in theory | Native libraries load; service boot fails | Reverse-engineering reference, not first product path |
 

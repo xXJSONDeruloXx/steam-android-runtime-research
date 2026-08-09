@@ -1,6 +1,6 @@
 # Nova AHardwareBuffer read-queue experiment — 2026-08-09
 
-Status: predeclared; no device result yet.
+Status: executed; result recorded in [doc 58](58-nova-ahb-read-queue-result-2026-08-09.md).
 
 ## Motivation
 

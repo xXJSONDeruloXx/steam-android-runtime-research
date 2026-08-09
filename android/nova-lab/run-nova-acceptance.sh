@@ -21,7 +21,7 @@ if [ ! -f "$NOVA_GAMESCOPE_HEADLESS" ]; then
     echo "missing Gamescope artifact: $NOVA_GAMESCOPE_HEADLESS" >&2
     exit 1
 fi
-if [ ! -d "$GAMESCOPE_HEADLESS_SOURCE/.git" ]; then
+if ! git -C "$GAMESCOPE_HEADLESS_SOURCE" rev-parse --git-dir >/dev/null 2>&1; then
     echo "Gamescope source tree is not a Git worktree: $GAMESCOPE_HEADLESS_SOURCE" >&2
     exit 1
 fi

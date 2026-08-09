@@ -1,6 +1,6 @@
 # Nova AHardwareBuffer receive-timeout observability experiment — 2026-08-09
 
-Status: predeclared; no device result yet.
+Status: executed; result recorded in [doc 60](60-nova-ahb-receive-timeout-observability-result-2026-08-09.md).
 
 ## Motivation
 

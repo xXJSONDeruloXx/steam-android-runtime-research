@@ -110,10 +110,11 @@ The target should not be considered proven until all of these work on one device
 - Can the kit’s CEF environment shim be used unchanged inside the Holo rootfs?
 - Partially answered: can the headless Gamescope seam sustain display-size Android
   AHardwareBuffer output for Steam’s actual frames? The Nova connector now completes a bounded
-  120-frame 960x540 run with 120 acquire-fence handoffs, 120 SurfaceControl completions, and 119
-  release-fence returns while the native Steam Gamepad UI is visibly present. The current Xwayland
-  path falls back from glamor to software because GBM Wayland interfaces are absent, and CEF reports
-  ANGLE/softpipe rather than hardware rendering. See [doc 15](15-nova-steam-ui-ahb-smoke.md).
+  bounded 1280x960 run with the native Steam Gamepad UI visibly present. The current Xwayland path
+  falls back from glamor to software because GBM Wayland interfaces are absent, and CEF reports
+  ANGLE/softpipe rather than hardware rendering. The transport's frame-level synchronization remains
+  under investigation in the [AHB transport summary](nova-ahb-transport-investigation-summary.md);
+  see [doc 15](15-nova-steam-ui-ahb-smoke.md) and the current [acceptance profile](36-nova-bounded-acceptance-profile.md).
 - What input protocol is least invasive: Android HID injection, Wayland input, SDL, or a custom socket?
   The rooted Nova lab now enables Gamescope's optional libei server and proves a
   keyboard scancode plus protocol round trip through `gamescope-0-ei`; see

@@ -2,7 +2,7 @@
 
 Date: 2026-08-08
 
-Status: predeclared; no device result yet.
+Status: executed; result recorded in [doc 49](49-nova-ahb-socket-trace-result-2026-08-08.md).
 
 ## Motivation
 

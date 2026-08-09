@@ -5,6 +5,10 @@ Device: Retroid Pocket Nova, `kalama`, Snapdragon/Adreno 740
 ADB serial: `675a2365`
 Gamescope source: local `gamescope-valve`, commit `fb9f84ee247a1f02b1a132da60e94585db84bf61`
 
+Status: historical Xwayland output snapshot; the later native SteamUI result is in
+[doc 15](15-nova-steam-ui-ahb-smoke.md), and current AHB transport status is in the
+[transport summary](nova-ahb-transport-investigation-summary.md).
+
 This is the next boundary after [doc 12](12-nova-gamescope-ahb-output.md). It
 replaces the Wayland-SHM control client with an Xwayland session and an
 animated native ARM64 X11 client, while retaining the same Android
@@ -95,11 +99,7 @@ glamor cannot use GBM Wayland interfaces in this headless Holo rootfs, so the
 server falls back to software rendering. This is a known performance and
 compatibility constraint, not a failure of the buffer handoff.
 
-The actual native ARM64 Steam process has now been launched through this path;
-the loader, System V semaphore, and X11 authorization boundaries are recorded
-in [doc 14](14-nova-steam-arm64-seed-and-startup.md). It reaches Steam's update
-UI and now has a host-bootstrapped `.installed` tree plus generated rootfs DNS.
-The bounded run renders five native-client frames through the same
-AHardwareBuffer queue, but Steam exits during Bootstrapper HTTP Client teardown
-before `steamwebhelper` is exec'd. No login/Gamepad UI frame has been produced
-yet.
+At the time of this 2026-08-07 snapshot, the native ARM64 Steam process exited during
+Bootstrapper HTTP Client teardown before `steamwebhelper` was exec'd. Later [doc 15](15-nova-steam-ui-ahb-smoke.md)
+records the pre-login Gamepad UI crossing the same path; this document remains the
+historical Xwayland control result.

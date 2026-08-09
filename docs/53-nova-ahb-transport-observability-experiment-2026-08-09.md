@@ -2,7 +2,7 @@
 
 Date: 2026-08-09
 
-Status: predeclared; no device result yet.
+Status: executed; result recorded in [doc 54](54-nova-ahb-transport-observability-result-2026-08-09.md).
 
 ## Motivation
 

@@ -1,7 +1,7 @@
 # Nova Android touch → Gamescope libei and fullscreen presentation checkpoint
 
 Date: 2026-08-08
-Device: Retroid Pocket Nova, Snapdragon `kalama`, Adreno 740, rooted Android 15 lab image
+Device: Retroid Pocket Nova, Snapdragon `kalama`, Adreno 740, rooted Android 13/API 33 lab image
 Status: aspect-correct fullscreen Steam presentation and Android → Gamescope touch dispatch pass; hardware CEF remains open
 
 ## Why this checkpoint exists

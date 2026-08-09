@@ -5,6 +5,10 @@ Device: Retroid Pocket Nova, `kalama`, Snapdragon/Adreno 740
 ADB serial: `675a2365`
 Gamescope source: local `gamescope-valve` commit `fb9f84ee247a1f02b1a132da60e94585db84bf61`
 
+Status: historical output snapshot; the later native SteamUI result is in
+[doc 15](15-nova-steam-ui-ahb-smoke.md), and current AHB transport status is in the
+[transport summary](nova-ahb-transport-investigation-summary.md).
+
 This is the first experiment that connects the patched headless Gamescope
 `Present()` seam to the Android app's persistent AHardwareBuffer queue. It is
 the next step after [doc 11](11-nova-headless-gamescope-seam.md), which proved
@@ -247,16 +251,13 @@ queue itself.
 
 ## Remaining boundary
 
-This is still not a Steam session. The bounded `wl_shm` client has now been
-supplemented by the Xwayland/animated-X11 proof in [doc 13](13-nova-xwayland-ahb-output.md),
-which passes the same 960x540 Android fence path. The Vulkan WSI negative
-control from doc 11 remains valid: the Holo Turnip ICD lacks `VK_KHR_surface`,
-so a normal `vkcube --wsi wayland` swapchain cannot be the next client. The
-actual native Steam Xwayland workload now reaches the update UI and produces
-bounded AHardwareBuffer frames; `steamwebhelper` and a persistent Steam frame
-remain untested.
+At the time of this 2026-08-07 snapshot, the actual native Steam Xwayland workload had
+not yet reached `steamwebhelper`. Later [doc 15](15-nova-steam-ui-ahb-smoke.md) records
+the pre-login Steam Gamepad UI crossing the same presentation path. The bounded `wl_shm`
+and Xwayland control results remain useful historical evidence; current frame-level
+transport behavior is tracked in the [transport summary](nova-ahb-transport-investigation-summary.md).
 
 The next experiments are to keep the persistent Xwayland session while fixing
-the native Steam bootstrap/child-process lifecycle, remove the synchronous
-wait/empty-submit fence boundary, and add input and lifecycle supervision. The
-actual Steam UI remains a separate acceptance gate.
+the native Steam bootstrap/child-process lifecycle, finish the AHB transport/cadence
+investigation, and add input and lifecycle supervision. Hardware CEF, account login,
+game launch, and clean lifecycle behavior remain separate acceptance gates.

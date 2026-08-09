@@ -146,9 +146,9 @@ gamescope-backed Steam Deck session.
 
 Replace the desktop display with an Android app-owned `Surface`/`ANativeWindow` or a proven equivalent. The
 Nova lab now has a three-buffer AHardwareBuffer/SurfaceControl queue with acquire/release-fence
-backpressure, [doc 12](12-nova-gamescope-ahb-output.md) connects that pool to the patched headless
-Gamescope compositor for sustained 60-frame and 960x540 Wayland-SHM runs, and [doc 13](13-nova-xwayland-ahb-output.md)
-crosses the same path with an animated ARM64 X11 client through Xwayland. The first acquire fence is
+backpressure. Historical [doc 12](12-nova-gamescope-ahb-output.md) and [doc 13](13-nova-xwayland-ahb-output.md)
+connect that pool to the patched headless Gamescope compositor at 960x540; the current bounded
+acceptance profile is 1280x960 with native Steam Gamepad UI. The first acquire fence is
 intentionally synchronous. The stock Holo gamescope control reaches the same KGSL Turnip device but is
 blocked by its unconditional `VK_EXT_physical_device_drm` device-identity requirement; the narrow
 patched headless path crosses that identity boundary.
@@ -169,13 +169,12 @@ gamescope/Wayland frame
       -> SurfaceView/TextureView/HardwareBuffer presentation
 ```
 
-Manual observation of the continuous Nova Steam session currently suggests only roughly 1–3
-visibly changing UI frames per second from an end-user perspective. This is an unmeasured symptom,
-not yet a confirmed panel refresh rate: software CEF repaint behavior, dirty-frame behavior, capture
-timing, and bridge pacing/repeat/drop behavior are still confounded. Keep networking and Steam API
-compatibility work moving in parallel, but treat this as an immediate presentation-validation gate:
-run a continuous synthetic animation or frame-counter test and correlate producer/Gamescope submit,
-Android latch/present, and release timestamps before declaring the presentation path complete.
+The earlier manual session suggested only roughly 1–3 visibly changing UI frames per second, but that
+was an unmeasured symptom rather than a panel-refresh measurement. The current traced boundary shows
+that the transport can stop at a frame-level release wait even after adjacent ACK sends; see the
+[AHB transport summary](nova-ahb-transport-investigation-summary.md). Keep the cadence experiment
+separate from the bounded acceptance profile and record producer/Gamescope submit, Android latch/present,
+and release timestamps before declaring the presentation path complete.
 
 The Nova lab has now launched the native ARM64 Steam process through the same
 Xwayland/Gamescope control and resolved the first semaphore, FFmpeg, SDL, X11
