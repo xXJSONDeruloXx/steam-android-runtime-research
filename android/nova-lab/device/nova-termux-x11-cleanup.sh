@@ -4,6 +4,7 @@ set -u
 
 SERVER_CMDLINE=termux-x11
 CLIENT_TOKEN=nova-x11-animate
+CLIENT_MATCHING=0
 
 read_file() {
     file="$1"
@@ -33,6 +34,9 @@ server_pids() {
 }
 
 client_pids() {
+    if [ "$CLIENT_MATCHING" != "1" ]; then
+        return 0
+    fi
     if [ "$(read_file "$STATE_DIR/client-active")" != "1" ]; then
         return 0
     fi
@@ -76,6 +80,11 @@ verify_absent() {
 verify_mode() {
     state_dir="$1"
     STATE_DIR="$state_dir"
+    if [ "$(read_file "$state_dir/client-active")" = "1" ]; then
+        CLIENT_MATCHING=1
+    else
+        CLIENT_MATCHING=0
+    fi
     socket="$2"
     server_state=absent
     client_state=absent
@@ -121,6 +130,7 @@ shift
 
 state_dir="${1:-}"
 private_helper="${2:-}"
+phase="${3:-runtime}"
 STATE_DIR="$state_dir"
 client="$(read_file "$state_dir/client.path")"
 capture="$(read_file "$state_dir/capture.path")"
@@ -135,6 +145,18 @@ if [ -z "$state_dir" ] || [ -z "$private_helper" ]; then
     echo "x11_cleanup_error=missing_arguments" >&2
     exit 2
 fi
+case "$phase" in
+    preflight)
+        CLIENT_MATCHING=0
+        ;;
+    runtime)
+        CLIENT_MATCHING=1
+        ;;
+    *)
+        echo "x11_cleanup_error=unknown_phase phase=$phase" >&2
+        exit 2
+        ;;
+esac
 
 server_pid="$(read_file "$state_dir/server.pid")"
 server_parent_pid=
@@ -160,6 +182,7 @@ fi
 
 echo "pre_cleanup_server_pids=$(server_pids | tr '\n' ',')"
 echo "pre_cleanup_client_pids=$(client_pids | tr '\n' ',')"
+echo "client_matching=$CLIENT_MATCHING phase=$phase"
 if [ -S "$socket" ]; then
     echo "pre_cleanup_socket_state=present" >"$state_dir/cleanup-state"
 else

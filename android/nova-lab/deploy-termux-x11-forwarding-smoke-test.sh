@@ -151,10 +151,10 @@ cleanup_nova_runtime() {
 }
 
 cleanup_remote() {
-    local cleanup_output status=0
+    local phase="${1:-runtime}" cleanup_output status=0
     prepare_remote_state >/dev/null 2>&1 || true
     cleanup_output=$(adb shell su -c \
-        "$REMOTE_X11_CLEANUP_HELPER cleanup $REMOTE_STATE_DIR $REMOTE_PRIVATE_NAMESPACE_HELPER" 2>&1) || status=$?
+        "$REMOTE_X11_CLEANUP_HELPER cleanup $REMOTE_STATE_DIR $REMOTE_PRIVATE_NAMESPACE_HELPER $phase" 2>&1) || status=$?
     cleanup_output=$(printf '%s\n' "$cleanup_output" | tr -d '\r')
     printf '%s\n' "$cleanup_output"
     return "$status"
@@ -184,7 +184,7 @@ on_exit() {
         adb shell su -c "cat $REMOTE_CLIENT_STDOUT" >"$RUN_DIR/termux-x11-client.stdout" 2>/dev/null || true
         adb shell su -c "cat $REMOTE_CLIENT_STDERR" >"$RUN_DIR/termux-x11-client.stderr" 2>/dev/null || true
         adb logcat -d -v threadtime -s "CmdEntryPoint:*" "LorieNative:*" "MainActivity:*" "Lorie:*" "gles-renderer:*" "AndroidRuntime:*" >"$RUN_DIR/android-logcat.txt" || true
-        cleanup_remote >"$RUN_DIR/cleanup-output.txt" || status=1
+        cleanup_remote runtime >"$RUN_DIR/cleanup-output.txt" || status=1
         post_stop_verify || status=1
         cleanup_nova_runtime >"$RUN_DIR/nova-runtime-cleanup.txt" || status=1
         if [ -n "${REMOTE_CLIENT_HOST_PID:-}" ]; then
@@ -196,7 +196,7 @@ on_exit() {
 trap on_exit EXIT INT TERM
 
 stage_x11_helpers
-cleanup_remote >"$RUN_DIR/pre-run-cleanup.txt"
+cleanup_remote preflight >"$RUN_DIR/pre-run-cleanup.txt"
 cleanup_nova_runtime >"$RUN_DIR/nova-runtime-cleanup-preflight.txt"
 if adb shell su -c "test -S $REMOTE_X11_SOCKET" >/dev/null 2>&1; then
     echo "termux_x11_pre_run=fail socket_still_present=$REMOTE_X11_SOCKET" >&2
