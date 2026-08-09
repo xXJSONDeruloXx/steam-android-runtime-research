@@ -55,6 +55,10 @@ Focus capture now stores and normalizes the complete `dumpsys input` output
 first, then parses it from a file with one early-exit `sed`. No producer in the
 capture path is now terminated by a downstream early-exit pipeline.
 
+The bounded boundary poll's “latest wait” extraction was also changed from an
+`rg | tail` pipeline to a single-pass `awk`, so the same audit does not leave a
+masked SIGPIPE in the evidence poller.
+
 The correct order for the next run is now explicit:
 
 1. Start the fresh manual session and wait for its current-PID readiness marker.

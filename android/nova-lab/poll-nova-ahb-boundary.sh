@@ -94,8 +94,8 @@ while [ "$SECONDS" -lt "$deadline" ]; do
         exit 0
     fi
 
-    wait_line=$(rg 'ahb_double_buffer_trace .*phase=wait_ack' \
-        "$FILTERED_LOG" | tail -n 1 || true)
+    wait_line=$(awk '/ahb_double_buffer_trace .*phase=wait_ack/ { line = $0 } END { if (line != "") print line }' \
+        "$FILTERED_LOG")
     frame=$(printf '%s\n' "$wait_line" |
         sed -n 's/.*frame=\([0-9][0-9]*\).*phase=wait_ack.*/\1/p')
     if [ -n "$frame" ] &&
