@@ -181,6 +181,7 @@ printf '%s\n' "1" >"$STATE/client-active"
 printf '%s\n' "$session" >"$STATE/session"
 
 if [ -x "$RELAY_BINARY" ]; then
+    allow_input_events=
     hide_input_events=
     NOVA_RELAY_MOUNT_PRIVATE_HELPER="$MOUNT_PRIVATE" \
         /system/bin/sh "$RELAY_STAGE" "$ROOT" "$RELAY_BINARY" \
@@ -201,9 +202,21 @@ if [ -x "$RELAY_BINARY" ]; then
         attempt=$((attempt + 1))
     done
     if [ "$relay_ready" -eq 1 ]; then
-        log "nova_launcher_gamepad=pass"
-        hide_input_events=7
-        log "nova_launcher_input_hide=event7"
+        relay_event_name=$(
+            /system/bin/sed -n \
+                's#^uinput_device=/dev/input/\(event[0-9][0-9]*\)$#\1#p' \
+                "$STATE/relay.log" | /system/bin/sed -n '1p'
+        )
+        case "$relay_event_name" in
+            event[0-9]*)
+                allow_input_events="${relay_event_name#event}"
+                log "nova_launcher_gamepad=pass"
+                log "nova_launcher_input_allow=$relay_event_name"
+                ;;
+            *)
+                log "nova_launcher_gamepad=not_ready reason=missing_event_path"
+                ;;
+        esac
     else
         log "nova_launcher_gamepad=not_ready"
     fi
@@ -254,6 +267,7 @@ fi
     NOVA_TERMUX_X11_DBUS_SYSTEM=1 \
     NOVA_TERMUX_X11_STEAM_FULLSCREEN=1 \
     NOVA_TERMUX_X11_STEAM_FULLDESKTOPRES=1 \
+    NOVA_X11_ALLOW_INPUT_EVENTS="$allow_input_events" \
     NOVA_X11_HIDE_INPUT_EVENTS="$hide_input_events" \
     "$PRIVATE_HELPER" chroot-dev "$MOUNT_PRIVATE" "$ROOT" \
     /tmp/"$CLIENT_STAGE_NAME" >"$STATE/client.log" 2>&1 &

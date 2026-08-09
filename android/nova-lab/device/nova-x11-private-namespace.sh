@@ -69,8 +69,9 @@ case "$mode" in
             exit 1
         fi
         proc_mounted=1
+        allow_input_events="${NOVA_X11_ALLOW_INPUT_EVENTS:-}"
         hide_input_events="${NOVA_X11_HIDE_INPUT_EVENTS:-}"
-        if [ -n "$hide_input_events" ]; then
+        if [ -n "$allow_input_events" ] || [ -n "$hide_input_events" ]; then
             if ! /system/bin/mount -t tmpfs -o mode=1777 tmpfs "$root/dev/input"; then
                 echo "x11_namespace_error=mount_input" >&2
                 exit 1
@@ -79,6 +80,14 @@ case "$mode" in
             input_index=0
             while [ "$input_index" -lt 64 ]; do
                 hidden=0
+                case ",$allow_input_events," in
+                    *,"$input_index",*)
+                        hidden=0
+                        ;;
+                    *)
+                        hidden=1
+                        ;;
+                esac
                 case ",$hide_input_events," in
                     *,"$input_index",*)
                         hidden=1
@@ -94,7 +103,7 @@ case "$mode" in
                 fi
                 input_index=$((input_index + 1))
             done
-            echo "x11_namespace_input=pass hidden_events=$hide_input_events"
+            echo "x11_namespace_input=pass allowed_events=$allow_input_events hidden_events=$hide_input_events"
         fi
         /system/bin/chroot "$root" "$@"
         status=$?
