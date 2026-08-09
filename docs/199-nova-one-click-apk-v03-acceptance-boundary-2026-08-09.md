@@ -330,6 +330,27 @@ external `am startservice` stop was rejected because the service is not
 exported; the subsequent exact launcher stop path was used for cleanup and is
 not a product-session failure.
 
+### `input-20260809T203930Z-physical-evdev`
+
+After the geometry session was stopped, a bounded 20-second root capture of
+`/dev/input/event7` recorded zero lines (empty-trace SHA-256
+`e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`). The
+device inventory still identified event7 as an enabled external gamepad named
+`Xbox Wireless Controller`, with the expected ABXY, LB/RB, trigger, stick, and
+D-pad capabilities. Its sysfs path is `/devices/virtual/input/input764`, so
+this is a virtual output of Retroid's input mapper rather than a direct
+physical transport node.
+
+The contemporaneous device state reported `bluetooth_on=0`, and logcat showed
+`com.rp.mapping` restarting its `rsinput` service, registering
+`Retroid Pocket Controller`, reporting MCU frame-loss errors, and transitioning
+the mapping configuration from `Gamepad` to `Empty`. This places the current
+physical-control failure before the Nova relay and Steam namespace: the relay
+can forward injected events, but the virtual source node was quiet during the
+bounded physical capture. A fresh session must therefore capture all input
+nodes while the operator presses the built-in controls and correlate those
+events with the mapper's MCU log before changing Steam input code.
+
 ## Cleanup
 
 Every attempt ended without a Nova Steam runtime. The exact helper returned
