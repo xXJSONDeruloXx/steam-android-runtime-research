@@ -36,6 +36,7 @@ REPORT="$BUILD_DIR/device-gamescope-headless-ahb-report.txt"
 LOGCAT="$BUILD_DIR/device-gamescope-headless-ahb-logcat.txt"
 APP_REPORT="$BUILD_DIR/device-gamescope-headless-ahb-app-report.txt"
 ANDROID_INPUT_REPORT="$BUILD_DIR/android-input-bridge-report.txt"
+ANDROID_TOUCH_REPORT="$BUILD_DIR/android-touch-bridge-report.txt"
 SCREENSHOT="$BUILD_DIR/device-gamescope-headless-ahb-screenshot.png"
 METADATA="$BUILD_DIR/device-gamescope-headless-ahb-metadata.txt"
 PREFLIGHT="$BUILD_DIR/device-gamescope-headless-ahb-preflight.txt"
@@ -99,6 +100,7 @@ if [ -n "$RUN_DIR" ]; then
     LOGCAT="$RUN_DIR/device-gamescope-headless-ahb-logcat.txt"
     APP_REPORT="$RUN_DIR/device-gamescope-headless-ahb-app-report.txt"
     ANDROID_INPUT_REPORT="$RUN_DIR/android-input-bridge-report.txt"
+    ANDROID_TOUCH_REPORT="$RUN_DIR/android-touch-bridge-report.txt"
     SCREENSHOT="$RUN_DIR/device-gamescope-headless-ahb-screenshot.png"
     METADATA="$RUN_DIR/device-gamescope-headless-ahb-metadata.txt"
     PREFLIGHT="$RUN_DIR/device-gamescope-headless-ahb-preflight.txt"
@@ -111,6 +113,10 @@ if [ -n "$RUN_DIR" ]; then
         done
         if [ "${NOVA_ANDROID_INPUT_BRIDGE:-0}" = "1" ] && [ -e "$ANDROID_INPUT_REPORT" ]; then
             echo "Nova run artifact already exists; use a fresh run id: $ANDROID_INPUT_REPORT" >&2
+            exit 2
+        fi
+        if [ "${NOVA_ANDROID_TOUCH_BRIDGE:-0}" = "1" ] && [ -e "$ANDROID_TOUCH_REPORT" ]; then
+            echo "Nova run artifact already exists; use a fresh run id: $ANDROID_TOUCH_REPORT" >&2
             exit 2
         fi
     fi
@@ -468,7 +474,7 @@ fi
 
 run_preflight_gate
 
-rm -f "$REPORT" "$LOGCAT" "$APP_REPORT" "$ANDROID_INPUT_REPORT" "$SCREENSHOT"
+rm -f "$REPORT" "$LOGCAT" "$APP_REPORT" "$ANDROID_INPUT_REPORT" "$ANDROID_TOUCH_REPORT" "$SCREENSHOT"
 
 "$ADB" logcat -c
 cleanup_runtime
@@ -554,11 +560,13 @@ if [ "${NOVA_ANDROID_INPUT_BRIDGE:-0}" = "1" ]; then
     fi
 fi
 if [ "${NOVA_ANDROID_TOUCH_BRIDGE:-0}" = "1" ]; then
-    "$ADB" shell run-as "$PACKAGE" cat files/android-touch-bridge-report.txt \
-        > "$BUILD_DIR/nova-android-touch-bridge-report.txt" 2>/dev/null || true
+    if ! "$ADB" shell run-as "$PACKAGE" cat files/android-touch-bridge-report.txt \
+        > "$ANDROID_TOUCH_REPORT" 2>/dev/null; then
+        : > "$ANDROID_TOUCH_REPORT"
+    fi
 fi
 "$ADB" exec-out screencap -p > "$SCREENSHOT"
-for artifact in "$REPORT" "$LOGCAT" "$APP_REPORT" "$ANDROID_INPUT_REPORT"; do
+for artifact in "$REPORT" "$LOGCAT" "$APP_REPORT" "$ANDROID_INPUT_REPORT" "$ANDROID_TOUCH_REPORT"; do
     if [ -f "$artifact" ]; then
         artifact_tmp="$artifact.tmp"
         {

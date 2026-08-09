@@ -51,12 +51,12 @@ validate_manual_timeout_profile() {
     fi
 
     if [ "$client_timeout" -gt 900 ] || [ "$gamescope_timeout" -gt 900 ] || \
-        [ "$touch_timeout" -gt 900 ] || [ "$relay_timeout" -gt 900000 ]; then
-        echo "manual profile $RUN_PROFILE requires bounded timeouts (client/gamescope/touch <= 900s, relay <= 900000ms)" >&2
+        [ "$touch_timeout" -gt 900000 ] || [ "$relay_timeout" -gt 900000 ]; then
+        echo "manual profile $RUN_PROFILE requires bounded timeouts (client/gamescope <= 900s, touch <= 900000ms, relay <= 900000ms)" >&2
         echo "use manual-long-lived with NOVA_MANUAL_WATCHDOG_SECONDS for an explicit long-lived session" >&2
         return 1
     fi
-    echo "native_steam_timeout_profile=bounded max_client_seconds=900 max_gamescope_seconds=900 max_touch_seconds=900 max_relay_ms=900000"
+    echo "native_steam_timeout_profile=bounded max_client_seconds=900 max_gamescope_seconds=900 max_touch_ms=900000 max_relay_ms=900000"
 }
 
 cleanup_remote_runtime() {
@@ -186,7 +186,7 @@ export NOVA_ANDROID_TOUCH_BRIDGE=1
 export NOVA_EIS_TOUCH_BRIDGE=1
 export NOVA_EIS_TOUCH_HELPER="$BUILD_DIR/nova-libei-input-bridge"
 export NOVA_EIS_TOUCH_APP_SOCKET="@/data/user/0/com.xjsonderulo.steamandroid.novalab/files/nova-touch.sock"
-export NOVA_EIS_TOUCH_TIMEOUT=${NOVA_EIS_TOUCH_TIMEOUT:-900}
+export NOVA_EIS_TOUCH_TIMEOUT=${NOVA_EIS_TOUCH_TIMEOUT:-900000}
 export NOVA_EIS_TOUCH_CONTINUOUS=1
 export NOVA_STEAM_CLIENT_TIMEOUT=${NOVA_STEAM_CLIENT_TIMEOUT:-900}
 export NOVA_STEAM_GAMESCOPE_TIMEOUT=${NOVA_STEAM_GAMESCOPE_TIMEOUT:-900}

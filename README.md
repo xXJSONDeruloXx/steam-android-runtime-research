@@ -87,6 +87,7 @@ The useful results are split across several projects:
 - [Nova clock-correlated AHB socket trace result](docs/70-nova-ahb-clock-correlated-socket-trace-result-2026-08-09.md) refines the deadlock ordering with a same-run 60-second frame-149 boundary.
 - [Nova AHB continuous-repaint A/B result](docs/71-nova-ahb-continuous-repaint-fix-2026-08-09.md) rejects the global repaint trigger after an exact-stack device comparison and records the retained transport/UI result.
 - [Nova AHB repaint acceptance and Steam UI boundary](docs/72-nova-ahb-repaint-acceptance-and-steam-ui-boundary-2026-08-09.md) records the current no-hunk acceptance, the visible Steam UI gate, and the test-bench report handoff repair.
+- [Nova latest UI, touch, and login boundary](docs/73-nova-latest-ui-touch-login-boundary-2026-08-09.md) records the fresh controller/touch validation, OOBE login-state transition, stale Android presentation, and event-driven AHB next step.
 
 ## Recommended direction
 

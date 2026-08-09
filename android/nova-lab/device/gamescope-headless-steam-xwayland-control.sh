@@ -43,6 +43,12 @@ fi
 if [ -r /opt/nova-steam/eis-touch-continuous ]; then
     EIS_TOUCH_CONTINUOUS=$(cat /opt/nova-steam/eis-touch-continuous)
 fi
+case "$EIS_TOUCH_TIMEOUT" in
+    ''|*[!0-9]*)
+        EIS_TOUCH_TIMEOUT=60000
+        ;;
+esac
+EIS_TOUCH_TIMEOUT_SECONDS=$(( (EIS_TOUCH_TIMEOUT + 999) / 1000 ))
 touch_app_socket_ready() {
     case "$EIS_TOUCH_APP_SOCKET" in
         @*) return 0 ;;
@@ -290,11 +296,11 @@ if [ "${1:-}" = "--client" ]; then
         done
         if [ -S /tmp/gamescope-0-ei ] && touch_app_socket_ready; then
             if [ "$EIS_TOUCH_CONTINUOUS" = "1" ]; then
-                /usr/bin/timeout "$EIS_TOUCH_TIMEOUT" "$EIS_TOUCH_HELPER" \
+                /usr/bin/timeout "$EIS_TOUCH_TIMEOUT_SECONDS" "$EIS_TOUCH_HELPER" \
                     /tmp/gamescope-0-ei "$EIS_TOUCH_APP_SOCKET" "$EIS_TOUCH_TIMEOUT" continuous \
                     >"$eis_touch_log" 2>&1 &
             else
-                /usr/bin/timeout "$EIS_TOUCH_TIMEOUT" "$EIS_TOUCH_HELPER" \
+                /usr/bin/timeout "$EIS_TOUCH_TIMEOUT_SECONDS" "$EIS_TOUCH_HELPER" \
                     /tmp/gamescope-0-ei "$EIS_TOUCH_APP_SOCKET" "$EIS_TOUCH_TIMEOUT" \
                     >"$eis_touch_log" 2>&1 &
             fi
