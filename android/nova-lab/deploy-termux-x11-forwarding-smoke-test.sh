@@ -25,12 +25,14 @@ REMOTE_SERVER_LOG=$REMOTE_STATE_DIR/server.log
 REMOTE_CLIENT_LOG=$REMOTE_STATE_DIR/client.log
 REMOTE_CLIENT_STDOUT=$REMOTE_STATE_DIR/client.stdout
 REMOTE_CLIENT_STDERR=$REMOTE_STATE_DIR/client.stderr
-REMOTE_CLIENT_DIR=$DEVICE_ROOT/opt/nova-x11-forwarding
-REMOTE_CLIENT=$REMOTE_CLIENT_DIR/nova-x11-animate
-REMOTE_CAPTURE=$REMOTE_CLIENT_DIR/nova-x11-capture
+REMOTE_CLIENT=$DEVICE_ROOT/tmp/nova-x11-animate-$RUN_ID
+REMOTE_CAPTURE=$DEVICE_ROOT/tmp/nova-x11-capture-$RUN_ID
 REMOTE_X11_PPM=$DEVICE_ROOT/tmp/nova-x11-forwarding-$RUN_ID.ppm
 REMOTE_X11_SOCKET=$DEVICE_ROOT/tmp/.X11-unix/X$DISPLAY_NUMBER
 REMOTE_X11_LOCK=$DEVICE_ROOT/tmp/.X$DISPLAY_NUMBER-lock
+CHROOT_CLIENT=/tmp/nova-x11-animate-$RUN_ID
+CHROOT_CAPTURE=/tmp/nova-x11-capture-$RUN_ID
+CHROOT_X11_PPM=/tmp/nova-x11-forwarding-$RUN_ID.ppm
 
 case "$RUN_ID" in
     ''|*[!A-Za-z0-9._-]*)
@@ -74,7 +76,7 @@ for artifact in \
     nova-x11-capture.sha256 termux-x11-server.log termux-x11-client.log \
     x11-tree.txt x11-capture.txt x11-window.ppm android-screenshot.png \
     android-window-state.txt android-logcat.txt nova-runtime-cleanup.txt \
-    post-stop-verification.txt; do
+    nova-runtime-cleanup-preflight.txt post-stop-verification.txt; do
     if [ -e "$RUN_DIR/$artifact" ]; then
         echo "run artifact already exists; choose a fresh NOVA_RUN_ID: $RUN_DIR/$artifact" >&2
         exit 2
@@ -104,8 +106,9 @@ cleanup_nova_runtime() {
 
 cleanup_remote() {
     local cleanup_output
+    adb shell su -c "mkdir -p $REMOTE_STATE_DIR" >/dev/null 2>&1 || true
     cleanup_output=$(adb shell su -c \
-        "client_pid=; if [ -r $REMOTE_CLIENT_PID_FILE ]; then client_pid=\$(cat $REMOTE_CLIENT_PID_FILE); fi; if [ -n \"\$client_pid\" ] && [ -r /proc/\$client_pid/cmdline ] && tr '\\000' ' ' < /proc/\$client_pid/cmdline | grep -q 'nova-x11-animate'; then kill \"\$client_pid\" 2>/dev/null || true; fi; server_pid=; if [ -r $REMOTE_SERVER_PID_FILE ]; then server_pid=\$(cat $REMOTE_SERVER_PID_FILE); fi; if [ -n \"\$server_pid\" ] && [ -r /proc/\$server_pid/cmdline ] && tr '\\000' ' ' < /proc/\$server_pid/cmdline | grep -q 'termux-x11'; then kill \"\$server_pid\" 2>/dev/null || true; fi; am broadcast -a com.termux.x11.ACTION_STOP -p com.termux.x11 >/dev/null 2>&1 || true; am force-stop com.termux.x11 >/dev/null 2>&1 || true; rm -f $REMOTE_X11_SOCKET $REMOTE_X11_LOCK" 2>&1 || true)
+        "client_pid=; if [ -r $REMOTE_CLIENT_PID_FILE ]; then client_pid=\$(cat $REMOTE_CLIENT_PID_FILE); fi; if [ -n \"\$client_pid\" ] && [ -r /proc/\$client_pid/cmdline ] && tr '\\000' ' ' < /proc/\$client_pid/cmdline | grep -q 'nova-x11-animate'; then kill \"\$client_pid\" 2>/dev/null || true; fi; server_pid=; if [ -r $REMOTE_SERVER_PID_FILE ]; then server_pid=\$(cat $REMOTE_SERVER_PID_FILE); fi; if [ -n \"\$server_pid\" ] && [ -r /proc/\$server_pid/cmdline ] && tr '\\000' ' ' < /proc/\$server_pid/cmdline | grep -q 'termux-x11'; then kill \"\$server_pid\" 2>/dev/null || true; fi; am broadcast -a com.termux.x11.ACTION_STOP -p com.termux.x11 >/dev/null 2>&1 || true; am force-stop com.termux.x11 >/dev/null 2>&1 || true; socket_state=absent; [ -S $REMOTE_X11_SOCKET ] && socket_state=present; echo pre_cleanup_socket_state=\$socket_state >$REMOTE_STATE_DIR/cleanup-state; rm -f $REMOTE_CLIENT $REMOTE_CAPTURE $REMOTE_X11_PPM $REMOTE_X11_SOCKET $REMOTE_X11_LOCK /data/local/tmp/nova-x11-animate-forwarding /data/local/tmp/nova-x11-capture-forwarding" 2>&1 || true)
     printf '%s\n' "$cleanup_output" | tr -d '\r'
 }
 
@@ -116,7 +119,7 @@ post_stop_verify() {
     output=$(printf '%s\n' "$output" | tr -d '\r')
     printf '%s\n' "$output" >"$RUN_DIR/post-stop-verification.txt"
     if printf '%s\n' "$output" | rg -q 'server_state=absent client_state=absent socket_state=absent'; then
-        adb shell su -c "rm -f $REMOTE_CLIENT_PID_FILE $REMOTE_SERVER_PID_FILE" >/dev/null 2>&1 || true
+        adb shell su -c "rm -rf $REMOTE_STATE_DIR" >/dev/null 2>&1 || true
         echo "termux_x11_post_stop=pass"
         return 0
     fi
@@ -170,13 +173,13 @@ sha256sum "$APK" >"$RUN_DIR/termux-x11-apk.sha256"
 sha256sum "$X11_ANIMATE" >"$RUN_DIR/nova-x11-animate.sha256"
 sha256sum "$X11_CAPTURE" >"$RUN_DIR/nova-x11-capture.sha256"
 
-adb push "$X11_ANIMATE" /data/local/tmp/nova-x11-animate-forwarding >/dev/null
-adb push "$X11_CAPTURE" /data/local/tmp/nova-x11-capture-forwarding >/dev/null
-adb shell su -c "mkdir -p $REMOTE_STATE_DIR $REMOTE_CLIENT_DIR; cp /data/local/tmp/nova-x11-animate-forwarding $REMOTE_CLIENT; cp /data/local/tmp/nova-x11-capture-forwarding $REMOTE_CAPTURE; chmod 755 $REMOTE_CLIENT $REMOTE_CAPTURE"
+RUN_STARTED=1
+adb shell su -c "mkdir -p $REMOTE_STATE_DIR"
+adb push "$X11_ANIMATE" "$REMOTE_CLIENT" >/dev/null
+adb push "$X11_CAPTURE" "$REMOTE_CAPTURE" >/dev/null
 
 adb shell su -c \
     "mkdir -p $REMOTE_STATE_DIR; export TMPDIR=$DEVICE_ROOT/tmp; export XKB_CONFIG_ROOT=$DEVICE_ROOT/usr/share/X11/xkb; export CLASSPATH=\$(pm path com.termux.x11 | cut -d: -f2); export TERMUX_X11_DEBUG=1; /system/bin/app_process / --nice-name=termux-x11 com.termux.x11.CmdEntryPoint $DISPLAY_VALUE >$REMOTE_SERVER_LOG 2>&1 & echo \$! >$REMOTE_SERVER_PID_FILE"
-RUN_STARTED=1
 
 socket_ready=0
 for attempt in $(seq 1 60); do
@@ -193,11 +196,11 @@ fi
 echo "termux_x11_server=pass display=$DISPLAY_VALUE socket=$REMOTE_X11_SOCKET"
 
 adb shell su -c \
-    "printf '%s\\n' 'client_begin run_id=$RUN_ID display=$DISPLAY_VALUE' >$REMOTE_CLIENT_LOG; chroot $DEVICE_ROOT /usr/bin/env DISPLAY=$DISPLAY_VALUE XKB_CONFIG_ROOT=/usr/share/X11/xkb $REMOTE_CLIENT $CLIENT_FRAMES 1280 720 >$REMOTE_CLIENT_STDOUT 2>$REMOTE_CLIENT_STDERR & echo \$! >$REMOTE_CLIENT_PID_FILE"
+    "printf '%s\\n' 'client_begin run_id=$RUN_ID display=$DISPLAY_VALUE' >$REMOTE_CLIENT_LOG; chroot $DEVICE_ROOT /usr/bin/env DISPLAY=$DISPLAY_VALUE XKB_CONFIG_ROOT=/usr/share/X11/xkb $CHROOT_CLIENT $CLIENT_FRAMES 1280 720 >$REMOTE_CLIENT_STDOUT 2>$REMOTE_CLIENT_STDERR & echo \$! >$REMOTE_CLIENT_PID_FILE"
 
 sleep 1
 adb shell su -c \
-    "chroot $DEVICE_ROOT /usr/bin/env DISPLAY=$DISPLAY_VALUE XKB_CONFIG_ROOT=/usr/share/X11/xkb $REMOTE_CAPTURE --tree" \
+    "chroot $DEVICE_ROOT /usr/bin/env DISPLAY=$DISPLAY_VALUE XKB_CONFIG_ROOT=/usr/share/X11/xkb $CHROOT_CAPTURE --tree" \
     >"$RUN_DIR/x11-tree.txt"
 
 window_id=$(sed -n 's/^nova_x11_window id=\([^ ]*\).*name="Nova animated Xwayland Gamescope probe".*/\1/p' "$RUN_DIR/x11-tree.txt" | head -n 1)
@@ -208,7 +211,7 @@ fi
 echo "termux_x11_window=pass id=$window_id"
 
 adb shell su -c \
-    "chroot $DEVICE_ROOT /usr/bin/env DISPLAY=$DISPLAY_VALUE XKB_CONFIG_ROOT=/usr/share/X11/xkb $REMOTE_CAPTURE --window-ppm $window_id $REMOTE_X11_PPM" \
+    "chroot $DEVICE_ROOT /usr/bin/env DISPLAY=$DISPLAY_VALUE XKB_CONFIG_ROOT=/usr/share/X11/xkb $CHROOT_CAPTURE --window-ppm $window_id $CHROOT_X11_PPM" \
     >"$RUN_DIR/x11-capture.txt"
 adb pull "$REMOTE_X11_PPM" "$RUN_DIR/x11-window.ppm" >"$RUN_DIR/x11-pull.txt" 2>&1
 [ -s "$RUN_DIR/x11-window.ppm" ]

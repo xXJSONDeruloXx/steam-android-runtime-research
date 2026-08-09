@@ -40,6 +40,16 @@ The client is the existing checked-in ARM64 `nova-x11-animate` build. Its
 binary hash, the exact run ID, and all pulled device artifacts must be written
 to the result document.
 
+## Pre-run staging constraint
+
+The first harness attempt stopped before launching `CmdEntryPoint`: copying a
+client into a nested directory under the chroot failed with `Permission denied`.
+The device reports `uid=0(root)` through `su`, but `CapEff=0000000000000000`,
+and both `mount` and `umount` fail. A run-specific direct file in the existing
+chroot `/tmp` can be written with `adb push`, so the harness stages the client
+and capture helper as direct `/tmp/nova-x11-*-<run-id>` files and removes those
+exact files during cleanup. No bind mount is part of this experiment.
+
 ## Procedure and gates
 
 `android/nova-lab/deploy-termux-x11-forwarding-smoke-test.sh` must:
@@ -79,6 +89,7 @@ run-metadata.txt
 termux-x11-apk.sha256
 nova-x11-animate.sha256
 nova-x11-capture.sha256
+nova-runtime-cleanup-preflight.txt
 termux-x11-server.log
 termux-x11-client.log
 x11-tree.txt
