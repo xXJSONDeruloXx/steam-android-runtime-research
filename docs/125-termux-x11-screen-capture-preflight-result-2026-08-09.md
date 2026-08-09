@@ -43,3 +43,6 @@ outside this experiment's cleanup authority.
 The next attempt remains the same predeclared Android screen-capture
 experiment and must reach the server/window gates before it can say anything
 about physical presentation.
+
+The next preflight failure is recorded in
+[doc 126](126-termux-x11-screen-capture-magisk-preflight-result-2026-08-09.md).
