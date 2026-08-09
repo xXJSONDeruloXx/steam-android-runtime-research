@@ -1,6 +1,6 @@
 # Nova Vulkan AHardwareBuffer readback rerun — 2026-08-09
 
-Status: predeclared; no device result yet.
+Status: completed; see [the Vulkan/raw comparison result](116-nova-ahb-vulkan-readback-rerun-result-2026-08-09.md).
 
 ## Purpose
 
