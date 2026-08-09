@@ -1,6 +1,7 @@
 # Termux:X11 native ARM64 Steam `/dev` bind experiment — 2026-08-09
 
-Status: predeclared experiment; no device launch has run for this profile.
+Status: predeclared profile hit a harness preflight failure; the result is
+recorded in `docs/141-termux-x11-native-steam-dev-bind-preflight-result-2026-08-09.md`.
 
 ## Why this is next
 
