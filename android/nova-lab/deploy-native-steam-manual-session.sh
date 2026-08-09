@@ -102,6 +102,7 @@ clear_ahb_trace_state() {
     local status=0
     "$ADB" shell setprop debug.nova.ahb_trace 0 >/dev/null 2>&1 || status=$?
     "$ADB" shell setprop debug.nova.ahb_socket_trace 0 >/dev/null 2>&1 || status=$?
+    "$ADB" shell setprop debug.nova.ahb_ack_poll_timeout_ms 0 >/dev/null 2>&1 || status=$?
     if ! "$ADB" shell \
         "su -c 'mkdir -p $DEVICE_ROOT/opt/nova-steam; printf \"0\\n\" > $DEVICE_ROOT/opt/nova-steam/ahb-trace; printf \"0\\n\" > $DEVICE_ROOT/opt/nova-steam/ahb-socket-trace'" \
         >/dev/null 2>&1; then
@@ -109,8 +110,10 @@ clear_ahb_trace_state() {
     fi
     if [ "$status" -eq 0 ]; then
         echo "native_steam_ahb_trace_reset=pass"
+        echo "native_steam_ahb_ack_poll_timeout_reset=pass"
     else
         echo "native_steam_ahb_trace_reset=fail" >&2
+        echo "native_steam_ahb_ack_poll_timeout_reset=fail" >&2
     fi
     return "$status"
 }

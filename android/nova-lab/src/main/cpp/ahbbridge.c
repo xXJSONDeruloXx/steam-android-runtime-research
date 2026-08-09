@@ -64,6 +64,26 @@ ahb_socket_trace_enabled(void)
     return enabled;
 }
 
+static int
+ahb_socket_ack_poll_timeout_ms(void)
+{
+    char value[PROP_VALUE_MAX] = {0};
+    int length = __system_property_get("debug.nova.ahb_ack_poll_timeout_ms",
+                                       value);
+    if (length <= 0) {
+        return 0;
+    }
+
+    char *end = NULL;
+    errno = 0;
+    long parsed = strtol(value, &end, 10);
+    if (errno == ERANGE || end == value || *end != '\0' || parsed < 0 ||
+        parsed > 600000) {
+        return 0;
+    }
+    return (int)parsed;
+}
+
 static unsigned long long
 ahb_socket_inode(int fd)
 {
@@ -302,6 +322,7 @@ static void
 ahb_socket_set_receive_timeout(int frame, int buffer, int fd,
                                const struct timeval *requested)
 {
+    int ack_poll_timeout_ms = ahb_socket_ack_poll_timeout_ms();
     errno = 0;
     int set_status = setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, requested,
                                 sizeof(*requested));
@@ -319,13 +340,13 @@ ahb_socket_set_receive_timeout(int frame, int buffer, int fd,
     }
     __android_log_print(
         ANDROID_LOG_INFO, "NovaLab",
-        "ahb_socket_timeout frame=%d buffer=%d fd=%d inode=%llu type=%d generation=%u cookie=%llu requested_sec=%lld requested_usec=%lld set_result=%d set_errno=%d get_result=%d get_errno=%d effective_sec=%lld effective_usec=%lld effective_len=%u",
+        "ahb_socket_timeout frame=%d buffer=%d fd=%d inode=%llu type=%d generation=%u cookie=%llu requested_sec=%lld requested_usec=%lld set_result=%d set_errno=%d get_result=%d get_errno=%d effective_sec=%lld effective_usec=%lld effective_len=%u ack_poll_timeout_ms=%d",
         frame, buffer, fd, ahb_socket_inode(fd), ahb_socket_type(fd),
         ahb_socket_connection_generation(buffer, fd), ahb_socket_cookie(fd),
         (long long)requested->tv_sec, (long long)requested->tv_usec,
         set_status, set_error, get_status, get_error,
         (long long)effective.tv_sec, (long long)effective.tv_usec,
-        (unsigned int)effective_length);
+        (unsigned int)effective_length, ack_poll_timeout_ms);
 }
 
 static void
@@ -732,6 +753,39 @@ receive_bridge_acknowledgement(int client, char *acknowledgement,
     ahb_socket_trace("ack_wait_begin", frame, buffer, client, 0, 0, NULL, -1,
                      "blocking_recvmsg=begin");
     ahb_socket_wait_probe(frame, buffer, client);
+
+    int ack_poll_timeout_ms = ahb_socket_ack_poll_timeout_ms();
+    if (ack_poll_timeout_ms > 0) {
+        struct pollfd timed_poll = {
+            .fd = client,
+            .events = POLLIN | POLLERR | POLLHUP | POLLNVAL,
+        };
+        errno = 0;
+        int poll_status;
+        do {
+            poll_status = poll(&timed_poll, 1, ack_poll_timeout_ms);
+        } while (poll_status < 0 && errno == EINTR);
+        int poll_error = poll_status < 0 ? errno : 0;
+        ahb_socket_poll_trace("ack_wait_timed", frame, buffer, client,
+                              poll_status, timed_poll.revents, poll_error);
+
+        if (poll_status <= 0) {
+            char queue_payload[96] = {0};
+            ahb_socket_timeout_queue_payload(client, queue_payload,
+                                             sizeof(queue_payload));
+            char timeout_payload[256] = {0};
+            snprintf(timeout_payload, sizeof(timeout_payload),
+                     "%s poll_timeout_ms=%d poll_result=%d poll_revents=0x%x poll_errno=%d",
+                     queue_payload, ack_poll_timeout_ms, poll_status,
+                     (unsigned int)timed_poll.revents, poll_error);
+            ahb_socket_trace(
+                poll_status == 0 ? "ack_wait_timeout" : "ack_wait_poll_error",
+                frame, buffer, client, poll_status, poll_error, NULL, -1,
+                timeout_payload);
+            return -1;
+        }
+    }
+
     errno = 0;
     ssize_t bytes = recvmsg(client, &message, MSG_CMSG_CLOEXEC);
     int error_number = bytes < 0 ? errno : 0;

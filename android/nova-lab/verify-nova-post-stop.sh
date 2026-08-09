@@ -110,6 +110,21 @@ else
     failures=$((failures + 1))
 fi
 
+if ack_poll_output=$($ADB shell getprop debug.nova.ahb_ack_poll_timeout_ms 2>&1); then
+    ack_poll_status=0
+else
+    ack_poll_status=$?
+fi
+ack_poll_output=$(printf '%s\n' "$ack_poll_output" | tr -d '\r')
+ack_poll_value=$(printf '%s\n' "$ack_poll_output" | tail -n 1)
+echo "debug.nova.ahb_ack_poll_timeout_ms=$ack_poll_value"
+if [ "$ack_poll_status" -eq 0 ] && [ "$ack_poll_value" = "0" ]; then
+    echo "post_stop_ack_poll_timeout_state=pass"
+else
+    echo "post_stop_ack_poll_timeout_state=fail status=$ack_poll_status" >&2
+    failures=$((failures + 1))
+fi
+
 if [ "$failures" -ne 0 ]; then
     echo "post_stop_verification=fail failures=$failures" >&2
     exit 1
