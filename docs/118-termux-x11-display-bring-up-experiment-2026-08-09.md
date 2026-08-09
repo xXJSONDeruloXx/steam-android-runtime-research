@@ -119,6 +119,7 @@ nova-x11-animate.sha256
 nova-x11-capture.sha256
 nova-x11-private-namespace.sha256
 nova-termux-x11-cleanup.sha256
+nova-termux-x11-client-launcher.sha256
 nova-runtime-cleanup-preflight.txt
 termux-x11-server.log
 termux-x11-client.log

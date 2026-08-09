@@ -22,7 +22,7 @@ process_comm() {
 process_cmdline() {
     pid="$1"
     if [ -r "/proc/$pid/cmdline" ]; then
-        tr '\000' ' ' <"/proc/$pid/cmdline" | tr -d '\r\n'
+        tr '\000' ' ' <"/proc/$pid/cmdline" | tr -d '\r\n' | /system/bin/sed 's/[[:space:]]*$//'
     fi
 }
 

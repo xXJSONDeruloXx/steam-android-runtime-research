@@ -49,3 +49,6 @@ without appearing as an argument to the cleanup process itself.
 
 The next run must reach the Termux:X11 server gate before its result can say
 anything about the X11 client or Android rendering.
+
+The next server/client attempt is recorded in
+[doc 122](122-termux-x11-stateful-cleanup-result-2026-08-09.md).

@@ -14,6 +14,7 @@ X11_CAPTURE=${NOVA_X11_CAPTURE:-$BUILD_DIR/nova-x11-capture}
 RUNTIME_CLEANUP="$SCRIPT_DIR/device/nova-runtime-cleanup.sh"
 X11_PRIVATE_NAMESPACE_HELPER="$SCRIPT_DIR/device/nova-x11-private-namespace.sh"
 X11_CLEANUP_HELPER="$SCRIPT_DIR/device/nova-termux-x11-cleanup.sh"
+X11_CLIENT_LAUNCHER="$SCRIPT_DIR/device/nova-termux-x11-client-launcher.sh"
 DEVICE_RUNTIME_CLEANUP=/data/local/tmp/nova-runtime-cleanup.sh
 CLIENT_FRAMES=${NOVA_TERMUX_X11_CLIENT_FRAMES:-600}
 RUN_ID=${NOVA_RUN_ID:-termux-x11-$(date -u +%Y%m%dT%H%M%SZ)-display-${DISPLAY_NUMBER}}
@@ -38,6 +39,7 @@ CHROOT_CAPTURE=/tmp/nova-x11-capture-$RUN_ID
 CHROOT_X11_PPM=/tmp/nova-x11-forwarding-$RUN_ID.ppm
 REMOTE_PRIVATE_NAMESPACE_HELPER=/data/local/tmp/nova-x11-private-namespace-$RUN_ID.sh
 REMOTE_X11_CLEANUP_HELPER=/data/local/tmp/nova-termux-x11-cleanup-$RUN_ID.sh
+REMOTE_CLIENT_LAUNCHER=/data/local/tmp/nova-termux-x11-client-launcher-$RUN_ID.sh
 SERVER_PROCESS_TOKEN=termux-x11
 CLIENT_PROCESS_TOKEN=nova-x11-animate-$RUN_ID
 REMOTE_CLIENT_HOST_PID=
@@ -81,6 +83,10 @@ if [ ! -x "$X11_CLEANUP_HELPER" ]; then
     echo "missing X11 cleanup helper: $X11_CLEANUP_HELPER" >&2
     exit 1
 fi
+if [ ! -x "$X11_CLIENT_LAUNCHER" ]; then
+    echo "missing X11 client launcher: $X11_CLIENT_LAUNCHER" >&2
+    exit 1
+fi
 if ! command -v sha256sum >/dev/null 2>&1; then
     echo "missing host tool: sha256sum" >&2
     exit 1
@@ -91,6 +97,7 @@ for artifact in \
     run-metadata.txt termux-x11-apk.sha256 nova-x11-animate.sha256 \
     nova-x11-capture.sha256 nova-x11-private-namespace.sha256 \
     nova-termux-x11-cleanup.sha256 termux-x11-server.log \
+    nova-termux-x11-client-launcher.sha256 \
     termux-x11-client.log termux-x11-client.stdout termux-x11-client.stderr \
     client-launch-command.txt client-host-pid.txt \
     x11-tree.txt x11-capture.txt x11-window.ppm android-screenshot.png \
@@ -114,7 +121,8 @@ prepare_remote_state() {
 stage_x11_helpers() {
     adb push "$X11_PRIVATE_NAMESPACE_HELPER" "$REMOTE_PRIVATE_NAMESPACE_HELPER" >/dev/null
     adb push "$X11_CLEANUP_HELPER" "$REMOTE_X11_CLEANUP_HELPER" >/dev/null
-    adb shell "chmod 755 $REMOTE_PRIVATE_NAMESPACE_HELPER $REMOTE_X11_CLEANUP_HELPER"
+    adb push "$X11_CLIENT_LAUNCHER" "$REMOTE_CLIENT_LAUNCHER" >/dev/null
+    adb shell "chmod 755 $REMOTE_PRIVATE_NAMESPACE_HELPER $REMOTE_X11_CLEANUP_HELPER $REMOTE_CLIENT_LAUNCHER"
 }
 
 cleanup_nova_runtime() {
@@ -222,6 +230,9 @@ adb shell am start --user 0 -n com.termux.x11/com.termux.x11.MainActivity >"$RUN
     echo "x11_cleanup_helper_sha256=$(sha256sum "$X11_CLEANUP_HELPER" | awk '{print $1}')"
     echo "remote_private_namespace_helper=$REMOTE_PRIVATE_NAMESPACE_HELPER"
     echo "remote_cleanup_helper=$REMOTE_X11_CLEANUP_HELPER"
+    echo "x11_client_launcher=$X11_CLIENT_LAUNCHER"
+    echo "x11_client_launcher_sha256=$(sha256sum "$X11_CLIENT_LAUNCHER" | awk '{print $1}')"
+    echo "remote_client_launcher=$REMOTE_CLIENT_LAUNCHER"
     echo "server_process_token=$SERVER_PROCESS_TOKEN"
     echo "client_process_token=$CLIENT_PROCESS_TOKEN"
     echo "client_launch=foreground adb shell su command with host-side background"
@@ -236,6 +247,7 @@ sha256sum "$X11_ANIMATE" >"$RUN_DIR/nova-x11-animate.sha256"
 sha256sum "$X11_CAPTURE" >"$RUN_DIR/nova-x11-capture.sha256"
 sha256sum "$X11_PRIVATE_NAMESPACE_HELPER" >"$RUN_DIR/nova-x11-private-namespace.sha256"
 sha256sum "$X11_CLEANUP_HELPER" >"$RUN_DIR/nova-termux-x11-cleanup.sha256"
+sha256sum "$X11_CLIENT_LAUNCHER" >"$RUN_DIR/nova-termux-x11-client-launcher.sha256"
 
 RUN_STARTED=1
 prepare_remote_state
@@ -259,8 +271,9 @@ if [ "$socket_ready" -ne 1 ]; then
 fi
 echo "termux_x11_server=pass display=$DISPLAY_VALUE socket=$REMOTE_X11_SOCKET"
 
+adb shell "echo client_begin_run_id=$RUN_ID display=$DISPLAY_VALUE >$REMOTE_CLIENT_LOG"
 adb shell su -c \
-    "echo client_begin_run_id=$RUN_ID display=$DISPLAY_VALUE >$REMOTE_CLIENT_LOG; $REMOTE_PRIVATE_NAMESPACE_HELPER chroot $DEVICE_ROOT /usr/bin/env -i PATH=/usr/bin:/bin HOME=/tmp XDG_RUNTIME_DIR=/tmp TMPDIR=/tmp DISPLAY=$DISPLAY_VALUE XKB_CONFIG_ROOT=$XKB_CONFIG_ROOT_RELATIVE $CHROOT_CLIENT $CLIENT_FRAMES 1280 720 >$REMOTE_CLIENT_STDOUT 2>$REMOTE_CLIENT_STDERR" \
+    "$REMOTE_CLIENT_LAUNCHER $REMOTE_PRIVATE_NAMESPACE_HELPER $REMOTE_CLIENT_STDOUT $REMOTE_CLIENT_STDERR $DEVICE_ROOT /usr/bin/env -i PATH=/usr/bin:/bin HOME=/tmp XDG_RUNTIME_DIR=/tmp TMPDIR=/tmp DISPLAY=$DISPLAY_VALUE XKB_CONFIG_ROOT=$XKB_CONFIG_ROOT_RELATIVE $CHROOT_CLIENT $CLIENT_FRAMES 1280 720" \
     >"$RUN_DIR/client-launch-command.txt" 2>&1 &
 REMOTE_CLIENT_HOST_PID=$!
 printf '%s\n' "$REMOTE_CLIENT_HOST_PID" >"$RUN_DIR/client-host-pid.txt"
