@@ -1,6 +1,7 @@
 # Termux:X11 native ARM64 Steam root-identity experiment — 2026-08-09
 
-Status: predeclared experiment; no device launch has run for this profile.
+Status: completed; the device result is recorded in
+`docs/137-termux-x11-native-steam-root-identity-result-2026-08-09.md`.
 
 ## Why this is next
 
