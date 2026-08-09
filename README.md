@@ -238,6 +238,7 @@ the gamescope frames on its own surface.
 - [Termux:X11 private-namespace client retry](docs/120-termux-x11-private-namespace-client-retry-2026-08-09.md)
 - [Termux:X11 cleanup-token self-match result](docs/121-termux-x11-cleanup-token-self-match-result-2026-08-09.md)
 - [Termux:X11 stateful cleanup and foreground launcher result](docs/122-termux-x11-stateful-cleanup-result-2026-08-09.md)
+- [Termux:X11 synthetic window result](docs/123-termux-x11-synthetic-window-result-2026-08-09.md)
 - [Retroid Pocket Nova flashing kit](tools/retroid-pocket-nova/README.md)
 
 ## Evidence standard
