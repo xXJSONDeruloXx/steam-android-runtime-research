@@ -40,6 +40,19 @@ ahb_trace_enabled(void)
     return enabled;
 }
 
+static int
+ahb_frame_identity_enabled(void)
+{
+    static int enabled = -1;
+    if (enabled < 0) {
+        char value[PROP_VALUE_MAX] = {0};
+        int length = __system_property_get("debug.nova.ahb_frame_identity",
+                                           value);
+        enabled = length > 0 && value[0] == '1' ? 1 : 0;
+    }
+    return enabled;
+}
+
 static unsigned long long
 ahb_monotonic_ns(void)
 {
@@ -900,6 +913,96 @@ present_surface_frame(ASurfaceControl *surface_control, AHardwareBuffer *buffer,
 }
 
 static int
+parse_ack_u64(const char *acknowledgement, const char *field_name,
+              uint64_t *value)
+{
+    if (acknowledgement == NULL || field_name == NULL || value == NULL) {
+        return -1;
+    }
+    const char *field = strstr(acknowledgement, field_name);
+    if (field == NULL ||
+        (field != acknowledgement && field[-1] != ' ' && field[-1] != '\n')) {
+        return -1;
+    }
+    field += strlen(field_name);
+    if (*field != '=') {
+        return -1;
+    }
+    char *end = NULL;
+    errno = 0;
+    unsigned long long parsed = strtoull(field + 1, &end, 10);
+    if (errno != 0 || end == field + 1 ||
+        (*end != '\0' && *end != ' ' && *end != '\n')) {
+        return -1;
+    }
+    *value = (uint64_t)parsed;
+    return 0;
+}
+
+static int
+checksum_ahardware_buffer(AHardwareBuffer *buffer, int width, int height,
+                          int acquire_fence_fd, uint64_t *checksum)
+{
+    if (buffer == NULL || checksum == NULL || width <= 0 || height <= 0 ||
+        acquire_fence_fd < 0) {
+        return -1;
+    }
+
+    struct pollfd fence_poll = {
+        .fd = acquire_fence_fd,
+        .events = POLLIN,
+    };
+    int poll_status;
+    do {
+        poll_status = poll(&fence_poll, 1, 5000);
+    } while (poll_status < 0 && errno == EINTR);
+    if (poll_status <= 0 || (fence_poll.revents & POLLNVAL) != 0 ||
+        (fence_poll.revents & (POLLIN | POLLERR | POLLHUP)) == 0) {
+        return -1;
+    }
+
+    AHardwareBuffer_Desc description = {0};
+    AHardwareBuffer_describe(buffer, &description);
+    if (description.format != AHARDWAREBUFFER_FORMAT_R8G8B8A8_UNORM ||
+        description.width < (uint32_t)width ||
+        description.height < (uint32_t)height ||
+        description.stride < (uint32_t)width) {
+        return -1;
+    }
+
+    void *mapped = NULL;
+    int status = AHardwareBuffer_lock(buffer,
+                                      AHARDWAREBUFFER_USAGE_CPU_READ_OFTEN,
+                                      -1, NULL, &mapped);
+    if (status != 0 || mapped == NULL) {
+        return -1;
+    }
+
+    const size_t row_bytes = (size_t)width * 4u;
+    const size_t stride_bytes = (size_t)description.stride * 4u;
+    uint64_t hash = 1469598103934665603ULL;
+    const uint8_t *pixels = (const uint8_t *)mapped;
+    for (int row = 0; row < height; ++row) {
+        const uint8_t *line = pixels + (size_t)row * stride_bytes;
+        for (size_t column = 0; column < row_bytes; ++column) {
+            hash ^= line[column];
+            hash *= 1099511628211ULL;
+        }
+    }
+
+    int32_t unlock_fence = -1;
+    status = AHardwareBuffer_unlock(buffer, &unlock_fence);
+    if (unlock_fence >= 0) {
+        close(unlock_fence);
+    }
+    if (status != 0) {
+        return -1;
+    }
+    *checksum = hash;
+    return 0;
+}
+
+static int
 create_bridge_server(const char *socket_path)
 {
     if (strlen(socket_path) >= sizeof(((struct sockaddr_un *)0)->sun_path)) {
@@ -1444,7 +1547,7 @@ Java_com_xjsonderulo_steamandroid_novalab_MainActivity_nativeRunDmaBufDoubleBuff
      */
     char report[262144] = "";
     size_t used = 0;
-    append_line(report, sizeof(report), &used, "ahb_double_buffer_version=1\n");
+    append_line(report, sizeof(report), &used, "ahb_double_buffer_version=2\n");
     if (socket_path_string == NULL) {
         append_line(report, sizeof(report), &used,
                     "ahb_double_buffer=missing_socket\n");
@@ -1470,6 +1573,7 @@ Java_com_xjsonderulo_steamandroid_novalab_MainActivity_nativeRunDmaBufDoubleBuff
     int frame_count = 0;
     int release_fence_count = 0;
     const int continuous = frame_count_argument < 0;
+    const int frame_identity = ahb_frame_identity_enabled();
     const int buffer_width =
         frame_width_argument > 0 && frame_width_argument <= 4096
             ? frame_width_argument
@@ -1648,6 +1752,9 @@ Java_com_xjsonderulo_steamandroid_novalab_MainActivity_nativeRunDmaBufDoubleBuff
     append_line(report, sizeof(report), &used,
                 "ahb_double_buffer_ack_wait_mode=%s\n",
                 continuous ? "continuous_blocking" : "bounded_15s");
+    append_line(report, sizeof(report), &used,
+                "ahb_double_buffer_frame_identity=%s\n",
+                frame_identity ? "enabled" : "disabled");
     for (int frame = 0; continuous || frame < total_frames; ++frame) {
         int index = frame % 3;
         char acknowledgement[256] = {0};
@@ -1695,6 +1802,42 @@ Java_com_xjsonderulo_steamandroid_novalab_MainActivity_nativeRunDmaBufDoubleBuff
                 close(acquire_fence_fd);
             }
             goto double_buffer_done;
+        }
+
+        if (frame_identity) {
+            uint64_t producer_frame = 0;
+            uint64_t focus_commit = 0;
+            uint64_t override_commit = 0;
+            int metadata_pass =
+                parse_ack_u64(acknowledgement, "nova_output_frame",
+                              &producer_frame) == 0 &&
+                parse_ack_u64(acknowledgement, "nova_focus_commit",
+                              &focus_commit) == 0 &&
+                parse_ack_u64(acknowledgement, "nova_override_commit",
+                              &override_commit) == 0 &&
+                producer_frame == (uint64_t)frame;
+            uint64_t checksum = 0;
+            int checksum_status = metadata_pass
+                                       ? checksum_ahardware_buffer(
+                                             buffers[index], buffer_width,
+                                             buffer_height, acquire_fence_fd,
+                                             &checksum)
+                                       : -1;
+            int identity_pass = metadata_pass && checksum_status == 0;
+            append_line(
+                report, sizeof(report), &used,
+                "ahb_double_buffer_frame_identity_%d=%s producer_frame=%llu focus_commit=%llu override_commit=%llu checksum_fnv1a64=%016llx checksum_status=%d\n",
+                frame, identity_pass ? "pass" : "fail",
+                (unsigned long long)producer_frame,
+                (unsigned long long)focus_commit,
+                (unsigned long long)override_commit,
+                (unsigned long long)checksum, checksum_status);
+            if (!identity_pass) {
+                if (acquire_fence_fd >= 0) {
+                    close(acquire_fence_fd);
+                }
+                goto double_buffer_done;
+            }
         }
 
         if (frame == 0 || (frame % 30) == 0) {

@@ -1,0 +1,86 @@
+diff --git a/src/rendervulkan.hpp b/src/rendervulkan.hpp
+--- a/src/rendervulkan.hpp
++++ b/src/rendervulkan.hpp
+@@ -292,6 +292,9 @@ struct FrameInfo_t
+ 	EOTF outputEncodingEOTF;
+ 
+ 	int layerCount;
++	uint64_t novaFocusCommitId = 0;
++	uint64_t novaOverrideCommitId = 0;
++
+ 	struct Layer_t
+ 	{
+ 		gamescope::Rc<CVulkanTexture> tex;
+diff --git a/src/steamcompmgr.cpp b/src/steamcompmgr.cpp
+--- a/src/steamcompmgr.cpp
++++ b/src/steamcompmgr.cpp
+@@ -2582,3 +2582,5 @@ paint_all( global_focus_t *pFocus, bool async )
+ 	frameInfo.outputEncodingEOTF = g_ColorMgmt.pending.outputEncodingEOTF;
+ 	frameInfo.allowVRR = cv_adaptive_sync;
+ 	frameInfo.bFadingOut = fadingOut;
++	frameInfo.novaFocusCommitId = w ? window_last_done_commit_id( w ) : 0;
++	frameInfo.novaOverrideCommitId = override ? window_last_done_commit_id( override ) : 0;
+diff --git a/src/Backends/HeadlessBackend.cpp b/src/Backends/HeadlessBackend.cpp
+--- a/src/Backends/HeadlessBackend.cpp
++++ b/src/Backends/HeadlessBackend.cpp
+@@ -396,12 +396,35 @@ namespace gamescope
+         return receivedFd;
+     }
+ 
++    static void android_frame_identity_trace( uint64_t frame, int index,
++        const FrameInfo_t *frameInfo )
++    {
++        if ( !android_output_trace_enabled() )
++            return;
++        uint64_t focusCommit = frameInfo != nullptr ? frameInfo->novaFocusCommitId : 0;
++        uint64_t overrideCommit = frameInfo != nullptr ? frameInfo->novaOverrideCommitId : 0;
++        int layerCount = frameInfo != nullptr ? frameInfo->layerCount : 0;
++        headless_log.infof(
++            "android_ahb_frame_identity monotonic_ns=%llu pid=%d tid=%ld frame=%llu index=%d focus_commit=%llu override_commit=%llu layers=%d",
++            android_monotonic_ns(), (int)getpid(), android_thread_id(),
++            (unsigned long long)frame, index,
++            (unsigned long long)focusCommit,
++            (unsigned long long)overrideCommit, layerCount );
++    }
++
+     static bool send_android_ack( int connection, int acquireFenceFd,
+-        uint64_t frame, int index )
++        uint64_t frame, int index, const FrameInfo_t *frameInfo )
+     {
+-        static constexpr char acknowledgement[] =
+-            "linux_import=pass linux_gpu_write=pass linux_image_write=pass linux_acquire_fence=pass linux_loop=pass\n";
++        uint64_t focusCommit = frameInfo != nullptr ? frameInfo->novaFocusCommitId : 0;
++        uint64_t overrideCommit = frameInfo != nullptr ? frameInfo->novaOverrideCommitId : 0;
++        char acknowledgement[512] = {};
++        int acknowledgementLength = snprintf( acknowledgement, sizeof( acknowledgement ),
++            "linux_import=pass linux_gpu_write=pass linux_image_write=pass linux_acquire_fence=pass linux_loop=pass nova_output_frame=%llu nova_focus_commit=%llu nova_override_commit=%llu\n",
++            (unsigned long long)frame, (unsigned long long)focusCommit,
++            (unsigned long long)overrideCommit );
++        if ( acknowledgementLength < 0 || static_cast<size_t>( acknowledgementLength ) >= sizeof( acknowledgement ) )
++            return false;
+         iovec vector = {
+-            .iov_base = const_cast<char *>( acknowledgement ),
+-            .iov_len = sizeof( acknowledgement ) - 1,
++            .iov_base = acknowledgement,
++            .iov_len = static_cast<size_t>( acknowledgementLength ),
+         };
+@@ -422,6 +439,6 @@ namespace gamescope
+         int errorNumber = sent < 0 ? errno : 0;
+         android_socket_trace( "ack_send", frame, index, connection, sent,
+             errorNumber, &message, acquireFenceFd, acknowledgement );
+         close( acquireFenceFd );
+-        return sent == static_cast<ssize_t>( sizeof( acknowledgement ) - 1 );
++        return sent == static_cast<ssize_t>( acknowledgementLength );
+     }
+@@ -711,9 +728,10 @@ namespace gamescope
+ 
+ 				vulkan_wait( *oSequence, true );
+ 				android_output_trace( "ack_send", m_androidFrameCount, index, m_androidSubmitted[index] );
++				android_frame_identity_trace( m_androidFrameCount, index, pFrameInfo );
+ 				int acquireFenceFd = vulkan_export_signaled_fence();
+-				if ( acquireFenceFd < 0 || !send_android_ack( m_androidConnections[index], acquireFenceFd, m_androidFrameCount, index ) )
++				if ( acquireFenceFd < 0 || !send_android_ack( m_androidConnections[index], acquireFenceFd, m_androidFrameCount, index, pFrameInfo ) )
+ 				{
+ 					headless_log.errorf( "Android output acquire fence handoff failed for buffer %d", index );
+ 					return -1;
+ 				}

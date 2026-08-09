@@ -193,6 +193,7 @@ the gamescope frames on its own surface.
 - [Nova AHB explicit cancellation](docs/76-nova-ahb-explicit-cancellation-2026-08-09.md)
 - [Nova Gamescope scheduler-trace integration](docs/77-nova-gamescope-scheduler-trace-integration-2026-08-09.md)
 - [Nova Gamescope scheduler-trace device result](docs/78-nova-gamescope-scheduler-trace-result-2026-08-09.md)
+- [Nova AHB frame identity device result](docs/79-nova-ahb-frame-identity-result-2026-08-09.md)
 - [Retroid Pocket Nova flashing kit](tools/retroid-pocket-nova/README.md)
 
 ## Evidence standard

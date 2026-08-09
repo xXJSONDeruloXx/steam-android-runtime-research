@@ -131,6 +131,21 @@ else
     echo "post_stop_scheduler_trace_state=fail" >&2
     failures=$((failures + 1))
 fi
+
+if frame_identity_output=$($ADB shell getprop debug.nova.ahb_frame_identity 2>&1); then
+    frame_identity_status=0
+else
+    frame_identity_status=$?
+fi
+frame_identity_output=$(printf '%s\n' "$frame_identity_output" | tr -d '\r')
+frame_identity_value=$(printf '%s\n' "$frame_identity_output" | tail -n 1)
+echo "debug.nova.ahb_frame_identity=$frame_identity_value"
+if [ "$frame_identity_status" -eq 0 ] && [ "$frame_identity_value" = "0" ]; then
+    echo "post_stop_frame_identity_state=pass"
+else
+    echo "post_stop_frame_identity_state=fail status=$frame_identity_status" >&2
+    failures=$((failures + 1))
+fi
 ack_poll_output=$(printf '%s\n' "$ack_poll_output" | tr -d '\r')
 ack_poll_value=$(printf '%s\n' "$ack_poll_output" | tail -n 1)
 echo "debug.nova.ahb_ack_poll_timeout_ms=$ack_poll_value"

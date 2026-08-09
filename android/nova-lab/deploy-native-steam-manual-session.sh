@@ -103,6 +103,7 @@ clear_ahb_trace_state() {
     "$ADB" shell setprop debug.nova.ahb_trace 0 >/dev/null 2>&1 || status=$?
     "$ADB" shell setprop debug.nova.ahb_socket_trace 0 >/dev/null 2>&1 || status=$?
     "$ADB" shell setprop debug.nova.ahb_scheduler_trace 0 >/dev/null 2>&1 || status=$?
+    "$ADB" shell setprop debug.nova.ahb_frame_identity 0 >/dev/null 2>&1 || status=$?
     "$ADB" shell setprop debug.nova.ahb_ack_poll_timeout_ms 0 >/dev/null 2>&1 || status=$?
     if ! "$ADB" shell \
         "su -c 'mkdir -p $DEVICE_ROOT/opt/nova-steam; printf \"0\\n\" > $DEVICE_ROOT/opt/nova-steam/ahb-trace; printf \"0\\n\" > $DEVICE_ROOT/opt/nova-steam/ahb-socket-trace; printf \"0\\n\" > $DEVICE_ROOT/opt/nova-steam/ahb-scheduler-trace'" \
@@ -181,6 +182,7 @@ export NOVA_CONTROLLER_UI_RELAY_TIMEOUT=${NOVA_CONTROLLER_UI_RELAY_TIMEOUT:-9000
 export NOVA_AHB_FRAME_COUNT=${NOVA_AHB_FRAME_COUNT:--1}
 export NOVA_AHB_WIDTH=${NOVA_AHB_WIDTH:-1280}
 export NOVA_AHB_HEIGHT=${NOVA_AHB_HEIGHT:-960}
+export NOVA_AHB_FRAME_IDENTITY=${NOVA_AHB_FRAME_IDENTITY:-0}
 export NOVA_FULLSCREEN_PRESENTATION=${NOVA_FULLSCREEN_PRESENTATION:-1}
 export NOVA_FULLSCREEN_WIDTH=${NOVA_FULLSCREEN_WIDTH:-1280}
 export NOVA_FULLSCREEN_HEIGHT=${NOVA_FULLSCREEN_HEIGHT:-960}
