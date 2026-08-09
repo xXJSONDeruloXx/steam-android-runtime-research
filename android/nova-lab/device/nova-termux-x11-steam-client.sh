@@ -52,7 +52,7 @@ log "client_display=${DISPLAY:-unset}"
 log "client_home=$STEAM_HOME"
 log "client_root=$STEAM_ROOT"
 log "client_executable=$STEAM_EXECUTABLE"
-log "client_flags=-gamepadui -steamos3 -steampal -steamdeck -nobootstrapperupdate -skipinitialbootstrap -no-child-update-ui -no-cef-sandbox"
+log "client_flags=-gamepadui -steamos3 -steampal -steamdeck -nobootstrapperupdate -skipinitialbootstrap -no-child-update-ui -no-cef-sandbox -cef-disable-gpu"
 log "client_uid=$STEAM_UID"
 log "client_gid=$STEAM_GID"
 log "client_xauthority=${XAUTHORITY:-unset}"
@@ -124,7 +124,7 @@ log "client_preload=/opt/nova-kgsl-driver/libsysv-sem-shim.so"
 run_as_steam /usr/bin/timeout "$CLIENT_TIMEOUT" "$STEAM_EXECUTABLE" \
     -gamepadui -steamos3 -steampal -steamdeck \
     -nobootstrapperupdate -skipinitialbootstrap -no-child-update-ui \
-    -no-cef-sandbox >"$CLIENT_STDOUT" 2>"$CLIENT_STDERR" &
+    -no-cef-sandbox -cef-disable-gpu >"$CLIENT_STDOUT" 2>"$CLIENT_STDERR" &
 client_pid=$!
 log "client_pid=$client_pid"
 if /usr/bin/kill -0 "$client_pid" 2>/dev/null; then
