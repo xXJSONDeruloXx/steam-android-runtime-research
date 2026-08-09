@@ -1048,6 +1048,59 @@ Artifacts are under
 * AudioFlinger-after dump is retained beside those artifacts for the
   `createTrack` and speaker-route evidence.
 
+### `audio-20260809T225251Z-apk-proof-v2`
+
+This was the corrected rerun of the opt-in Android audio proof. The exact
+cleanup passed before and after; the APK was installed over the existing test
+package; the Nova remained locked/asleep; and no physical or synthetic input
+was sent. The corrected APK SHA-256 was
+`d6211061fd7a7d6b56bf01a4da4e9c98ebb73f5d151c95ef9b9f828ce7889099`.
+
+The proof passed through the Android sink:
+
+```text
+audio_manager_output_sample_rate=48000
+audio_manager_output_frames_per_buffer=192
+audio_track_state=2
+audio_track_ready_for_static_write=pass
+audio_track_written_samples=48000
+audio_track_play_state=3
+audio_track_playback_head=24000
+audio_track_stop_state=1
+audio_proof=pass
+```
+
+The generated PCM was a quiet 440 Hz stereo tone at 48 kHz for 500 ms. The
+report proves that the app can create a static AudioTrack, write all samples,
+start playback, advance the playback head, and stop cleanly. AudioFlinger
+captured the track under the Nova APK process and retained the speaker output
+route with no write error or underrun marker associated with this short run.
+This is an Android audio-service acceptance result, not a claim that Steam's
+rootfs PCM is bridged yet or that a person listened to the tone while the
+device was locked.
+
+The rootfs-side finding therefore stands: the remaining audio work is to
+transport Steam PCM to an Android-owned AudioTrack (or an equivalent Android
+sink), with lifecycle and backpressure handling in the launcher. It is now a
+separate audio bridge phase and no longer an Android hardware-availability
+question.
+
+Artifacts are under
+`android/nova-lab/build/manual-runs/audio-20260809T225251Z-apk-proof-v2/`:
+
+* accepted app report:
+  `ece43a0565fcf3d9462c28065ec287871ac9bbdfc2de044613f812aa8415be31`;
+* fresh logcat:
+  `5c8afe61be20be1875b487769d9b16c2c3806c92efe823d618d1f57a2ade29ba`;
+* AudioFlinger-after dump:
+  `22278078e90afc6de4cdadef70ffd0ebb36f948afc25f9df4515a404bcceb12b`;
+* audio-policy-after dump:
+  `6a69c2f3abcd5c356c85edfa66e5adafd0deb7d969149256db3b45cfe4f8a2b3`;
+* app-owned file inventory after teardown:
+  `c40301605e61211f2b8d48e92bd64bbafb2313c7aafb694eceda3a61da9e9bad`;
+* final exact cleanup:
+  `1bb8add9bfa2a0ad115fa08807f1927364b44300ae706823e12964cc74539be8`.
+
 ## Cleanup
 
 Every attempt ended without a Nova Steam runtime. The exact helper returned
@@ -1068,8 +1121,8 @@ physical-controller forwarding remains intentionally untested in the current
 operator-away window. The next product work is deliberately off the button
 path:
 
-1. add an Android `AudioTrack` proof-of-life to the test APK and determine the
-   smallest PCM bridge boundary for Steam audio;
+1. add the smallest lifecycle-safe PCM bridge from the rootfs Steam audio
+   client to the proven Android `AudioTrack` sink;
 2. repeat the 1280x800 Termux:X11 stretch profile against the awake 1280x960
    Nova surface for a real visual check;
 3. preserve the direct APK fallback while adding a separately identified
