@@ -1,6 +1,6 @@
 # Nova optimal-tiling Steam-surface experiment — 2026-08-09
 
-Status: predeclared; device result pending.
+Status: completed; see [the valid device result](110-nova-optimal-tiling-steam-surface-result-2026-08-09.md).
 
 ## Question
 
