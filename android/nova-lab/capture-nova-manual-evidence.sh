@@ -23,6 +23,7 @@ STATUS="$RUN_DIR/capture-status-$PHASE.txt"
 ANDROID_CAPTURE="$RUN_DIR/android-$PHASE.png"
 CDP_CAPTURE="$RUN_DIR/cdp-targets-$PHASE.json"
 FOCUS_CAPTURE="$RUN_DIR/focus-$PHASE.txt"
+FORWARD_CAPTURE="$RUN_DIR/adb-forward-$PHASE.txt"
 
 write_status() {
     local status_code="$1"
@@ -34,6 +35,7 @@ write_status() {
         printf 'nova_run_id=%s\n' "$RUN_ID"
         printf 'capture_phase=%s\n' "$PHASE"
         printf 'capture_status=%s\n' "$status_value"
+        printf 'cdp_forward_manifest=%s\n' "$FORWARD_CAPTURE"
         if [ "$status_code" -eq 0 ]; then
             sha256sum "$ANDROID_CAPTURE" "$CDP_CAPTURE" "$FOCUS_CAPTURE" \
                 "$RUN_DIR/x11-steam-$PHASE.ppm"
@@ -48,6 +50,17 @@ on_exit() {
     exit "$status_code"
 }
 trap on_exit EXIT
+
+forward_status=0
+"$ADB" forward --list >"$FORWARD_CAPTURE" 2>&1 || forward_status=$?
+tr -d '\r' <"$FORWARD_CAPTURE" >"$FORWARD_CAPTURE.tmp"
+mv "$FORWARD_CAPTURE.tmp" "$FORWARD_CAPTURE"
+if [ "$forward_status" -ne 0 ] || ! awk -v expected="tcp:$CDP_PORT" \
+    '$2 == expected { found = 1 } END { exit found ? 0 : 1 }' \
+    "$FORWARD_CAPTURE"; then
+    echo "required ADB CDP forward is missing: tcp:$CDP_PORT -> tcp:8080" >&2
+    exit 1
+fi
 
 curl --fail --silent --show-error "http://127.0.0.1:$CDP_PORT/json" \
     >"$CDP_CAPTURE"

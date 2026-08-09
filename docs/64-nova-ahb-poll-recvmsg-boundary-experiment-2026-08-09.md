@@ -65,6 +65,8 @@ Record:
   `recvmsg` outcome and ancillary fields;
 - the current Android PID and marker-freshness record;
 - same-run CDP, Android, and dynamically discovered X11 captures;
+- per-phase ADB-forward manifest proving the CDP forward existed before the
+  capture started;
 - post-stop property reset, no residual processes/files/forward, and trace
   reset verification.
 
