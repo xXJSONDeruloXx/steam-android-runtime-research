@@ -1,10 +1,12 @@
 package com.xjsonderulo.steamandroid.novalab;
 
+import android.Manifest;
 import android.app.Activity;
 import android.content.ActivityNotFoundException;
 import android.content.ComponentName;
 import android.content.Intent;
 import android.content.pm.ApplicationInfo;
+import android.content.pm.PackageManager;
 import android.graphics.Color;
 import android.os.Build;
 import android.os.Bundle;
@@ -28,6 +30,7 @@ public final class LauncherActivity extends Activity {
     private static final String TERMUX_X11_PACKAGE = "com.termux.x11";
     private static final String DEFAULT_ROOTFS = "/data/local/tmp/nova-holo-rootfs";
     private static final String LAUNCHER_DIR = "launcher";
+    private static final int REQUEST_POST_NOTIFICATIONS = 42;
     private static final String[] REQUIRED_ASSETS = {
             "nova-one-click-root-launcher.sh",
             "nova-x11-private-namespace.sh",
@@ -49,6 +52,7 @@ public final class LauncherActivity extends Activity {
 
     private final Handler handler = new Handler(Looper.getMainLooper());
     private TextView statusView;
+    private boolean startPendingNotificationPermission;
     private final Runnable statusRefresh = new Runnable() {
         @Override
         public void run() {
@@ -138,6 +142,19 @@ public final class LauncherActivity extends Activity {
     }
 
     private void startSteamSession() {
+        if (Build.VERSION.SDK_INT >= 33
+                && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS)
+                != PackageManager.PERMISSION_GRANTED) {
+            startPendingNotificationPermission = true;
+            LauncherService.setStatus("Allow notifications once to keep Stop available");
+            requestPermissions(new String[]{Manifest.permission.POST_NOTIFICATIONS},
+                    REQUEST_POST_NOTIFICATIONS);
+            return;
+        }
+        startSteamSessionAfterPermission();
+    }
+
+    private void startSteamSessionAfterPermission() {
         if (!isPackageInstalled(TERMUX_X11_PACKAGE)) {
             LauncherService.setStatus("Cannot start: Termux:X11 is not installed");
             return;
@@ -178,6 +195,26 @@ public final class LauncherActivity extends Activity {
                 openTermuxX11();
             }
         }, 1400);
+    }
+
+    @Override
+    public void onRequestPermissionsResult(int requestCode, String[] permissions,
+            int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+        if (requestCode != REQUEST_POST_NOTIFICATIONS) {
+            return;
+        }
+        boolean startAfterPermission = startPendingNotificationPermission;
+        startPendingNotificationPermission = false;
+        if (grantResults.length > 0
+                && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+            if (startAfterPermission) {
+                startSteamSessionAfterPermission();
+            }
+        } else {
+            LauncherService.setStatus(
+                    "Notifications are required for reliable session Stop; Steam not started");
+        }
     }
 
     private void stopSteamSession() {
@@ -235,9 +272,18 @@ public final class LauncherActivity extends Activity {
     }
 
     private String installationSummary() {
+        String notification = "Notifications: "
+                + (notificationPermissionGranted() ? "enabled" : "required before start");
         return "Termux:X11: "
                 + (isPackageInstalled(TERMUX_X11_PACKAGE) ? "installed" : "missing")
-                + "\nRootfs: " + DEFAULT_ROOTFS;
+                + "\nRootfs: " + DEFAULT_ROOTFS
+                + "\n" + notification;
+    }
+
+    private boolean notificationPermissionGranted() {
+        return Build.VERSION.SDK_INT < 33
+                || checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS)
+                == PackageManager.PERMISSION_GRANTED;
     }
 
     private boolean isPackageInstalled(String packageName) {
