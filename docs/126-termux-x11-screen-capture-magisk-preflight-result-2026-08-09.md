@@ -41,3 +41,6 @@ the cleanup authority.
 The next attempt remains the same predeclared Android screen-capture
 experiment. It must pass the preflight and mapped-window gates before physical
 screen evidence is interpreted.
+
+The phase-aware client matcher retry is recorded in
+[doc 127](127-termux-x11-screen-capture-phase-preflight-result-2026-08-09.md).

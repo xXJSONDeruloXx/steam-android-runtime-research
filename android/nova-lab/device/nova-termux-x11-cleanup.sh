@@ -33,6 +33,9 @@ server_pids() {
 }
 
 client_pids() {
+    if [ "$(read_file "$STATE_DIR/client-active")" != "1" ]; then
+        return 0
+    fi
     /system/bin/ps -A -o PID,PPID,USER,ARGS 2>/dev/null |
         /system/bin/awk -v token="$CLIENT_TOKEN" \
             'NR > 1 && $3 == "root" && $4 != "app_process" && index($0, token) > 0 { print $1 }'
@@ -72,6 +75,7 @@ verify_absent() {
 
 verify_mode() {
     state_dir="$1"
+    STATE_DIR="$state_dir"
     socket="$2"
     server_state=absent
     client_state=absent
@@ -117,6 +121,7 @@ shift
 
 state_dir="${1:-}"
 private_helper="${2:-}"
+STATE_DIR="$state_dir"
 client="$(read_file "$state_dir/client.path")"
 capture="$(read_file "$state_dir/capture.path")"
 ppm="$(read_file "$state_dir/ppm.path")"

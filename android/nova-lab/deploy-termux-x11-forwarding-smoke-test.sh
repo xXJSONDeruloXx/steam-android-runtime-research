@@ -124,7 +124,7 @@ adb() {
 }
 
 prepare_remote_state() {
-    adb shell "mkdir -p $REMOTE_STATE_DIR; chmod 777 $REMOTE_STATE_DIR; echo $REMOTE_CLIENT >$REMOTE_STATE_DIR/client.path; echo $REMOTE_CAPTURE >$REMOTE_STATE_DIR/capture.path; echo $REMOTE_X11_PPM >$REMOTE_STATE_DIR/ppm.path; echo $REMOTE_X11_SOCKET >$REMOTE_STATE_DIR/socket.path; echo $REMOTE_X11_LOCK >$REMOTE_STATE_DIR/lock.path; echo $SERVER_PROCESS_TOKEN >$REMOTE_STATE_DIR/server-token; echo $CLIENT_PROCESS_TOKEN >$REMOTE_STATE_DIR/client-token"
+    adb shell "mkdir -p $REMOTE_STATE_DIR; chmod 777 $REMOTE_STATE_DIR; echo $REMOTE_CLIENT >$REMOTE_STATE_DIR/client.path; echo $REMOTE_CAPTURE >$REMOTE_STATE_DIR/capture.path; echo $REMOTE_X11_PPM >$REMOTE_STATE_DIR/ppm.path; echo $REMOTE_X11_SOCKET >$REMOTE_STATE_DIR/socket.path; echo $REMOTE_X11_LOCK >$REMOTE_STATE_DIR/lock.path; echo $SERVER_PROCESS_TOKEN >$REMOTE_STATE_DIR/server-token; echo $CLIENT_PROCESS_TOKEN >$REMOTE_STATE_DIR/client-token; echo 0 >$REMOTE_STATE_DIR/client-active"
 }
 
 stage_x11_helpers() {
@@ -282,6 +282,7 @@ fi
 echo "termux_x11_server=pass display=$DISPLAY_VALUE socket=$REMOTE_X11_SOCKET"
 
 adb shell "echo client_begin_run_id=$RUN_ID display=$DISPLAY_VALUE >$REMOTE_CLIENT_LOG"
+adb shell "echo 1 >$REMOTE_STATE_DIR/client-active"
 adb shell su -c \
     "$REMOTE_CLIENT_LAUNCHER $REMOTE_PRIVATE_NAMESPACE_HELPER $REMOTE_CLIENT_STDOUT $REMOTE_CLIENT_STDERR $DEVICE_ROOT /usr/bin/env -i PATH=/usr/bin:/bin HOME=/tmp XDG_RUNTIME_DIR=/tmp TMPDIR=/tmp DISPLAY=$DISPLAY_VALUE XKB_CONFIG_ROOT=$XKB_CONFIG_ROOT_RELATIVE $CHROOT_CLIENT $CLIENT_FRAMES 1280 720" \
     >"$RUN_DIR/client-launch-command.txt" 2>&1 &
