@@ -28,7 +28,7 @@ keystore, and verified by `apksigner`.
 | preflight-guard fix, pending device retest | `0d137c6` | `a5f4a5512fc89da9380eb275a81d1f408ed11796f0655be83f1f512b3f56b2a0` | 0.3 |
 | relay-corrected build | `00ed01c` | `d9288c9f7843c215441c074d51491e473b7b53453a1e4454adb4a576db766306` | 0.3 |
 | timeout/cleanup fix, pending device retest | working tree after `00ed01c` | `9124807429ff6d21a3c7556865cf6a33b0c8999ac8673cc4b5629b46839b3ec1` | 0.3 |
-| single-controller cleanup refinement, pending device retest | working tree after `40551fe` | `25d389dddc26cff7cbb53f39f6169cbbfc05eed68336dab53d09a4e4197d2ef0` | 0.3 |
+| single-controller namespace refinement, device-tested | `3681167` | `25d389dddc26cff7cbb53f39f6169cbbfc05eed68336dab53d09a4e4197d2ef0` | 0.3 |
 
 The runtime inputs for these attempts were the direct launcher mode: Termux:X11
 APK `/data/app/~~EaHbYh5LSrJyPyjYrj44Wg==/com.termux.x11-Yy3Sfe-6FUYa5hx2OcDldw==/base.apk`,
@@ -172,9 +172,9 @@ nova_launcher_ready=pass display=:0 geometry=1280x960
 Steam's fresh controller log opened both the physical Xbox device and the
 virtual `Nova Virtual Xbox Controller`, with complete SDL mappings for ABXY,
 LB/RB, triggers, sticks, and the D-pad. The controller trace hash is retained
-in the run directory. This is why the next refinement hides only physical
-event7 in the Steam client namespace: the relay still reads it, but Steam sees
-one stable virtual device instead of two.
+in the run directory. This motivated the next refinement's attempt to hide
+only physical event7 in the Steam client namespace while leaving the relay's
+source node available; the follow-up result is recorded below.
 
 The controlled source-event proof was end-to-end. Root sent a BTN_SOUTH/A
 event to event7; event9 reported the corresponding gamepad down/up and the
@@ -193,8 +193,56 @@ The one-click stop and Termux:X11 cleanup both returned `pass`. The immediate
 runtime audit briefly showed a reparented relay process with basename
 `nova-uinput-gamepad-relay`, which exited before the targeted exact stop. The
 runtime cleanup matcher now includes that basename (plus the control-wrapper
-basename) so the next run can prove this race closed rather than relying on a
-second observation.
+basename), and the follow-up run below exercised that matcher.
+
+### `launcher-20260809T201703Z-apk-v03-single-controller`
+
+The committed single-controller refinement installed and started from the APK:
+
+```text
+nova_launcher_gamepad=pass
+nova_launcher_input_hide=event7
+x11_namespace_input=pass hidden_events=7
+uinput_source=/dev/input/event7
+uinput_device=/dev/input/event9
+uinput_device_ready=pass
+nova_launcher_ready=pass display=:0 geometry=1280x960
+```
+
+The private mount namespace was real and shared by the Steam process. The fresh
+Steam PID's mount table contained the private `/dev/input` tmpfs, and
+`/proc/<steam-pid>/root/dev/input/event7` was absent. A controlled
+`BTN_SOUTH` event sent to the physical source event7 still reached the relay
+and opened the 198X detail page. The Android baseline and after-A screenshot
+hashes are
+`bb7393913f7cbc26ebb54c1135ded4bb4a9165160b549ee144eb30fd430aa2f1` and
+`bd158c9fb26e1e504ad8afc1eb9073cfb571f818f3b97e0ec251a75ec5694bb7`.
+
+This did not yet prove one controller at Steam's SDL boundary. The fresh
+`controller.txt` entry at `20:18:00` still enumerated an Xbox 360 device
+(`045e/028e`) and the Nova virtual device (`2022/3001`), both with complete
+ABXY/LB/RB/D-pad mappings. The contemporaneous Steam file-descriptor audit
+showed the Steam process holding event9 and event10, while event7 remained
+absent from its namespace. Android logcat also showed `com.rp.mapping`
+creating/owning additional `Microsoft X-Box 360 pad 0/1` nodes. After the
+Nova relay stopped, event9 disappeared but event10 remained, confirming that
+the remaining duplicate is an Android mapping-service concern rather than a
+Nova relay process leak. The next namespace experiment must allowlist only the
+current relay event instead of recreating every event node except event7.
+
+Fresh X11 capture again found a 1280x960 root and a 1280x800 `Steam Big Picture
+Mode` window. The captured Steam PPM hash is
+`1178e1a3de7b857dccd36df3fcab6120e3a1d1dd5b18a56084d6cefaf5da65ab`; the
+geometry and black bottom band are unchanged. The latest audio-manager entry
+remains `Initialized system audio manager: default`, which is initialization
+evidence only, not proof of an audible Android sink.
+
+The APK product stop returned `nova_launcher_stop=pass`; its cleanup log and
+the exact runtime verifier both returned `pass`. The launcher state directory,
+X11 socket, and all matching Nova runtime processes were absent after teardown.
+Two old bounded `getevent` probes were found by the final process audit and
+were killed by their exact PIDs after their command lines were retained; this
+is a diagnostic-harness cleanup gap, not a live Steam runtime residual.
 
 ## Cleanup
 
@@ -211,15 +259,17 @@ matching runtime. No broad process kill was used.
 
 ## Next gate
 
-Install the single-controller cleanup refinement as a new run identity and
+The direct APK path is now repeatable through signed-in Steam UI and a
+relay-backed A-button navigation check, but the single-controller result is
+still partial. The next run should first change the private input view to
+expose only the relay's dynamically reported event9-equivalent node, then
 confirm, in order:
 
-1. the APK launcher renders;
-2. the root-side preflight passes without a stale-process match;
-3. the relay reaches `uinput_device_ready=pass`;
-4. Termux:X11 and native ARM64 Steam start through the APK;
-5. Steam's visible frame is 1280x960 and input/focus evidence is fresh; and
-6. the APK stop path and exact cleanup pass.
+1. no physical or `com.rp.mapping` virtual event is visible to Steam;
+2. Steam's fresh controller log and descriptor audit show one virtual device;
+3. ABXY/LB/RB/D-pad source events still navigate the visible UI;
+4. the 1280x800 Steam window geometry is recorded as unchanged or fixed; and
+5. the APK stop path and exact cleanup pass.
 
 Only after that direct product path is repeatable should the APK gain the
 separate Gamescope/AHardwareBuffer product mode.
