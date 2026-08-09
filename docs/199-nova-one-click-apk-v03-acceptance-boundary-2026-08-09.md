@@ -497,6 +497,66 @@ removes that directory during namespace cleanup. The rebuilt APK containing
 this fix is `45bc0dc0dce83141b21b6d386c1c8ac43e34448b90a824d833126dbc345c348f`;
 it has not yet been installed or accepted on the Nova.
 
+### `input-20260809T213206Z-native-source-audit`
+
+This source-side follow-up left the signed-in Steam runtime alive and opened
+the vendor `com.ro.gameassistant/com.ro.gameassistant.activity.GamepadTestActivity`.
+The fresh 30-second `getevent -lt` capture enumerated the eleven input nodes,
+including event7 (`Xbox Wireless Controller`), but contained no key, axis, or
+switch event (739 bytes; SHA-256
+`1628d7aeb61319aa4ead2bdaed9583e5cb2f6a9ba2667fc4e98360ac63ae8da3`). The
+vendor Key Test remained at `Device ID: 0`, an empty device name, and zeroed
+axes before and after the capture. This is an independent confirmation that
+the physical-input gap is below the Nova relay and below Steam.
+
+The device-side source inventory identified a more specific vendor-path
+failure to investigate:
+
+```text
+persist.sys.handle.mode=1
+persist.sys.gamepad.type=1
+persist.sys.mcu.checkerrs=2
+/dev/adckey                         present (misc 10:122)
+/dev/rscom                          present (499:1)
+/dev/ttyHS1                         absent
+ttyHS1 sysfs device                 present as 499:1
+/sys/class/hwmon                     empty
+/sys/devices/platform/rsgpio/driver_ctl=unsupported
+keydetect kernel module              loaded
+```
+
+The native `librsinput.so` contains the Nova/U3 ADC paths
+`/sys/class/hwmon/hwmon1/device/gpio{8,9,10,11,12,21}_adc*`, but none of those
+paths exists on the live device. The MCU UART's sysfs device exists, while
+`/dev/ttyHS1` does not; boot audit records show `pservice` attempting to remove
+or rename `ttyHS1` and the mapping process opening `/dev/rscom` instead. The
+fresh dmesg also records `rs_gpio_request()` failures with `-517` for GPIOs
+302, 301, 400, and 313, and the active/suspend `gamepad_gpio_key` pinctrl
+states each contain three literal `nouse` groups. The pinctrl driver reports
+each `nouse` group as invalid. These are source-path facts, not yet a proven
+hardware fault, but they explain why another relay mapping would be premature.
+
+As a reversible vendor-only reinitialization, root launched
+`com.ro.settings/com.ro.settings.activity.InputControlActivity`, whose
+`onCreate` calls the vendor `K1.b.b()` standard-input setup. The activity
+opened successfully, but native logcat only recorded another
+`gamepad_config_create` / `parse_config ... deconfig success` sequence. A
+fresh copy of `configs.db` still contains only the built-in `empty` row and
+`com.rp.gameassistant|empty` in `last_config` (SHA-256
+`5c026f9357d912e25cb4639a35cfc7218a7dda45ad673f1258e45466d07ff742`). The
+reinitialization therefore did not establish a non-empty active mapper
+profile, and no real event7 event appeared afterward.
+
+Retained artifacts are under the ignored
+`android/nova-lab/build/mapper-test/input-20260809T210313Z-handle-takeover/`
+directory. The Key Test capture, reinitialization screenshot, post-reinit
+database, focused logcat, and current dmesg hashes are recorded in the local
+artifact inventory. The next experiment should select or import a known
+non-empty vendor `StandardGamepadConfig`/Xbox profile through the vendor
+API/UI, then repeat the same physical-event gate. If that profile still
+produces no event, the remaining blocker is the MCU/ADC/pinctrl path rather
+than the profile database or Steam integration.
+
 ## Cleanup
 
 Every attempt ended without a Nova Steam runtime. The exact helper returned
