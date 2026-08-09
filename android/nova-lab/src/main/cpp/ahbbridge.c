@@ -18,6 +18,7 @@
 #include <string.h>
 #include <sys/socket.h>
 #include <sys/stat.h>
+#include <sys/ioctl.h>
 #include <sys/system_properties.h>
 #include <sys/time.h>
 #include <sys/types.h>
@@ -315,6 +316,23 @@ ahb_socket_wait_probe(int frame, int buffer, int fd)
     int error_number = poll_status < 0 ? errno : 0;
     ahb_socket_poll_trace("ack_wait_probe", frame, buffer, fd, poll_status,
                           socket_poll.revents, error_number);
+}
+
+static void
+ahb_socket_timeout_queue_payload(int fd, char *payload, size_t capacity)
+{
+    if (capacity == 0) {
+        return;
+    }
+    int queued_bytes = -1;
+    int queue_errno = 0;
+    errno = 0;
+    if (ioctl(fd, FIONREAD, &queued_bytes) != 0) {
+        queue_errno = errno;
+    }
+    snprintf(payload, capacity,
+             "recv_timeout_queue_bytes=%d queue_errno=%d", queued_bytes,
+             queue_errno);
 }
 
 /* surface_control.h exposes its ARect parameters as C++ references even when
@@ -721,9 +739,16 @@ receive_bridge_acknowledgement(int client, char *acknowledgement,
             }
         }
     }
+    char wait_end_payload[96] = {0};
+    const char *wait_end_message = acknowledgement;
+    if (bytes < 0) {
+        ahb_socket_timeout_queue_payload(client, wait_end_payload,
+                                          sizeof(wait_end_payload));
+        wait_end_message = wait_end_payload;
+    }
     ahb_socket_trace("ack_wait_end", frame, buffer, client, bytes,
                      error_number, &message, *acquire_fence_fd,
-                     acknowledgement);
+                     wait_end_message);
     if (protocol_error) {
         if (*acquire_fence_fd >= 0) {
             close(*acquire_fence_fd);
