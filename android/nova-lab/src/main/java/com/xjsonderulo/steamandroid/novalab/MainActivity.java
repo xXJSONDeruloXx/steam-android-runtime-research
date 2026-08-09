@@ -1212,11 +1212,14 @@ public final class MainActivity extends Activity implements SurfaceHolder.Callba
                     .setBufferSizeInBytes(bufferBytes)
                     .setTransferMode(AudioTrack.MODE_STATIC)
                     .build();
-            report.append("audio_track_state=").append(track.getState()).append('\n');
-            if (track.getState() != AudioTrack.STATE_INITIALIZED) {
+            int trackState = track.getState();
+            report.append("audio_track_state=").append(trackState).append('\n');
+            if (trackState != AudioTrack.STATE_INITIALIZED
+                    && trackState != AudioTrack.STATE_NO_STATIC_DATA) {
                 report.append("audio_proof=fail\nreason=track_not_initialized\n");
                 return report.toString();
             }
+            report.append("audio_track_ready_for_static_write=pass\n");
             track.setStereoVolume(AUDIO_TEST_VOLUME, AUDIO_TEST_VOLUME);
             int writtenSamples = track.write(samples, 0, samples.length,
                     AudioTrack.WRITE_BLOCKING);

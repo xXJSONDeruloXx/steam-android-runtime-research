@@ -1007,10 +1007,46 @@ Artifacts are under
 * final exact cleanup:
   `f2f26e1240aa3ff2c64857dcec98b9ea666933d19c02443fc688e453544949f1`.
 
-The next non-input experiment is an Android `AudioTrack` proof-of-life in the
-test APK, followed by a narrow bridge design that can present Steam's PCM to
-that Android sink. It should record the Android audio-service track state and
-remain separate from the physical-controller investigation.
+The next non-input experiment is a corrected rerun of the Android `AudioTrack`
+proof-of-life in the test APK, followed by a narrow bridge design that can
+present Steam's PCM to that Android sink. It should record the Android
+audio-service track state and remain separate from the physical-controller
+investigation.
+
+### `audio-20260809T225050Z-apk-proof`
+
+This was the first device run of the new opt-in APK audio proof. The exact
+cleanup passed before and after the run; the APK was installed over the
+existing test package; the Nova remained locked/asleep; and no physical or
+synthetic input was sent. The run used APK SHA-256
+`8d5c4aa4f31a0b9f792af2d240e6c6a94d9eee7804dab2b0f7b62276b0c6ee92`.
+
+The app reached Android's audio manager and reported 48,000 Hz output with a
+192-frame buffer and a valid 15,376-byte minimum AudioTrack buffer. AudioFlinger
+recorded the app's `createTrack` call and the output thread remained routed to
+`AUDIO_DEVICE_OUT_SPEAKER`. The proof stopped before writing PCM because the
+new static `AudioTrack` returned state `2`. That state is Android's
+`STATE_NO_STATIC_DATA`, which is expected before the first write in static
+transfer mode; it is not an initialization failure. Consequently this run is
+a harness false-negative, not evidence against the Android audio sink.
+
+The source check now accepts both `STATE_INITIALIZED` and
+`STATE_NO_STATIC_DATA`, records `audio_track_ready_for_static_write=pass`, and
+then performs the bounded write/playback. The corrected APK rebuilt cleanly as
+`d6211061fd7a7d6b56bf01a4da4e9c98ebb73f5d151c95ef9b9f828ce7889099` and is
+pushed before the rerun.
+
+Artifacts are under
+`android/nova-lab/build/manual-runs/audio-20260809T225050Z-apk-proof/`:
+
+* preflight cleanup and final cleanup:
+  `1bb8add9bfa2a0ad115fa08807f1927364b44300ae706823e12964cc74539be8`;
+* rejected proof report:
+  `55780a3322537fbda8c6b73868d22e7c19419b74e38ad4adcdb334addb210e69`;
+* fresh logcat:
+  `6b173474ba5e262dacb019be6f561790f1c8a90b4234deb1a2995e020e3e0615`;
+* AudioFlinger-after dump is retained beside those artifacts for the
+  `createTrack` and speaker-route evidence.
 
 ## Cleanup
 
