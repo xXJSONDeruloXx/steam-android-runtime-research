@@ -859,6 +859,62 @@ new physical-control experiment should wait until the operator can press one
 known control and the raw source can be correlated with the virtual Xbox
 event stream.
 
+### `launcher-20260809T223146Z-x11-custom-1280x960-retry`
+
+This was a no-input geometry experiment. The exact Nova runtime cleanup passed
+before launch; no physical or synthetic input was sent. The run used the
+installed Termux:X11 APK at
+`/data/app/~~EaHbYh5LSrJyPyjYrj44Wg==/com.termux.x11-Yy3Sfe-6FUYa5hx2OcDldw==/base.apk`
+(SHA-256
+`6718ed4e5c11c1a718effa3dae14622575da6f87ef935fa12e4595aea761f705`) and
+the installed launcher assets whose launcher/client SHA-256 values were
+`f33dd969d6e664697b574302191baa93fcf8f9cbe403753108dbbab9a2a97b51` and
+`1f26b9baf5e352bb6d8e1dc3b04c001b9dbbcba758f8e3f65c4cebde2c9c77a2`.
+
+The supported Termux:X11 preference boundary was tested directly. The
+original preferences were `displayResolutionMode=native`,
+`displayResolutionCustom=1280x1024`, `fullscreen=true`,
+`showAdditionalKbd=false`, `displayStretch=false`, and
+`adjustResolution=false`. For this run only, the mode was changed to
+`custom` with `displayResolutionCustom=1280x960`; the original XML was backed
+up inside the X11 app's own files directory and restored after teardown. The
+client still used the product command line with `-fullscreen -fulldesktopres`
+and no `-w/-h` aliases.
+
+Termux:X11 applied the preference: its log first reported the old 1280x1024
+buffer while the Activity initialized, then reported a 1280x960 buffer and
+`window changed: 1280 960 builtin`. The X11 root was consequently 1280x960.
+Steam nevertheless created a viewable `Steam Big Picture Mode` child at
+1280x800, with its visible descendants also at 1280x800. The captured X11
+Steam window was therefore 1280x800, while the Android screenshot remained
+1280x960. This is a negative result for changing the X11 root to 1280x960:
+it does not make Steam's Deck-sized child fill the Nova surface, so the black
+bottom band is not an Android crop and is not fixed by another Steam size
+alias.
+
+The relay reported readiness (`nova_launcher_gamepad=pass`) as part of the
+normal launcher startup, but this run makes no physical-controller claim.
+Steam and `steamwebhelper` started, both private D-Bus probes passed, and the
+run stopped with `nova_launcher_stop=pass`, followed by exact runtime cleanup
+`pass` and no matching residual processes. The captured artifacts are under
+`android/nova-lab/build/manual-runs/launcher-20260809T223146Z-x11-custom-1280x960-retry/`:
+
+* X11 tree: `4952152398e40a30df97cc1732d1ef84214edddfaced5fa1a17867c55e03975f`;
+* 1280x800 Steam PPM: `a37dfff2ca742fcbaa19a1705e7f5c15957e65efd84bdbd8f942239b9a5aff39`;
+* 1280x960 Android screenshot: `daaa4232b2d1b861cf80e931440ea88f0a0dc6fa20cf738dcd549d0bab3c30ae`;
+* Steam client log: `db9f3cfb13660b675cf72b152ea23db83687145efc928a4f8c1ebba5a8b34d87`;
+* Termux:X11 logcat: `0ffb9e4fb117499a5ff4bf27520d933495a43c71e0e5a00abba7ab36816146dd`;
+* restored preference XML: `25530aa4ed8fda450e43638e2c7a00bb95d5cb1ff1c1ab18e717f32a4feb0895`;
+* launcher stop: `79f82176ea42e5839198a39dc0e525b0df85ede600d47160415772e3a413a406`;
+* post-stop exact cleanup: `1bb8add9bfa2a0ad115fa08807f1927364b44300ae706823e12964cc74539be8`;
+* post-stop process inventory: `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+
+The next geometry hypothesis is the complementary supported profile: keep
+Steam's native 1280x800 X screen and enable Termux:X11's `displayStretch` so
+the 1280x800 image is scaled into the 1280x960 Android surface. It is a
+separate experiment and must be restored if it is not suitable for touch or
+visual fidelity.
+
 ## Cleanup
 
 Every attempt ended without a Nova Steam runtime. The exact helper returned
