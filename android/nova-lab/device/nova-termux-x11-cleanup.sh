@@ -12,13 +12,6 @@ read_file() {
     fi
 }
 
-process_comm() {
-    pid="$1"
-    if [ -r "/proc/$pid/comm" ]; then
-        /system/bin/cat "/proc/$pid/comm" | tr -d '\r\n'
-    fi
-}
-
 process_cmdline() {
     pid="$1"
     if [ -r "/proc/$pid/cmdline" ]; then
@@ -34,34 +27,15 @@ process_parent() {
 }
 
 server_pids() {
-    for proc in /proc/[0-9]*; do
-        pid="${proc##*/}"
-        [ "$pid" = "$$" ] && continue
-        comm="$(process_comm "$pid")"
-        cmdline="$(process_cmdline "$pid")"
-        if [ "$comm" = "main" ] && [ "$cmdline" = "$SERVER_CMDLINE" ]; then
-            echo "$pid"
-        fi
-    done
+    /system/bin/ps -A -o PID,PPID,USER,ARGS 2>/dev/null |
+        /system/bin/awk -v token="$SERVER_CMDLINE" \
+            'NR > 1 && $4 == token { print $1 }'
 }
 
 client_pids() {
-    for proc in /proc/[0-9]*; do
-        pid="${proc##*/}"
-        [ "$pid" = "$$" ] && continue
-        comm="$(process_comm "$pid")"
-        case "$comm" in
-            sh|su|app_process)
-                continue
-                ;;
-        esac
-        cmdline="$(process_cmdline "$pid")"
-        case "$cmdline" in
-            *"$CLIENT_TOKEN"*)
-                echo "$pid"
-                ;;
-        esac
-    done
+    /system/bin/ps -A -o PID,PPID,USER,ARGS 2>/dev/null |
+        /system/bin/awk -v token="$CLIENT_TOKEN" \
+            'NR > 1 && index($0, token) > 0 { print $1 }'
 }
 
 kill_pid() {
@@ -160,11 +134,12 @@ fi
 server_pid="$(read_file "$state_dir/server.pid")"
 server_parent_pid=
 if [ -n "$server_pid" ] && [ -e "/proc/$server_pid" ]; then
-    server_pid_comm="$(process_comm "$server_pid")"
     server_pid_cmdline="$(process_cmdline "$server_pid")"
-    if [ "$server_pid_comm" = "main" ] && [ "$server_pid_cmdline" = "$SERVER_CMDLINE" ]; then
+    case "$server_pid_cmdline" in
+        "$SERVER_CMDLINE"*)
         server_parent_pid="$(process_parent "$server_pid")"
-    fi
+            ;;
+    esac
 fi
 if [ -z "$server_parent_pid" ]; then
     for live_server_pid in $(server_pids); do
@@ -189,16 +164,13 @@ fi
 kill_clients
 kill_servers
 if [ -n "$server_parent_pid" ]; then
-    parent_comm="$(process_comm "$server_parent_pid")"
     parent_cmdline=""
     if [ -r "/proc/$server_parent_pid/cmdline" ]; then
         parent_cmdline="$(tr '\000' ' ' <"/proc/$server_parent_pid/cmdline")"
     fi
     case "$parent_cmdline" in
         *"$SERVER_CMDLINE"*)
-            if [ "$parent_comm" = "sh" ] || [ "$parent_comm" = "app_process" ]; then
-                /system/bin/kill "$server_parent_pid" 2>/dev/null || true
-            fi
+            /system/bin/kill "$server_parent_pid" 2>/dev/null || true
             ;;
     esac
 fi
@@ -207,10 +179,15 @@ fi
 kill_clients -9
 kill_servers -9
 if [ -n "$server_parent_pid" ] && [ -e "/proc/$server_parent_pid" ]; then
-    parent_comm="$(process_comm "$server_parent_pid")"
-    if [ "$parent_comm" = "sh" ] || [ "$parent_comm" = "app_process" ]; then
-        /system/bin/kill -9 "$server_parent_pid" 2>/dev/null || true
+    parent_cmdline=""
+    if [ -r "/proc/$server_parent_pid/cmdline" ]; then
+        parent_cmdline="$(tr '\000' ' ' <"/proc/$server_parent_pid/cmdline")"
     fi
+    case "$parent_cmdline" in
+        *"$SERVER_CMDLINE"*)
+        /system/bin/kill -9 "$server_parent_pid" 2>/dev/null || true
+            ;;
+    esac
 fi
 
 /system/bin/am broadcast -a com.termux.x11.ACTION_STOP -p com.termux.x11 >/dev/null 2>&1 || true

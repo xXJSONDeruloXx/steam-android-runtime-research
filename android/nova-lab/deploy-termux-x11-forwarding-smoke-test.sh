@@ -17,6 +17,7 @@ X11_CLEANUP_HELPER="$SCRIPT_DIR/device/nova-termux-x11-cleanup.sh"
 X11_CLIENT_LAUNCHER="$SCRIPT_DIR/device/nova-termux-x11-client-launcher.sh"
 DEVICE_RUNTIME_CLEANUP=/data/local/tmp/nova-runtime-cleanup.sh
 CLIENT_FRAMES=${NOVA_TERMUX_X11_CLIENT_FRAMES:-600}
+ALLOW_X11_CAPTURE_FAILURE=${NOVA_TERMUX_X11_ALLOW_X11_CAPTURE_FAILURE:-0}
 RUN_ID=${NOVA_RUN_ID:-termux-x11-$(date -u +%Y%m%dT%H%M%SZ)-display-${DISPLAY_NUMBER}}
 RUN_DIR=${NOVA_RUN_DIR:-$BUILD_DIR/manual-runs/$RUN_ID}
 XKB_CONFIG_ROOT_RELATIVE=/usr/share/xkeyboard-config-2
@@ -59,6 +60,14 @@ esac
 case "$CLIENT_FRAMES" in
     ''|*[!0-9]*)
         echo "NOVA_TERMUX_X11_CLIENT_FRAMES must be numeric: $CLIENT_FRAMES" >&2
+        exit 2
+        ;;
+esac
+case "$ALLOW_X11_CAPTURE_FAILURE" in
+    0|1)
+        ;;
+    *)
+        echo "NOVA_TERMUX_X11_ALLOW_X11_CAPTURE_FAILURE must be 0 or 1" >&2
         exit 2
         ;;
 esac
@@ -237,6 +246,7 @@ adb shell am start --user 0 -n com.termux.x11/com.termux.x11.MainActivity >"$RUN
     echo "client_process_token=$CLIENT_PROCESS_TOKEN"
     echo "client_launch=foreground adb shell su command with host-side background"
     echo "client_frames=$CLIENT_FRAMES"
+    echo "allow_x11_capture_failure=$ALLOW_X11_CAPTURE_FAILURE"
     echo "presentation=Termux:X11 Android SurfaceView"
     echo "gamescope=not_used"
     echo "ahb_bridge=not_used"
@@ -290,11 +300,20 @@ if [[ ! "$window_id" =~ ^0x[0-9A-Fa-f]+$ ]]; then
 fi
 echo "termux_x11_window=pass id=$window_id"
 
+capture_status=0
 adb shell su -c \
     "$REMOTE_PRIVATE_NAMESPACE_HELPER chroot $DEVICE_ROOT /usr/bin/env -i PATH=/usr/bin:/bin HOME=/tmp XDG_RUNTIME_DIR=/tmp TMPDIR=/tmp DISPLAY=$DISPLAY_VALUE XKB_CONFIG_ROOT=$XKB_CONFIG_ROOT_RELATIVE $CHROOT_CAPTURE --window-ppm $window_id $CHROOT_X11_PPM" \
-    >"$RUN_DIR/x11-capture.txt"
-adb pull "$REMOTE_X11_PPM" "$RUN_DIR/x11-window.ppm" >"$RUN_DIR/x11-pull.txt" 2>&1
-[ -s "$RUN_DIR/x11-window.ppm" ]
+    >"$RUN_DIR/x11-capture.txt" 2>&1 || capture_status=$?
+echo "termux_x11_capture_status=$capture_status" >>"$RUN_DIR/x11-capture.txt"
+if [ "$capture_status" -ne 0 ]; then
+    if [ "$ALLOW_X11_CAPTURE_FAILURE" -ne 1 ]; then
+        exit 1
+    fi
+    echo "termux_x11_x11_capture=observational_failure status=$capture_status"
+else
+    adb pull "$REMOTE_X11_PPM" "$RUN_DIR/x11-window.ppm" >"$RUN_DIR/x11-pull.txt" 2>&1
+    [ -s "$RUN_DIR/x11-window.ppm" ]
+fi
 
 adb exec-out screencap -p >"$RUN_DIR/android-screenshot.png"
 [ -s "$RUN_DIR/android-screenshot.png" ]
@@ -305,6 +324,8 @@ if ! rg -q 'mCurrentFocus=.*com\.termux\.x11|mFocusedApp=.*com\.termux\.x11' "$R
     echo "termux_x11_activity_focus=unknown_or_missing" >&2
 fi
 echo "termux_x11_android_capture=pass sha256=$(sha256sum "$RUN_DIR/android-screenshot.png" | awk '{print $1}')"
-echo "termux_x11_x11_capture=pass sha256=$(sha256sum "$RUN_DIR/x11-window.ppm" | awk '{print $1}')"
+if [ "$capture_status" -eq 0 ]; then
+    echo "termux_x11_x11_capture=pass sha256=$(sha256sum "$RUN_DIR/x11-window.ppm" | awk '{print $1}')"
+fi
 
 sleep 1

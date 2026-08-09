@@ -82,3 +82,6 @@ The X11 display/client boundary is now strong enough to justify a focused
 capture experiment, but not Steam yet. First make X11/Android pixel capture
 work and make teardown bounded. Only then predeclare native ARM64 Steam over
 direct Termux:X11.
+
+The focused physical-screen capture follow-up is predeclared in
+[doc 124](124-termux-x11-android-screen-capture-experiment-2026-08-09.md).
