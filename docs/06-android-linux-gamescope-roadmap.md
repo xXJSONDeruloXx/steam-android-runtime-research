@@ -1,391 +1,440 @@
 # Android app roadmap: Linux-first Steam Gamepad UI
 
-## Current status — 2026-08-10
+This is the project’s current planning document. It describes the product
+target, the active experiment, and the gates for moving between stages. The
+numbered documents linked here remain the historical evidence; update those
+records after each bounded experiment rather than turning this file into a
+run log.
 
-Physical controller input is now a solved baseline for the current Nova
-Termux:X11/Steam session, based on live operator confirmation; see [doc
-298](298-nova-physical-controller-live-confirmation-2026-08-10.md). Remove
-controller transport and Steam UI navigation from the immediate blocker list.
-Keep game-specific controls, rumble, lifecycle reattachment, and controller
-behavior on a future Gamescope/AHardwareBuffer path as later regression or
-integration checks.
+Autonomous implementation agents should read this file before choosing work,
+then read [doc 333](333-steamclienttermux-comparison-2026-08-10.md) before
+importing SteamclientTermux behavior. Treat the immediate execution queue
+below as the current priority, and read [doc 34](34-nova-runtime-harness-lifecycle.md)
+before any Nova device run.
 
-The product install contract is rootless and standalone: the user must not
-need Magisk, root, Termux, or Termux:X11. The current rooted/Termux:X11 path
-is a research harness only. The app must acquire and verify its app-owned
-Linux/Steam/graphics/compatibility runtime during first-run setup; see [doc
-299](299-nova-standalone-runtime-acquisition-product-requirement-2026-08-10.md).
+## 1. Product target and boundaries
 
-## Immediate execution queue — 2026-08-10
+### End-user product contract
 
-The next substantive integration is the official ARM64 runtime registration
-from the [SteamclientTermux comparison](333-steamclienttermux-comparison-2026-08-10.md),
-not another Gamescope/AHardwareBuffer or embedded-X11 rewrite. The current
-versioned direct Termux:X11/SteamRT3C profile remains the baseline for QR/OOBE,
-signed-in Big Picture, display, inherited Android networking, physical
-controller input, and the now-confirmed-but-delayed audio path. Preserve
-`/data/local/tmp/nova-holo-rootfs` and keep that profile selectable as the
-rollback comparison.
+The end product is a standalone Android app that launches the native ARM64
+Steam client in Gamepad UI and presents the session on the device. The app
+owns lifecycle, permissions, storage, downloads, runtime activation, input,
+audio integration, and Android presentation. Steam owns login, library,
+downloads, Gamepad UI, and game launching.
 
-The running implementation agent should follow this order:
+The install must not require Magisk, root, Termux, or Termux:X11. First-run
+setup must acquire an app-owned, versioned, integrity-checked runtime and
+activate it atomically. Authentication secrets must remain in place and must
+not be exported or backed up. See [doc 299](299-nova-standalone-runtime-acquisition-product-requirement-2026-08-10.md).
 
-1. **Freeze the baseline.** Keep the current direct-X11 profile unchanged for
-   comparison, add the target-derived per-run log cap/guard, and capture fresh
-   Steam, SteamUI, Proton, and Pressure Vessel artifacts. Do not export Steam
-   authentication state.
-2. **Add an isolated official-runtime profile.** Register Proton 11 ARM64
-   (`AppID 4628740`, depot `4628741`) with its declared Steam Linux Runtime 4
-   ARM64 dependency (`AppID 4185400`, depot `4185401`). Preserve the
-   `require_tool_appid` relationship; do not use the current dependency-neutral
-   wrapper as the success criterion. Stage it versionedly beside, rather than
-   over, the SteamRT3C profile.
-3. **Smoke-test the runtime before launching a game.** Run the Runtime 4
-   `_v2-entry-point --verb=run -- /bin/true` (or the exact equivalent exposed by
-   the installed runtime) through the same Holo/chroot-visible environment.
-   Verify the selected runtime, bind/link cleanliness, ABI startup, and fresh
-   logs.
-4. **Run one first-frame game gate.** Use Geometry Wars or the current small
-   library test with display, input, network, audio, and storage variables held
-   constant; change only the compatibility-tool/runtime selection. Require a
-   fresh Proton/DXVK/Wine/FEX log set and screenshot, then classify the result
-   as game startup, Vulkan device, Vulkan/WSI surface, compositor, or game-level
-   failure.
-5. **Only after that gate passes**, promote the profile and revisit the target's
-   conventional loopback PulseAudio setup, `/proc/net`/route compatibility,
-   full OOBE packaging, embedded X11, and Gamescope/AHardwareBuffer. Those are
-   follow-on improvements, not prerequisites for this runtime A/B test.
+### Research-harness boundary
 
-This queue is intentionally an A/B experiment: it imports the target's proven
-runtime/tool semantics while leaving Nova's display and Android lifecycle
-work intact. It must not become a wholesale PRoot transplant. The detailed
-comparison and artifact pins remain in doc 333.
+The current rooted Nova/Termux:X11 path is a research harness, not the final
+installation model. Root, Magisk, and Termux:X11 are acceptable for proving
+runtime, graphics, input, audio, and lifecycle contracts, but every result
+must identify the privilege and presentation boundary it actually tested.
 
-## Target architecture
+Keep `/data/local/tmp/nova-holo-rootfs` as the rollback copy and keep the
+current versioned direct-X11 profile selectable. Gamescope/AHardwareBuffer,
+embedded X11, and rootless PRoot are optional profiles until the direct
+runtime/game path is understood.
 
-The Android app should be a control plane and presentation shell. Linux owns the Steam session:
+### Ownership model
 
 ```text
 Android app
   ├─ lifecycle / permissions / storage / downloads
-  ├─ rootless process supervisor
+  ├─ runtime acquisition, verification, staging, and rollback
   ├─ controller + touch input bridge
+  ├─ audio bridge and session diagnostics
   └─ Android Surface / AHardwareBuffer presentation
         │
         └── Linux userspace
               ├─ glibc ARM64 rootfs (Holo/Arch-compatible baseline)
-              ├─ native ARM64 Steam client + SteamRT3C ARM64 runtime
-              ├─ gamescope + Wayland/Xwayland
-              ├─ PipeWire / session services
-              └─ ARM Proton + FEX for x86 game content
+              ├─ native ARM64 Steam client
+              ├─ SteamRT3C baseline or isolated Steam Runtime 4 A/B profile
+              ├─ gamescope + Wayland/Xwayland where the selected profile needs it
+              └─ ARM Proton + FEX for x86 Windows game content
 ```
 
-The app should not recreate Steam's library, login, downloads, or Gamepad UI. Armada and PockNix show
-that the Steam client already supplies the right primary UI when launched with the Deck session flags.
+The app should not recreate Steam’s library, login, downloads, or Gamepad UI.
+Armada and PockNix show that the Steam client already supplies the primary UI
+when launched with the Deck session flags.
 
-## Rooted runs are research milestones only
+## 2. Current state — 2026-08-10
 
-Root and Magisk are acceptable tools for proving lower-level device behavior,
-but they are not part of the end-user product contract. Termux:X11 is likewise
-an experimental display fallback, not an APK dependency. The product target
-is the rootless app-owned runtime and Android presentation path defined in
-[doc 299](299-nova-standalone-runtime-acquisition-product-requirement-2026-08-10.md).
+### Working baseline
 
-There are two useful rooted proofs, and they answer different questions.
+The current Nova direct Termux:X11 session is the comparison baseline:
 
-### A. Full Linux boot proof
+| Area | Current state | Roadmap treatment |
+|---|---|---|
+| Native Steam | Native ARM64 Steam launches from the Holo glibc rootfs. | Preserve as the baseline client path. |
+| Steam UI | QR/OOBE and signed-in Big Picture have been reached. | Do not regress while changing the game runtime. |
+| Display | Direct Termux:X11 presents the current Steam session. | Hold display variables constant for the next A/B test. |
+| Network | Steam can use the inherited Android data path for client activity and downloads. | Treat Android connectivity as the data plane; do not model Steam’s UI device scan as transport. |
+| Controller | Physical controller input is confirmed in the current signed-in session; see [doc 298](298-nova-physical-controller-live-confirmation-2026-08-10.md). | Remove basic controller transport from the immediate blocker list; retain game controls, rumble, and reattachment as later checks. |
+| Audio | Startup and UI sounds are audible, with substantial observed delay. | Keep the current bridge as baseline; improve device reporting and latency after the runtime A/B gate. |
+| Runtime | Nova has a SteamRT3C profile and Proton 11 ARM64 files/wrapper work, but not yet the target’s clean official Runtime 4 dependency registration. | This is the next substantive integration. |
+| Games | Proton/FEX/Wine/DXVK startup has been reached, but the first-frame game gate remains unresolved on the current Nova path. | Classify the next result at the Vulkan/WSI boundary. |
+| Gamescope/AHardwareBuffer | Synthetic and SteamUI presentation seams are valuable research evidence, but the product path is not closed. | Defer new low-level compositor work until the runtime A/B result. |
 
-Use Armada or PockNix on a supported Snapdragon handheld. This changes the boot path and gives Linux
-ownership of the kernel, DRM/KMS, seat, input, audio, and power services. It is the fastest way to prove
-the current ARM64 Steam + gamescope + Gamepad UI composition, but it is not yet an Android app.
+### Active decision
 
-Acceptance:
+The first integration to bring over from
+[SteamclientTermux](333-steamclienttermux-comparison-2026-08-10.md) is its
+official ARM64 compatibility-tool registration, not its complete PRoot or
+compositor architecture. This gives Nova a controlled Runtime 4 versus
+SteamRT3C comparison while preserving the display and Android lifecycle path
+that already works.
 
-- Steam reaches first-run/login and Gamepad UI;
-- gamescope presents the panel continuously;
-- controller navigation and one game work;
-- suspend/session switching/cleanup are understood.
+## 3. Immediate execution queue
 
-### B. Android-managed rooted proof
+The running implementation agent should work this queue in order:
 
-Keep Android booted, use a root helper to mount or enter an app-owned glibc Linux rootfs, and launch the
-native ARM64 Steam client from there. Use the existing Android-compatible gamescope presentation work
-from `steam-arm-findings` rather than assuming Android exposes a normal DRM/KMS path.
+1. **Freeze the baseline.** Keep the current direct-X11 profile unchanged for
+   comparison. Add the target-derived per-run log cap/guard and capture fresh
+   Steam, SteamUI, Proton, and Pressure Vessel artifacts. Do not export Steam
+   authentication state.
+2. **Stage an isolated official-runtime profile.** Register Proton 11 ARM64
+   (`AppID 4628740`, depot `4628741`) with its declared Steam Linux Runtime 4
+   ARM64 dependency (`AppID 4185400`, depot `4185401`). Preserve the
+   `require_tool_appid` relationship. Do not make the current
+   dependency-neutral wrapper the success criterion, and do not overwrite the
+   SteamRT3C profile.
+3. **Smoke-test Runtime 4 before launching a game.** Run the runtime’s
+   `_v2-entry-point --verb=run -- /bin/true` or the exact equivalent exposed by
+   the installed runtime through the same Holo/chroot-visible environment.
+   Verify the selected runtime, bind/link cleanliness, ABI startup, and fresh
+   logs.
+4. **Run one first-frame game gate.** Use Geometry Wars or another current
+   small library test with display, input, network, audio, and storage
+   variables held constant. Change only the compatibility-tool/runtime
+   selection. Require fresh Proton/DXVK/Wine/FEX logs and a screenshot; classify
+   the result as game startup, Vulkan device, Vulkan/WSI surface, compositor, or
+   game-level failure.
+5. **Only after the gate passes**, promote the profile and take up the
+   follow-on work: conventional loopback PulseAudio, `/proc/net`/route
+   compatibility, complete APK/OOBE packaging, embedded X11, and
+   Gamescope/AHardwareBuffer integration.
 
-The first Android milestone should be intentionally narrow:
+This is an A/B experiment, not a wholesale PRoot transplant. Import the
+target’s proven runtime/tool contracts while leaving Nova’s display and
+Android lifecycle work intact.
 
-1. Start one fixed rootfs and one fixed native ARM64 Steam client seed.
-2. Start a persistent Linux supervisor and capture all logs to app storage.
-3. Launch gamescope and Steam Gamepad UI with the Armada/PockNix flags.
-4. Present frames through the tested AHardwareBuffer/Surface path.
-5. Forward one controller class reliably.
-6. Stop the session and clean every child process.
+## 4. Staged roadmap
 
-The cleanup requirement is now an explicit harness contract: see
-[doc 34](34-nova-runtime-harness-lifecycle.md) for the exact-rootfs process
-tree teardown and Gamescope artifact identity recorded around each run.
+### Stage 0 — Versioned runtime acquisition and rollback
 
-This is the right place to reuse GameNative's Android lifecycle/storage/controller patterns and the
-existing `steam-arm-findings` graphics work. It remains a research implementation
-and must not be mistaken for the final installation model: the first release
-must not require root, Magisk, or Termux:X11.
+First-run setup is a product feature, not a manual lab prerequisite. It must
+obtain a complete, versioned closure covering:
 
-## First-run runtime acquisition
+- Holo-compatible ARM64 glibc rootfs;
+- native ARM64 Steam and its compatible Steam runtime;
+- Gamescope/Wayland/Xwayland where selected by the profile;
+- Mesa/Turnip/Vulkan and the pinned ICD;
+- input and audio bridges;
+- the selected Proton/FEX payloads; and
+- helper binaries, APK shims, and diagnostic tools required by the profile.
 
-The app-owned runtime is a product feature, not a manual lab prerequisite.
-First-run setup must obtain a versioned and integrity-checked closure covering
-the Holo-compatible ARM64 glibc rootfs, native ARM64 Steam and compatible
-SteamRT3C data, Gamescope/Wayland/Xwayland, Mesa/Turnip/Vulkan, input/audio
-bridges, and the selected Proton/FEX payloads. It must store these artifacts
-privately, support resume/retry/rollback, and activate a complete version
-atomically. See [doc 299](299-nova-standalone-runtime-acquisition-product-requirement-2026-08-10.md)
-for the bootstrap contract and current implementation gap.
+The provisioner must verify hashes, root availability, architecture, free
+space, and inode headroom; stage under a versioned directory; reuse existing
+Steam data in place when safe; and atomically activate only after all checks
+pass. Failed staging must leave the previous marker and rollback rootfs
+usable. It must support resume, retry, cleanup, and rollback without copying
+Steam authentication secrets.
 
-## Network contract: use Android's active data path
+The current implementation work is centered on the manifest/provisioner and
+APK launcher. The Runtime 4 profile from Stage 2 must be added beside the
+current SteamRT3C content rather than silently changing the known-good
+profile.
 
-The desired network data plane is inherited Android connectivity, not a second Linux-owned Wi-Fi or
-Ethernet setup. A normal `chroot` changes the visible filesystem, and PRoot performs user-space path
-and syscall mediation; neither creates a kernel network namespace by itself. Unless the supervisor
-explicitly uses `CLONE_NEWNET`/`unshare -n`, Linux processes should create ordinary IPv4/IPv6 sockets
-through the Android kernel's existing routing, firewall, NAT, and VPN machinery. The session must not
-try to own `wlan0`/`eth0`, run DHCP, or invent a second route/NAT layer for normal Steam traffic.
+**Stage 0 acceptance:** a clean-device run reaches QR/OOBE and signed-in
+Big Picture with the current display, network, controller, and audio baseline;
+the active marker points only to a fully verified runtime; and the prior
+runtime can be reactivated.
 
-“Inherited” has several distinct parts and each needs a contract:
+### Stage 1 — Direct-X11 native Steam baseline
 
-1. **Kernel network namespace and routes.** Preserve the Android network namespace when entering the
-   rootfs. A process normally does not need to see a Linux-named Wi-Fi or Ethernet device in order to
-   use sockets; if `/proc` and `/sys` are exposed, the interface view may still reflect Android's host
-   view and is not a stable Steam-facing API.
-2. **Android network selection policy.** Android can select a default network per process/UID and can
-   apply VPN or per-app restrictions. The app's `ConnectivityManager.bindProcessToNetwork()` choice is
-   explicitly process-scoped, while Android's netd also applies UID-based policy. Therefore a rooted
-   `su` helper must not be assumed to inherit an app-bound network or per-app VPN merely because it
-   shares the kernel namespace. The glibc rootfs also does not automatically load Android bionic's
-   `libnetd_client` hooks, which normally communicate socket and DNS network selection to `netd`.
-   Basic default-route connectivity may still work, but same-namespace is not proof of same Android
-   `Network` selection. Rootless execution under the app UID is the more natural path for this
-   requirement, but both modes need device evidence; a guaranteed app-bound/VPN path may require a
-   deliberate netd-compatible shim, an app-UID supervisor, or a last-resort proxy/relay.
-3. **Linux userspace name resolution.** The glibc rootfs needs a working, dynamically refreshed
-   `/etc/resolv.conf`/resolver path and any required proxy configuration. The current
-   `NOVA_HOLO_NAMESERVER` override is a diagnostic/bootstrap fallback, not the final network contract.
-4. **Steam's System.Network API.** Steam Gamepad UI's network-device callbacks and scan controls are
-   a UI/control-plane compatibility surface, not the transport that supplies Steam's HTTP, WebSocket,
-   TCP, or UDP sockets. The current [network API compatibility shim](../android/nova-lab/device/nova-steam-network-api-compat.sh)
-   may make those optional Android-hosted calls safe, but “Continue with Android host network” must
-   mean use the already-available Android data path, not register a fake Ethernet/Wi-Fi adapter.
+Use the rooted Android-managed Holo rootfs and direct Termux:X11 path to prove
+the native ARM64 Steam session before adding the app-owned compositor. The
+baseline needs:
 
-The end user should not need to choose Wi-Fi versus Ethernet inside Steam. Android's active transport
-may be Wi-Fi, cellular, USB/Ethernet, or a VPN; external servers will observe the resulting Android
-egress path and NAT/VPN address, not a special “Linux Ethernet” identity. Transport labels are useful
-for Android diagnostics only.
+- native `steamrtarm64` startup;
+- persistent Linux supervision and bounded logs;
+- the Steam Deck/Gamepad UI flags;
+- QR/OOBE and signed-in Big Picture;
+- inherited Android networking;
+- the confirmed physical controller path; and
+- clean start/stop of every child process.
+
+The attached Termux:X11 kit is useful here as a display fallback and diagnostic
+surface. It is not evidence that a DRM/KMS-backed Gamescope session works, and
+it is not an end-user APK dependency.
+
+### Stage 2 — Official Runtime 4 and Proton 11 ARM64 A/B
+
+This is the active stage. Reproduce the target’s explicit manifest semantics in
+a separate Nova profile:
+
+- Proton 11 ARM64: AppID `4628740`, depot `4628741`;
+- Steam Linux Runtime 4 ARM64: AppID `4185400`, depot `4185401`;
+- the Proton-to-runtime `require_tool_appid` relationship; and
+- the exact Steam-owned paths and tool manifests needed by Pressure Vessel.
+
+The runtime-only test must prove that the official container starts cleanly
+before a game is involved. The game test must use the same display, input,
+network, audio, storage, rootfs, and Turnip variables as the baseline. A
+wrapper-only launch, a stale Steam log, or a successful Proton process without
+a fresh first-frame artifact is not acceptance.
+
+**Stage 2 acceptance:** Runtime 4 executes a trivial command, Steam dispatches
+the selected Proton 11 ARM64 tool with its declared dependency, and one game
+produces either a first frame or a precise, fresh failure classification at
+the Vulkan/WSI/compositor boundary.
+
+### Stage 3 — Game/runtime services
+
+After Stage 2, improve the conventional services that affect real games:
+
+- expose loopback PulseAudio using the target’s `PULSE_SERVER=tcp:127.0.0.1:4713`
+  contract and measure UI/game audio latency;
+- add route or `/proc/net` compatibility only when a fresh Proton/Wine trace
+  demonstrates that the container cannot discover the inherited network;
+- verify Steam-mediated game launch and per-game Proton/FEX wrappers; and
+- keep a small known-good game as a regression test while varying one runtime
+  or service variable at a time.
+
+The target has proven Superflight and Kingsway through Proton/FEX/DXVK/Turnip
+with PulseAudio, while its Burnout path remains incomplete. Treat those as
+prior-art boundaries, not promises for Nova.
+
+### Stage 4 — App-owned presentation
+
+Replace the desktop display with an Android app-owned `Surface`,
+`ANativeWindow`, or a proven equivalent. The Nova lab has already demonstrated
+important pieces:
+
+- a three-buffer AHardwareBuffer/SurfaceControl queue with acquire/release
+  fence backpressure;
+- sustained 60-frame and 960×540 Wayland-SHM output through patched headless
+  Gamescope in [doc 12](12-nova-gamescope-ahb-output.md); and
+- an animated ARM64 X11 client crossing Xwayland, Gamescope, and the same
+  Android fence loop in [doc 13](13-nova-xwayland-ahb-output.md).
+
+The stock Holo Gamescope control reaches the KGSL Turnip device but is blocked
+by its unconditional `VK_EXT_physical_device_drm` device-identity contract;
+the narrow headless patch crosses that identity boundary. This remains a
+useful optional research path, not a reason to block the direct-X11 runtime
+A/B test.
+
+The presentation gate must measure frame latency, buffer reuse, release fences,
+rotation, lifecycle loss, and actual display cadence. The observed 1–3 visibly
+changing UI frames per second is only a symptom until producer submit,
+Gamescope present, Android latch/present, and release timestamps are correlated.
+The pre-login SteamUI AHardwareBuffer result is recorded in [doc 15](15-nova-steam-ui-ahb-smoke.md);
+hardware CEF, login, game launch, and clean lifecycle behavior remain separate
+gates.
+
+### Stage 5 — Rootless session and app-owned services
+
+Remove root-only services one boundary at a time while keeping the rooted
+profile as a fallback:
+
+- replace privileged mounts and `binfmt_misc` assumptions with explicit
+  gamescope/FEX wrappers;
+- replace `/dev/uinput` with an app-owned controller socket or supported Android
+  input path;
+- replace system PipeWire/session services with a user session or Android
+  audio bridge;
+- use normal-priority scheduling before adding Android-supported performance
+  hints; and
+- move temporary directories, mounts, and logs into app-owned storage.
+
+Rootless means that the Android app no longer needs a privileged helper; it
+does not mean that the app owns a Linux kernel or can assume DRM/KMS access.
+If a rootless user-owned display remains reliable while the full compositor
+path does not, retain it as a useful fallback.
+
+### Stage 6 — x86 Windows games
+
+Only after native Steam UI and the selected presentation path are stable should
+the app expand game compatibility. Use FEX plus ARM Proton for x86 game
+payloads, never for the native ARM64 Steam client. Validate Pressure
+Vessel/Bubblewrap, user namespaces, file descriptors, shared memory,
+futex/semaphore behavior, and controller handoff per game. Use explicit
+per-game wrappers and preserve a rooted fallback for devices that cannot
+expose the required graphics or input interfaces.
+
+## 5. Cross-cutting contracts
+
+### Network: inherit Android’s active data path
+
+The desired network data plane is Android connectivity, not a second
+Linux-owned Wi-Fi or Ethernet setup. A normal `chroot` changes the visible
+filesystem, and PRoot performs user-space path/syscall mediation; neither
+creates a kernel network namespace by itself. Unless the supervisor explicitly
+uses `CLONE_NEWNET`/`unshare -n`, Linux processes should create ordinary
+IPv4/IPv6 sockets through Android’s existing routing, firewall, NAT, and VPN
+machinery. The session must not own `wlan0`/`eth0`, run DHCP, or invent a
+second route/NAT layer for normal Steam traffic.
+
+The inherited path has four separate contracts:
+
+1. **Namespace and routes.** Preserve the Android network namespace when
+   entering the rootfs. A process does not need a Linux-named Wi-Fi/Ethernet
+   device in order to use sockets; visible `/proc` and `/sys` interfaces are
+   not a stable Steam-facing API.
+2. **Android network selection.** Android can select a default network per
+   process/UID and apply VPN or per-app restrictions. A rooted `su` helper must
+   not be assumed to inherit an app-bound network merely because it shares the
+   kernel namespace. The glibc rootfs also does not automatically load
+   bionic’s `libnetd_client` hooks. Basic default-route connectivity may work,
+   but same-namespace is not proof of same Android `Network` selection.
+3. **Linux name resolution.** The glibc rootfs needs a dynamically refreshed
+   `/etc/resolv.conf`/resolver path and any required proxy configuration.
+   `NOVA_HOLO_NAMESERVER` is a diagnostic/bootstrap fallback, not the final
+   contract.
+4. **Steam’s System.Network API.** Gamepad UI network-device callbacks and
+   scan controls are a UI compatibility surface, not the transport for Steam’s
+   HTTP, WebSocket, TCP, or UDP sockets. “Continue with Android host network”
+   means use the existing Android data path, not register fake Wi-Fi/Ethernet.
 
 Required validation before calling networking complete:
 
-- launch a trivial glibc resolver/HTTPS probe and the native Steam bootstrap through the same session;
-- verify that no new network namespace is created and record the namespace identity for the app,
-  supervisor, root helper, and Steam processes;
-- test actual socket/DNS selection from glibc rather than treating `ip route` or visible interface names
-  as sufficient evidence; compare the result with an Android-native socket on the same device;
-- test Wi-Fi/default-network changes, IPv4 and IPv6, DNS changes, VPN/per-app VPN policy, and loss and
-  restoration of connectivity;
-- compare rootless/app-UID and rooted/`su` behavior, especially whether Steam follows the intended
-  VPN/default-network policy after the UID transition;
-- keep an app-side `ConnectivityManager` default-network callback for lifecycle/diagnostics, but do not
-  add a separate network request solely to make the Linux session reach the Internet;
-- treat a local proxy or socket relay as a last-resort fallback only after direct inherited sockets fail,
-  since Steam and games may require arbitrary TCP/UDP behavior.
+- run a glibc resolver/HTTPS probe and native Steam bootstrap through the same
+  session;
+- record namespace identity for the app, supervisor, root helper, and Steam;
+- test actual glibc socket/DNS selection rather than treating `ip route` or
+  interface names as sufficient, and compare with an Android-native socket;
+- test Wi-Fi/default-network changes, IPv4/IPv6, DNS changes, VPN/per-app VPN,
+  and loss/restoration of connectivity;
+- compare rootless/app-UID and rooted/`su` behavior after UID transitions;
+- retain an app-side `ConnectivityManager` default-network callback for
+  lifecycle/diagnostics without adding a second network request solely for
+  Linux reachability; and
+- use a proxy or socket relay only after direct inherited sockets fail, because
+  games may require arbitrary TCP/UDP behavior.
 
-This contract is based on Android's [`ConnectivityManager` network-selection semantics](https://developer.android.com/reference/android/net/ConnectivityManager),
-Android's [VPN/per-app routing model](https://developer.android.com/develop/connectivity/vpn), Linux's
-[network namespace definition](https://man7.org/linux/man-pages/man7/network_namespaces.7.html),
-PRoot's [host-information and rootfs behavior](https://manpages.debian.org/trixie/proot/proot.1.en.html),
-and AOSP's [netd socket-marking client](https://android.googlesource.com/platform/system/netd/+/refs/heads/main/client/NetdClient.cpp).
+This contract is grounded in Android’s
+[`ConnectivityManager`](https://developer.android.com/reference/android/net/ConnectivityManager)
+and [VPN/per-app routing model](https://developer.android.com/develop/connectivity/vpn),
+Linux [network namespaces](https://man7.org/linux/man-pages/man7/network_namespaces.7.html),
+PRoot’s [rootfs behavior](https://manpages.debian.org/trixie/proot/proot.1.en.html),
+and AOSP’s [netd socket-marking client](https://android.googlesource.com/platform/system/netd/+/refs/heads/main/client/NetdClient.cpp).
 
-## Rootless stages
+### Lifecycle, cleanup, and artifact provenance
 
-Rootless should mean “the Android app no longer needs a privileged helper,” not “the app secretly owns a
-Linux kernel.” Each stage removes one privilege boundary and keeps the previous stage as a fallback.
+Every bounded run and manual session is a separate experiment. Before launch,
+establish a fresh process/log baseline; on exit, interruption, or manual stop,
+run the exact-scope cleanup and verify that no matching Steam, Gamescope,
+webhelper, libei, uinput, mount, or bridge-socket artifact remains. See [doc
+34](34-nova-runtime-harness-lifecycle.md).
 
-### Rootless stage 1: native ARM64 Steam under a user-owned Linux environment
+Every device result must record the exact runtime, Steam seed, Proton/runtime,
+Turnip driver/ICD, APK/helper artifact, presentation mode, input mode, and
+relevant flags. Readiness must come from current-run logs and screenshots, not
+from a familiar line in a stale Steam log. Preserve failed-run evidence until
+the result is documented and committed.
 
-Use the Valve ARM64 manifest/runtime and an app-owned glibc rootfs, then run the client through a user-space
-boundary such as proot or a Termux-style launcher. Start with normal desktop/X11 or a user-owned nested
-Wayland path. Validate:
+### Input and audio
 
-- the native `steamrtarm64` client starts;
-- `steamwebhelper` hardware rendering works;
-- login and `-gamepadui` work;
-- the app can persist the Steam home/library without root.
+The current physical controller path is a baseline for direct Termux:X11, not
+proof that every game, axis, rumble path, or future Gamescope profile works.
+Keep those as regression checks after the first-frame gate. The audio bridge
+already produces audible startup/UI sound but has delayed delivery and weak
+device enumeration; improve it after the runtime comparison, with separate
+Steam device-state and short game-audio evidence.
 
-The attached Termux:X11 kit is useful here as a diagnostic/fallback, but it is not evidence of a
-gamescope-backed Steam Deck session.
+## 6. Proof paths and privilege boundaries
 
-### Rootless stage 2: app-owned compositor surface
+### Full Linux boot proof
 
-Replace the desktop display with an Android app-owned `Surface`/`ANativeWindow` or a proven equivalent. The
-Nova lab now has a three-buffer AHardwareBuffer/SurfaceControl queue with acquire/release-fence
-backpressure, [doc 12](12-nova-gamescope-ahb-output.md) connects that pool to the patched headless
-Gamescope compositor for sustained 60-frame and 960x540 Wayland-SHM runs, and [doc 13](13-nova-xwayland-ahb-output.md)
-crosses the same path with an animated ARM64 X11 client through Xwayland. The first acquire fence is
-intentionally synchronous. The stock Holo gamescope control reaches the same KGSL Turnip device but is
-blocked by its unconditional `VK_EXT_physical_device_drm` device-identity requirement; the narrow
-patched headless path crosses that identity boundary.
-If the existing AHardwareBuffer/SurfaceControl path relies on privileged APIs, use a buffer-copy or
-producer/consumer path that the ordinary app sandbox permits. Measure frame latency, buffer reuse, release
-fences, rotation, and lifecycle loss before optimizing. As a debug-only
-temporal-correctness substep, add the frame ID/timestamp trace from [doc 12](12-nova-gamescope-ahb-output.md)
-and verify monotonic frame order, intentional repeat/drop behavior, and actual
-display cadence during a continuous session. Disable the trace after the root
-cause is understood, but preserve the resulting pacing decision and evidence.
+Use Armada or PockNix on a supported Snapdragon handheld when the question is
+whether the complete ARM64 Steam + Gamescope + Gamepad UI composition works
+with Linux owning the kernel, DRM/KMS, seat, input, audio, and power services.
+Acceptance is Steam login/Gamepad UI, continuous Gamescope output, controller
+navigation, one game, and understood suspend/session cleanup. This is the
+fastest composition proof, but it is not an Android app.
 
-The desired contract is:
+### Android-managed rooted proof
 
-```text
-gamescope/Wayland frame
-  -> Android-compatible producer
-    -> app-owned Surface
-      -> SurfaceView/TextureView/HardwareBuffer presentation
-```
+Keep Android booted, use a root helper to enter an app-owned glibc rootfs, and
+launch native ARM64 Steam. Reuse the existing Android-compatible presentation
+work from `steam-arm-findings` without assuming a normal DRM/KMS path. The
+initial Android milestone is deliberately narrow: one fixed rootfs and Steam
+seed, one persistent supervisor, one selected presentation path, one reliable
+controller class, and clean child-process teardown.
 
-Manual observation of the continuous Nova Steam session currently suggests only roughly 1–3
-visibly changing UI frames per second from an end-user perspective. This is an unmeasured symptom,
-not yet a confirmed panel refresh rate: software CEF repaint behavior, dirty-frame behavior, capture
-timing, and bridge pacing/repeat/drop behavior are still confounded. Keep networking and Steam API
-compatibility work moving in parallel, but treat this as an immediate presentation-validation gate:
-run a continuous synthetic animation or frame-counter test and correlate producer/Gamescope submit,
-Android latch/present, and release timestamps before declaring the presentation path complete.
-
-The Nova lab has now launched the native ARM64 Steam process through the same
-Xwayland/Gamescope control and resolved the first semaphore, FFmpeg, SDL, X11
-authorization, GTK2, NSS/NSPR, rootfs-DNS, runtime-directory, machine-id, and
-SteamRT diagnostic-tool boundaries. The process starts `steamwebhelper`, reaches
-both SteamUI WebSocket `connection ready` markers, and visibly renders the
-pre-login Gamepad UI welcome screen into the Android AHardwareBuffer queue; see
-[doc 15](15-nova-steam-ui-ahb-smoke.md). The stage is not complete until login,
-a game, and clean lifecycle behavior work. Physical controller input is
-accepted for the current Termux:X11 path as a working baseline; see [doc
-298](298-nova-physical-controller-live-confirmation-2026-08-10.md). The current
-CEF report still identifies software `softpipe` rendering. An optional libei
-Gamescope build now accepts a keyboard scancode and completes the EIS protocol
-round trip through `gamescope-0-ei`; [doc 16](16-nova-libei-input-smoke.md)
-records the historical compositor-side control seam. The current physical
-controller path is separately accepted for Termux:X11; see [doc
-298](298-nova-physical-controller-live-confirmation-2026-08-10.md).
-The separate hardware GLX probe keeps the same Gamescope/Turnip output alive,
-but native Steam exits before `steamwebhelper` with `SIGILL` when Mesa's `msm`
-path is selected; an explicit `freedreno` profile fails at `drisw` creation.
-See [doc 17](17-nova-steam-hardware-glx-probe.md). Hardware CEF is therefore
-still an open graphics gate, independent of the already-proven Vulkan output.
-The rooted input side now also creates a virtual Xbox-style uinput device from
-the Nova's attached controller and forwards an evdev event while the same
-Steam/presentation smoke passes; [doc 18](18-nova-uinput-gamepad-smoke.md)
-records the kernel-side result. The Android app now enumerates the attached
-controller and forwards a deterministic key event through an abstract Unix
-socket into the same rooted virtual device; [doc 19](19-nova-android-input-uinput-bridge.md)
-  records the accepted end-to-end bridge. [Doc 20](20-nova-physical-controller-dispatch.md)
-  then proves a rooted evdev event is dispatched by Android as a controller-class
-  `KeyEvent`. [Doc 21](21-nova-input-udev-device-visibility.md) proves the
-  virtual node is discoverable through Holo `libudev` and readable by uid 501.
-  The earlier [Doc 23](23-nova-steam-controller-ui-input.md), [Doc
-  24](24-nova-steam-dpad-input.md), and [Doc 25](25-nova-android-input-steam-ui.md)
-  runs remain historical transport comparisons: their selector hashes were
-  unchanged or were captured before the exact-path and visual-gate hardening.
-  [Doc 26](26-nova-sdl3-event-input.md) records the first Valve SDL3 joystick
-  event experiment and the duplicate-node target-selection pitfall. [Doc
-  27](27-nova-sdl3-gamepad-event.md) is the accepted follow-up: it passes the
-  exact relay-created event path through Valve's SDL3 Gamepad mapping and
-  observes D-pad-down press/release transitions. [Doc 28](28-nova-steam-dpad-navigation.md)
-  then crosses Steam's own consumer boundary: the same exact physical
-  `BTN_DPAD_DOWN` changes the live Gamepad UI navigation panel while Steam
-  holds the matching event FD. [Doc 29](29-nova-android-input-steam-ui-navigation.md)
-  repeats the same acceptance through `MainActivity.dispatchKeyEvent` and the
-  app socket, with a strict Steam-surface visual gate. [Doc
-  30](30-nova-android-a-button-navigation.md) records the corrected Android
-  ABXY mapping and virtual-device feedback-loop guard. The live physical
-  controller is now confirmed working in the current signed-in Termux:X11
-  session; see [doc
-  298](298-nova-physical-controller-live-confirmation-2026-08-10.md). This
-  closes the controller bridge as an immediate blocker. Game-specific button,
-  axis, rumble, and alternate-renderer checks remain later compatibility work.
-  [Doc 31](31-nova-android-touch-libei-fullscreen.md)
-  now proves the Android touch → libei → Gamescope event path and native Steam Gamepad
-  UI visible on the fullscreen AHardwareBuffer output after a bounded settle. Hardware
-  CEF, broader controls, login, audio, game launch, and lifecycle cleanup remain open.
-  The live Steam OOBE also exposes a separate font-coverage issue: several
-  language and network labels appear as empty square/rectangle glyphs even
-  though the Steam DOM contains their Unicode text. Track this after the
-  current fullscreen presentation and login gates in [doc 33](33-nova-steam-font-coverage-open-question.md);
-  do not treat it as an input or SurfaceControl failure.
-
-### Rootless stage 3: user-space Steam session supervision
-
-Remove root-only system services one by one:
-
-- explicit gamescope/FEX wrappers instead of host `binfmt_misc`;
-- app-owned controller socket/HID/Wayland input injection instead of `/dev/uinput`;
-- user-session PipeWire or Android audio bridge instead of system audio services;
-- normal-priority scheduling first, then optional Android-supported performance hints;
-- app-owned temporary directories and mounts instead of privileged bind mounts.
-
-This stage may expose hard Android limitations. A rootless fallback that runs the native client in a
-user-owned display is still useful even if the full DRM-backed gamescope path remains rooted or requires a
-separate Linux boot.
-
-### Rootless stage 4: x86 Windows games
-
-Only after native Steam UI and presentation work should the app add FEX + ARM Proton for x86 game content.
-Use explicit per-game wrappers, as Armada/PockNix do, and avoid making the Steam client itself depend on
-FEX. Validate pressure-vessel/bwrap, user namespaces, file descriptors, shared memory, futex/semaphore
-behavior, and controller handoff per game.
-
-## Privilege boundary matrix
+### Privilege boundary matrix
 
 | Capability | Full Linux boot | Rooted Android app | Rootless Android app |
 |---|---|---|---|
-| ARM64 Steam process | Native | Native | Native, if proot/user-space loader works |
-| Steam Gamepad UI | Proven by Armada/PockNix | Targeted MVP | Targeted after stage 1 |
-| DRM/KMS gamescope backend | Natural | Usually unavailable unless Android/device exposes it | Not a safe assumption |
-| Android Surface presentation | Separate bridge | Rooted bridge already explored | App-owned Surface/ANativeWindow or buffer-copy bridge |
-| Controller `/dev/uinput` | System service | Root helper possible | App input/socket path required |
-| Gamescope keyboard input | Native EIS/XTEST path | libei round trip proven | Android event mapping required |
-| PipeWire/session services | Systemd/logind | Rootfs + Android bridge | User session only |
-| FEX/Proton x86 games | System integration | Root helper can provide missing pieces | Explicit wrappers and user namespaces required |
+| ARM64 Steam process | Native | Native | Native, if the user-space loader works |
+| Steam Gamepad UI | Proven by Armada/PockNix | Targeted MVP | Targeted after Stage 1 |
+| DRM/KMS Gamescope | Natural | Usually unavailable unless exposed by device | Not a safe assumption |
+| Android presentation | Separate bridge | Rooted bridge possible | App-owned Surface/ANativeWindow or buffer copy |
+| Controller input | System service | Root helper possible | App input/socket path required |
+| Gamescope keyboard input | Native EIS/XTEST | libei round trip proven | Android event mapping required |
+| PipeWire/session services | Systemd/logind | Rootfs plus Android bridge | User session only |
+| FEX/Proton x86 games | System integration | Root helper can provide missing pieces | Explicit wrappers and user namespaces |
 | ABL/kernel/firmware ownership | Yes | Android kernel remains in control | Android kernel remains in control |
 
-## Recommended implementation order
+## 7. Decision gates
 
-1. Freeze one known Snapdragon/Adreno target and record GPU, Android build, kernel, display orientation,
-   controller, and audio capabilities.
-2. Reproduce native ARM64 Steam + gamescope on Armada/PockNix or an equivalent full Linux boot.
-3. Build a rooted Android app supervisor around a fixed Holo/Arch-compatible rootfs and the same Steam
-   client bootstrap; finish the Bootstrapper HTTP/child-process lifecycle first.
-4. Make the Android presentation bridge pass Steam login/Gamepad UI, then one game, then suspend/stop;
-   retain the confirmed physical controller path as a regression baseline.
-5. Move audio/scheduling from root services to app-compatible bridges.
-6. Remove root for the Linux process/rootfs path.
-7. Add FEX + Proton as a compatibility layer for x86 games and maintain a rooted fallback for devices that
-   cannot expose the required graphics/input interfaces.
-
-## Decision gates
-
-Do not advance to the next stage until the current stage produces artifacts:
+Do not advance a stage until its artifacts exist and the result is written as a
+separate experiment record.
 
 | Gate | Required evidence |
 |---|---|
-| Native client | ARM64 manifest/runtime revision, bootstrap logs, `steamui.so`, `.installed` manifest |
-| Steam UI | Screenshot/video of login and Gamepad UI; `steamwebhelper` hardware-rendering logs |
-| Linux session | gamescope logs, the confirmed controller navigation baseline, and one launched game |
-| Network | Native Steam bootstrap plus glibc DNS/HTTPS through Android's active data path; IPv4/IPv6, reconnect, and rootless/rooted UID/VPN behavior recorded; no synthetic Wi-Fi/Ethernet registration required |
-| Android presentation | continuous synthetic and Steam UI/game frames on the app-owned surface, frame/fence metrics, a debug frame-order/pacing trace, and no unexplained 1–3 FPS visible-update behavior |
-| Lifecycle | clean start/stop, no stale Steam/gamescope processes, suspend/resume behavior |
-| Rootless | same UI/session evidence without privileged helper; documented fallbacks for missing APIs |
+| Runtime acquisition | Pinned manifest, hashes, free-space/inode checks, atomic activation marker, and rollback proof |
+| Native client | ARM64 manifest/runtime revision, bootstrap logs, `steamui.so`, and `.installed` manifest |
+| Steam UI | Fresh screenshot/video of login and Gamepad UI plus `steamwebhelper` rendering logs |
+| Official Proton runtime | Runtime 4 trivial-command pass, exact tool/dependency selection, and clean Pressure Vessel paths |
+| First game frame | Fresh Proton/DXVK/Wine/FEX logs, screenshot, and classification of the first failure or rendered frame |
+| Network | Native Steam bootstrap plus glibc DNS/HTTPS through Android’s active path; IPv4/IPv6, reconnect, and UID/VPN behavior recorded |
+| Audio | Steam device state, short UI/game sound evidence, route/latency measurements, and named fallback bridge |
+| Android presentation | Continuous synthetic and Steam UI/game frames on the app-owned surface, frame/fence metrics, and no unexplained visible-update stall |
+| Lifecycle | Clean start/stop, no stale Steam/Gamescope processes, no leaked mounts/sockets, and suspend/resume behavior |
+| Rootless | Same UI/session evidence without a privileged helper, with documented fallbacks for missing APIs |
 
-## Important non-goals
+## 8. Important non-goals
 
-- Do not begin by reverse-engineering the Android Steam libraries when the native ARM64 Linux client is
-  directly available.
-- Do not use FEX to launch the native ARM64 Steam client; reserve it for x86 game payloads.
-- Do not assume Holo alone provides a bootable Snapdragon handheld image.
-- Do not treat “gamescope starts” or “vkcube renders” as proof that Steam Gamepad UI works.
-- Do not commit Valve runtime binaries or large OS images to the evidence repository; keep the repo as
-  source notes, hashes, URLs, and reproducible procedures.
+- Do not begin by reverse-engineering Android Steam libraries while the native
+  ARM64 Linux client is directly available.
+- Do not use FEX to launch the native ARM64 Steam client; reserve it for x86
+  game payloads.
+- Do not treat a Gamescope process, `vkcube`, or a passing AHardwareBuffer
+  transport as proof that Steam Gamepad UI or a game works.
+- Do not turn the target’s patched PRoot into an unexamined Nova dependency;
+  port observed contracts only when Nova’s own boundary requires them.
+- Do not create a synthetic Linux Wi-Fi/Ethernet setup when Android sockets
+  already provide the data plane.
+- Do not require the end user to choose Wi-Fi or Ethernet inside Steam.
+- Do not commit Valve runtime binaries or large OS images to the evidence
+  repository; keep source notes, hashes, URLs, and reproducible procedures.
+
+## 9. Prior-art roles and references
+
+Use each project for the boundary it actually proves:
+
+| Reference | What to borrow | What not to assume |
+|---|---|---|
+| GameNative | Android lifecycle, storage, downloads, controller, and session-management patterns | Its Android packaging does not automatically solve Nova’s Holo/SteamRT presentation boundary |
+| Armada/PockNix | Full Linux ARM64 Steam session flags, Gamescope, Xwayland, input, audio, Proton, and FEX composition | Their Linux boot/DRM/KMS ownership is not the Android product model |
+| SteamclientTermux | Official Runtime 4/Proton 11 ARM64 tool manifests, PulseAudio TCP, route/`/proc/net` compatibility, and bounded session logs | Its patched PRoot is not a drop-in replacement for Nova’s rooted Holo path |
+
+The most relevant current records are:
+
+- [doc 299: standalone runtime acquisition](299-nova-standalone-runtime-acquisition-product-requirement-2026-08-10.md);
+- [doc 333: SteamclientTermux comparison](333-steamclienttermux-comparison-2026-08-10.md);
+- [doc 34: runtime harness lifecycle](34-nova-runtime-harness-lifecycle.md);
+- [doc 12: Gamescope AHardwareBuffer output](12-nova-gamescope-ahb-output.md);
+- [doc 13: Xwayland AHardwareBuffer output](13-nova-xwayland-ahb-output.md);
+- [doc 15: SteamUI AHardwareBuffer smoke](15-nova-steam-ui-ahb-smoke.md); and
+- [doc 298: live physical-controller confirmation](298-nova-physical-controller-live-confirmation-2026-08-10.md).
+
+When a technical blocker appears, search current primary project
+documentation/source before treating it as a hard boundary. Record the URLs,
+revisions, search date, and the exact Nova profile used in the experiment
+record.
