@@ -192,6 +192,65 @@ count immediately before `am start`, and clears the old launcher log. It
 accepts evidence only from a new session ID and new launcher log. The retry
 will be cleaned through the same helpers even if Steam fails before readiness.
 
+## Phase 2 result
+
+The valid retry created session `20260810T021555Z-30367`. After restart,
+Steam processed the local manifest and logged:
+
+```text
+Registering tool proton11_arm64, AppID 0
+Mapping AppID 1086010 to tool "proton11_arm64" with priority 250
+Loaded manifest for tool proton11_arm64.
+```
+
+This proves that the compatibility mapping mechanism works. The 198X launch
+also reached `StartSession` with session
+`58daf610a329773a`, and the Steam UI displayed the real controller-translation
+interstitial for 198X. After the interstitial was dismissed with one
+synthetic relay A event, Steam advanced through `CreatingProcess` and failed
+with `AppError_51`.
+
+The failure is a dependency-catalog boundary, not an untested launch:
+
+```text
+Tool 4185400 "" is unknown for appID 1086010.
+Tool 0 "Proton 11.0 (ARM64)" has a dependency on tool 4185400: dependent tool cmdline wrap failed.
+```
+
+No Proton, pressure-vessel, Wine, FEX, or game process appeared, and no game
+frame was produced. The installed Steam Linux Runtime 4.0 - Arm64 package is
+present at `SteamLinuxRuntime_4-arm64`, but its official `toolmanifest.vdf`
+does not provide a custom compatibility-tool AppID. A second local alias for
+that runtime would therefore also register as AppID 0 and would not satisfy
+the Proton manifest's hard dependency. The original `proton_hotfix` mapping
+was restored and the transient Proton alias removed after the run; the Steam
+downloaded Proton and runtime packages were preserved.
+
+Run artifacts are retained under
+`/tmp/proton-arm64-20260810T021453Z-198x-alias-retry/`, including the fresh
+compatibility registration, `StartSession`, `AppError_51`, process captures,
+and the pre/post-interstitial 1280x960 screenshots.
+
+## Phase 3 predeclared run
+
+Run ID: `proton-arm64-20260810T022307Z-198x-dependency-neutralized`
+
+The next run will keep the Steam-downloaded package read-only and create a
+small wrapper directory under `compatibilitytools.d/proton-11-arm64`:
+
+1. symlink every top-level Proton package entry except `toolmanifest.vdf` to
+   the installed Steam package;
+2. copy the package's `toolmanifest.vdf` into the wrapper and remove only its
+   `require_tool_appid 4185400` line, preserving a before/after hash; and
+3. point the custom `proton11_arm64` compatibility manifest at that wrapper,
+   map 198X to it, and repeat the fresh restart and launch sequence.
+
+This isolates the dependency resolver from the Proton files and avoids a
+multi-gigabyte copy. The run must capture whether Steam reaches the Proton
+entry point, the exact runtime/container command, Wine/FEX process state, and
+the first game frame. It must restore `proton_hotfix`, remove the wrapper, and
+run the exact cleanup helpers before any further hypothesis.
+
 ## Cleanup contract
 
 The exact Nova/X11 cleanup helper and rootfs runtime cleanup helper must run
