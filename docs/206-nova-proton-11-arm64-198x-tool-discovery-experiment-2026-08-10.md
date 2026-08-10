@@ -444,6 +444,21 @@ files were removed, and the two stale Steam singleton/shmem sockets left by
 Steam were removed by exact path. Final process, mount, and rootfs
 temporary-socket checks were empty.
 
+## Phase 6 predeclared run
+
+Run ID: `proton-arm64-20260810T024718Z-subsecond-process-capture`
+
+The next retry will repeat the fixed chroot-visible wrapper and
+`proton11_arm64` mapping from a fresh baseline, but will poll the Android
+process table every 250 ms from immediately before the `-applaunch` relay
+through the first five seconds. Each poll will retain full command lines so
+the short-lived child sequence can be attributed to Wine, FEX, pressure-vessel,
+the Windows executable, or an early helper failure. It will also capture the
+same-run Steam compatibility/game-process logs and screenshots. The mapping,
+wrapper, and Nova session will be removed/rolled back through the exact
+cleanup contract afterward; the existing `compatdata/1086010` state will be
+preserved rather than reset.
+
 ## Cleanup contract
 
 The exact Nova/X11 cleanup helper and rootfs runtime cleanup helper must run
