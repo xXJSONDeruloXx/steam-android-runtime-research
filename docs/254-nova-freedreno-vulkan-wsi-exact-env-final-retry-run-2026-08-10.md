@@ -55,3 +55,12 @@ creation, or WSI extension set differs from the earlier probe.
 After capture, stop the one-click session, run exact cleanup, remove only the
 run-scoped temporary state, and verify no matching process, mount, or socket
 remains. This declaration is committed and pushed before the final retry.
+
+## Harness correction before execution
+
+The first host preflight on 2026-08-10T08:36Z failed while constructing the
+quoted remote mount-inventory command. It stopped before APK install or
+session launch, so no Vulkan probe ran. The exact cleanup preflight had
+already returned `pass`; no matching process remained and only the two
+baseline udev sockets were present. The corrected retry uses a simpler
+`mount` capture and a new run identity.
