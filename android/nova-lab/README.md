@@ -84,11 +84,13 @@ to do so. Authentication secrets are never exported or backed up; a fresh
 runtime can require the normal QR login. Gamescope and AHardwareBuffer remain
 optional and are not in this first-run critical path.
 
-The research-only `nova-steamos-update-compat.sh` helper is bundled for
-diagnostics but is not installed at Steam's host-updater path by default. The
-clean profile must not report a fake SteamOS update success or hide the
-client's reboot handoff; enable it only for the historical compatibility
-experiment with `NOVA_ANDROID_LAUNCHER_STEAMOS_UPDATE_COMPAT=1`.
+The truthful `nova-steamos-update-compat.sh` adapter is installed at Steam's
+legacy host-updater path by default. It reports capability status `0` and
+no-host-update status `7`; it does not claim that an Android device applied a
+SteamOS image update. Set
+`NOVA_ANDROID_LAUNCHER_STEAMOS_UPDATE_COMPAT=0` only to reproduce the missing
+helper boundary. The adapter remains separate from `steamos-manager`,
+`atomupd-manager`, and any real host-image updater.
 
 The APK keeps the foreground service visible during provisioning and translates
 the shell's weighted `nova_provision_progress=<percent>` protocol into a

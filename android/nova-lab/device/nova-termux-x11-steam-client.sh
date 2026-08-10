@@ -286,6 +286,15 @@ has_fresh_steam_restart() {
     return 1
 }
 
+has_installed_client_marker() {
+    for marker in "$STEAM_ROOT"/package/steam_client_*_linuxarm64.installed; do
+        if [ -f "$marker" ]; then
+            return 0
+        fi
+    done
+    return 1
+}
+
 run_as_steam() {
     /usr/bin/setpriv --reuid="$STEAM_UID" --regid="$STEAM_GID" \
         --groups="$STEAM_AUDIO_GID" "$@"
@@ -409,6 +418,11 @@ finish() {
 trap finish EXIT INT TERM
 
 : >"$CLIENT_LOG"
+bootstrap_marker_before=0
+if has_installed_client_marker; then
+    bootstrap_marker_before=1
+fi
+bootstrap_relaunches=0
 log "client_begin $(date +%s)"
 log "client_kind=steam_arm64_direct_termux_x11"
 log "client_display=${DISPLAY:-unset}"
@@ -462,6 +476,7 @@ log "client_dbus_session_uid_record=$DBUS_SESSION_UID_RECORD"
 log "client_dbus_system_mode=$DBUS_SYSTEM_MODE"
 log "client_steamui_present=$STEAMUI_PRESENT"
 log "client_bootstrap_allowed=$STEAM_BOOTSTRAP_ALLOWED"
+log "client_bootstrap_marker_before=$bootstrap_marker_before"
 
 if [ ! -x "$STEAM_EXECUTABLE" ]; then
     log "client_started=fail"
@@ -921,6 +936,24 @@ while :; do
         restart_request=1
     fi
     log "client_restart_evidence=$restart_evidence"
+    bootstrap_request=0
+    if [ "$STEAM_BOOTSTRAP_ALLOWED" -eq 1 ] &&
+        [ "$bootstrap_relaunches" -lt 1 ] &&
+        [ "$bootstrap_marker_before" -eq 0 ] &&
+        [ "$client_status" -ne 124 ] &&
+        has_installed_client_marker; then
+        bootstrap_request=1
+    fi
+    log "client_bootstrap_handoff=$bootstrap_request"
+    if [ "$bootstrap_request" -eq 1 ]; then
+        bootstrap_relaunches=$((bootstrap_relaunches + 1))
+        STEAM_BOOTSTRAP_ALLOWED=0
+        set -- "$@" -nobootstrapperupdate -skipinitialbootstrap -no-child-update-ui
+        log "client_bootstrap_relaunch=$bootstrap_relaunches"
+        log "client_flags_relaunch=$*"
+        /usr/bin/sleep 1
+        continue
+    fi
     if [ "$restart_request" -eq 1 ]; then
         if [ "$restart_attempts" -lt "$STEAM_RESTART_LIMIT" ]; then
             restart_attempts=$((restart_attempts + 1))
@@ -935,6 +968,7 @@ while :; do
 done
 log "client_attempts=$client_attempt"
 log "client_restart_attempts=$restart_attempts"
+log "client_bootstrap_relaunches=$bootstrap_relaunches"
 log "client_status=$client_status"
 if [ "$client_status" -eq 124 ]; then
     log "client_timeout=expected"

@@ -409,7 +409,7 @@ public final class LauncherActivity extends Activity {
                 + "\nActive runtime marker: " + ACTIVE_ROOTFS
                 + "\nRollback rootfs: " + DEFAULT_ROOTFS
                 + "\nFirst run: verified downloads with phase progress"
-                + "\nSteamOS host-update shim: disabled by default"
+                + "\nSteamOS host-update adapter: enabled (no-update status 7)"
                 + "\n" + notification;
     }
 
