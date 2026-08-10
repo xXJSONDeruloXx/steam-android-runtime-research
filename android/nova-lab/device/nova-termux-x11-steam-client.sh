@@ -295,6 +295,18 @@ has_installed_client_marker() {
     return 1
 }
 
+apply_network_compat() {
+    if [ ! -x /opt/nova-kgsl-driver/nova-steam-network-api-compat.sh ]; then
+        log "client_network_api_compat_status=missing_helper"
+        return 1
+    fi
+    /opt/nova-kgsl-driver/nova-steam-network-api-compat.sh "$STEAM_ROOT" \
+        >>"$CLIENT_LOG" 2>&1
+    network_status=$?
+    log "client_network_api_compat_status=$network_status"
+    return "$network_status"
+}
+
 run_as_steam() {
     /usr/bin/setpriv --reuid="$STEAM_UID" --regid="$STEAM_GID" \
         --groups="$STEAM_AUDIO_GID" "$@"
@@ -537,16 +549,7 @@ if [ "$STEAMUI_PRESENT" -eq 0 ]; then
     # Defer the post-bootstrap network compatibility rewrite so a clean
     # device can reach normal Steam OOBE instead of failing at startup.
     log "client_network_api_compat=deferred reason=missing_steamui"
-elif [ -x /opt/nova-kgsl-driver/nova-steam-network-api-compat.sh ]; then
-    /opt/nova-kgsl-driver/nova-steam-network-api-compat.sh "$STEAM_ROOT" \
-        >>"$CLIENT_LOG" 2>&1
-    network_status=$?
-    log "client_network_api_compat_status=$network_status"
-    if [ "$network_status" -ne 0 ]; then
-        exit 1
-    fi
-else
-    log "client_network_api_compat_status=missing_helper"
+elif ! apply_network_compat; then
     exit 1
 fi
 
@@ -948,6 +951,12 @@ while :; do
     if [ "$bootstrap_request" -eq 1 ]; then
         bootstrap_relaunches=$((bootstrap_relaunches + 1))
         STEAM_BOOTSTRAP_ALLOWED=0
+        STEAMUI_PRESENT=1
+        log "client_steamui_present_after_bootstrap=1"
+        if ! apply_network_compat; then
+            log "client_bootstrap_relaunch=fail reason=network_compat"
+            exit 1
+        fi
         set -- "$@" -nobootstrapperupdate -skipinitialbootstrap -no-child-update-ui
         log "client_bootstrap_relaunch=$bootstrap_relaunches"
         log "client_flags_relaunch=$*"
