@@ -10,6 +10,12 @@ Keep game-specific controls, rumble, lifecycle reattachment, and controller
 behavior on a future Gamescope/AHardwareBuffer path as later regression or
 integration checks.
 
+The product install contract is rootless and standalone: the user must not
+need Magisk, root, Termux, or Termux:X11. The current rooted/Termux:X11 path
+is a research harness only. The app must acquire and verify its app-owned
+Linux/Steam/graphics/compatibility runtime during first-run setup; see [doc
+299](299-nova-standalone-runtime-acquisition-product-requirement-2026-08-10.md).
+
 ## Target architecture
 
 The Android app should be a control plane and presentation shell. Linux owns the Steam session:
@@ -17,7 +23,7 @@ The Android app should be a control plane and presentation shell. Linux owns the
 ```text
 Android app
   ├─ lifecycle / permissions / storage / downloads
-  ├─ root or rootless process supervisor
+  ├─ rootless process supervisor
   ├─ controller + touch input bridge
   └─ Android Surface / AHardwareBuffer presentation
         │
@@ -32,7 +38,13 @@ Android app
 The app should not recreate Steam's library, login, downloads, or Gamepad UI. Armada and PockNix show
 that the Steam client already supplies the right primary UI when launched with the Deck session flags.
 
-## Root is acceptable for the first milestone
+## Rooted runs are research milestones only
+
+Root and Magisk are acceptable tools for proving lower-level device behavior,
+but they are not part of the end-user product contract. Termux:X11 is likewise
+an experimental display fallback, not an APK dependency. The product target
+is the rootless app-owned runtime and Android presentation path defined in
+[doc 299](299-nova-standalone-runtime-acquisition-product-requirement-2026-08-10.md).
 
 There are two useful rooted proofs, and they answer different questions.
 
@@ -69,8 +81,20 @@ The cleanup requirement is now an explicit harness contract: see
 tree teardown and Gamescope artifact identity recorded around each run.
 
 This is the right place to reuse GameNative's Android lifecycle/storage/controller patterns and the
-existing `steam-arm-findings` graphics work. The first release can clearly say “root required” while the
-Linux session is being stabilized.
+existing `steam-arm-findings` graphics work. It remains a research implementation
+and must not be mistaken for the final installation model: the first release
+must not require root, Magisk, or Termux:X11.
+
+## First-run runtime acquisition
+
+The app-owned runtime is a product feature, not a manual lab prerequisite.
+First-run setup must obtain a versioned and integrity-checked closure covering
+the Holo-compatible ARM64 glibc rootfs, native ARM64 Steam and compatible
+SteamRT3C data, Gamescope/Wayland/Xwayland, Mesa/Turnip/Vulkan, input/audio
+bridges, and the selected Proton/FEX payloads. It must store these artifacts
+privately, support resume/retry/rollback, and activate a complete version
+atomically. See [doc 299](299-nova-standalone-runtime-acquisition-product-requirement-2026-08-10.md)
+for the bootstrap contract and current implementation gap.
 
 ## Network contract: use Android's active data path
 

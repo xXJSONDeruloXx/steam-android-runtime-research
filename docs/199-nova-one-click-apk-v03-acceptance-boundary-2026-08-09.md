@@ -6,6 +6,11 @@ Branch: `feat/nova-one-click-launcher`
 
 ## Scope
 
+This is a historical prepared-device harness acceptance record. It does not
+define the final product prerequisites: the shipped app must not require
+root/Magisk or Termux:X11 and must acquire its verified runtime closure
+itself. See [doc 299](299-nova-standalone-runtime-acquisition-product-requirement-2026-08-10.md).
+
 This record covers the first device acceptance attempts for the standalone
 `com.xjsonderulo.steamandroid.novalab` launcher APK. The APK's current product
 path is direct Termux:X11; it does not yet package or select the Gamescope /

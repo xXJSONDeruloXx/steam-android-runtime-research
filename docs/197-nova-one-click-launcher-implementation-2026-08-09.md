@@ -32,6 +32,16 @@ session, and keeps the diagnostic `MainActivity` behind an explicit button.
 `LauncherService` owns the long-lived `su` process and foreground notification
 so switching to Termux:X11 does not make the launch process depend on adb.
 
+## Product-contract correction — 2026-08-10
+
+This implementation record describes a prepared-device research harness, not
+the final Nova installation experience. The product must not require root,
+Magisk, Termux, or Termux:X11. It must download and verify its app-owned
+Holo/Steam/graphics/Proton runtime during first-run setup and use an
+Android-native presentation path. The current fixed rootfs and external X11
+dependency are therefore explicit implementation gaps, not requirements to
+carry forward. See [doc 299](299-nova-standalone-runtime-acquisition-product-requirement-2026-08-10.md).
+
 `nova-one-click-root-launcher.sh` owns the device-side sequence:
 
 ```text
@@ -51,9 +61,10 @@ hypothesis; a fresh device run must verify `x11-tree` and the Android frame.
 
 ## Deliberate limits
 
-- The APK does not redistribute the Valve Steam client or the Holo rootfs. It
-  packages orchestration and small helper artifacts; the runtime remains
-  device-installed data.
+- The APK does not currently redistribute or download the Valve Steam client,
+  Holo rootfs, or complete graphics/runtime closure. It packages orchestration
+  and small helper artifacts; the runtime remains device-installed data. This
+  is a current harness limitation, not the intended product contract.
 - The gamepad relay is started before Steam so Steam can discover the virtual
   Xbox device during client initialization. Button-by-button Steam acceptance
   is still untested on this direct X11 product profile.

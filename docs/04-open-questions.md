@@ -171,6 +171,9 @@ The target should not be considered proven until all of these work on one device
 Do not build a large custom Android UI yet. The Nova lab has captured the
 native client's child-process lifecycle, a signed-in Steam Gamepad UI session,
 and the physical controller path is now confirmed working for the current
-Termux:X11 route. Next focus the rooted Android app on the remaining
-presentation/game, audio, network, and lifecycle gates. Revisit controller
-behavior only as a game-level or alternate-renderer regression check.
+Termux:X11 route. Treat rooted/Termux:X11 work as a research harness while the
+product path moves toward app-owned runtime acquisition, rootless supervision,
+Android-native presentation, game rendering, audio, network, and lifecycle
+gates. Revisit controller behavior only as a game-level or alternate-renderer
+regression check. The runtime bootstrap contract is in [doc
+299](299-nova-standalone-runtime-acquisition-product-requirement-2026-08-10.md).
