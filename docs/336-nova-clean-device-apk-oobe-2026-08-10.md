@@ -101,3 +101,46 @@ the SteamOS-host-service/mandatory-update boundary being absent inside the
 Holo container, with IPv6 timeout as a separate diagnostic condition. The
 session remains on the error screen for the next explicitly documented
 experiment; no auth data has been exported.
+
+## SteamOS Manager availability probe
+
+At `2026-08-10T20:49:03Z`, a read-only probe ran against the still-live
+session. It did not stop Steam, change the runtime, or export authentication
+data.
+
+The launcher had successfully created both D-Bus endpoints:
+
+- system bus: `/run/dbus/system_bus_socket`;
+- Steam session bus:
+  `/tmp/nova-steam-runtime/dbus-session-16846/bus`.
+
+The system-bus `GetNameOwner` query returned:
+
+```text
+org.freedesktop.DBus.Error.NameHasNoOwner:
+Could not get owner of name 'com.steampowered.SteamOSManager1': no such name
+```
+
+The session-bus startup probe succeeded, but its `ListNames` result contained
+only `org.freedesktop.DBus` and the probe's private connection; it did not
+contain `com.steampowered.SteamOSManager1`. The launcher log independently
+recorded `client_dbus_session_client_probe=pass` and
+`client_dbus_system_client_probe=fail`, so a live broker must not be confused
+with an installed SteamOS Manager service.
+
+The active Holo rootfs also lacks the manager binary and service contract:
+
+- `/usr/lib/steamos-manager`;
+- `/usr/bin/steamosctl`;
+- system/session D-Bus service files;
+- `/usr/lib/systemd/system/steamos-manager.service`;
+- `steamos-mandatory-update`; and
+- `jupiter-initial-firmware-update`.
+
+This confirms that SteamOS Manager is absent, but does not prove that it is
+required for the QR/login route. The current error is more specifically the
+missing SteamOS update/host-service contract. Do not add a bare manager binary
+to the GameNative Bionic imagefs or to first-run provisioning. If pursued,
+SteamOS Manager needs a separate ARM64, opt-in Holo-rootfs experiment with its
+two daemons, D-Bus activation/policy, and service lifecycle documented as a
+single unit.
