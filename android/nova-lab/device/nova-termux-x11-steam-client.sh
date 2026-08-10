@@ -9,6 +9,7 @@ CLIENT_LOG=/tmp/nova-steam-client.log
 CLIENT_STDOUT=/tmp/nova-steam-client.stdout
 CLIENT_STDERR=/tmp/nova-steam-client.stderr
 RUNTIME_DIR=/tmp/nova-steam-runtime
+STEAM_WEBHELPER_LOG="$STEAM_ROOT/logs/webhelper_js.txt"
 STEAM_UID=${NOVA_TERMUX_X11_STEAM_UID:-501}
 STEAM_GID=${NOVA_TERMUX_X11_STEAM_GID:-20}
 # Android's audio device nodes are normally owned by AID_AUDIO (1005). Keep
@@ -16,6 +17,7 @@ STEAM_GID=${NOVA_TERMUX_X11_STEAM_GID:-20}
 # group; callers can override it for a device with a different audio gid.
 STEAM_AUDIO_GID=${NOVA_TERMUX_X11_STEAM_AUDIO_GID:-1005}
 CLIENT_TIMEOUT=${NOVA_TERMUX_X11_STEAM_TIMEOUT_SECONDS:-60}
+STEAM_RESTART_LIMIT=${NOVA_TERMUX_X11_STEAM_RESTART_LIMIT:-1}
 STEAM_FULLSCREEN=${NOVA_TERMUX_X11_STEAM_FULLSCREEN:-0}
 STEAM_FULLDESKTOPRES=${NOVA_TERMUX_X11_STEAM_FULLDESKTOPRES:-0}
 STEAM_WIDTH=${NOVA_TERMUX_X11_STEAM_WIDTH:-}
@@ -76,6 +78,14 @@ if [ "$CLIENT_TIMEOUT" -lt 1 ]; then
     echo "Steam timeout must be at least 1 second" >&2
     exit 2
 fi
+case "$STEAM_RESTART_LIMIT" in
+    0|1)
+        ;;
+    *)
+        echo "invalid NOVA_TERMUX_X11_STEAM_RESTART_LIMIT: $STEAM_RESTART_LIMIT (expected 0 or 1)" >&2
+        exit 2
+        ;;
+esac
 case "$STEAM_FULLSCREEN:$STEAM_FULLDESKTOPRES" in
     0:0|0:1|1:0|1:1)
         ;;
@@ -241,6 +251,39 @@ fi
 
 log() {
     echo "$1" >>"$CLIENT_LOG"
+}
+
+file_size() {
+    if [ -f "$1" ]; then
+        /usr/bin/wc -c <"$1" 2>/dev/null || echo 0
+    else
+        echo 0
+    fi
+}
+
+has_fresh_steam_restart() {
+    restart_log_offset=$1
+    restart_log_size=$(file_size "$STEAM_WEBHELPER_LOG")
+    restart_evidence=absent
+    case "$restart_log_offset:$restart_log_size" in
+        ''|*[!0-9:]*|*:*:*)
+            restart_evidence=invalid_offset
+            return 1
+            ;;
+    esac
+    if [ "$restart_log_size" -lt "$restart_log_offset" ]; then
+        restart_evidence=rotated
+        return 1
+    fi
+    if [ "$restart_log_size" -eq "$restart_log_offset" ]; then
+        return 1
+    fi
+    if /usr/bin/tail -c "+$((restart_log_offset + 1))" "$STEAM_WEBHELPER_LOG" 2>/dev/null |
+        /usr/bin/grep -F -q 'SteamUI: WARNING: Restarting Steam'; then
+        restart_evidence=pass
+        return 0
+    fi
+    return 1
 }
 
 run_as_steam() {
@@ -410,6 +453,7 @@ log "client_uid=$STEAM_UID"
 log "client_gid=$STEAM_GID"
 log "client_audio_gid=$STEAM_AUDIO_GID"
 log "client_timeout_seconds=$CLIENT_TIMEOUT"
+log "client_restart_limit=$STEAM_RESTART_LIMIT"
 log "client_xauthority=${XAUTHORITY:-unset}"
 log "client_runtime_dir=$RUNTIME_DIR"
 log "client_dbus_session_mode=$DBUS_SESSION_MODE"
@@ -824,17 +868,59 @@ if [ -n "$STEAM_WIDTH" ]; then
     set -- "$@" -w "$STEAM_WIDTH" -h "$STEAM_HEIGHT"
 fi
 log "client_flags_final=$*"
-run_as_steam /usr/bin/timeout "$CLIENT_TIMEOUT" "$@" \
-    >"$CLIENT_STDOUT" 2>"$CLIENT_STDERR" &
-client_pid=$!
-log "client_pid=$client_pid"
-if /usr/bin/kill -0 "$client_pid" 2>/dev/null; then
-    log "client_started=pass"
-else
-    log "client_started=fail"
-fi
-wait "$client_pid" 2>/dev/null
-client_status=$?
+client_attempt=0
+restart_attempts=0
+client_stdout_path=$CLIENT_STDOUT
+client_stderr_path=$CLIENT_STDERR
+while :; do
+    client_attempt=$((client_attempt + 1))
+    client_stdout_path=$CLIENT_STDOUT
+    client_stderr_path=$CLIENT_STDERR
+    if [ "$client_attempt" -gt 1 ]; then
+        client_stdout_path="$CLIENT_STDOUT.$client_attempt"
+        client_stderr_path="$CLIENT_STDERR.$client_attempt"
+    fi
+    webhelper_log_offset=$(file_size "$STEAM_WEBHELPER_LOG")
+    log "client_attempt=$client_attempt"
+    log "client_webhelper_log_offset=$webhelper_log_offset"
+    run_as_steam /usr/bin/timeout "$CLIENT_TIMEOUT" "$@" \
+        >"$client_stdout_path" 2>"$client_stderr_path" &
+    client_pid=$!
+    log "client_pid=$client_pid"
+    if /usr/bin/kill -0 "$client_pid" 2>/dev/null; then
+        log "client_started=pass"
+    else
+        log "client_started=fail"
+    fi
+    wait "$client_pid" 2>/dev/null
+    client_status=$?
+    client_pid=
+    log "client_attempt_status=$client_status"
+    # Steam writes the restart request asynchronously while its webhelper
+    # closes. Give that final record a short flush window before inspecting
+    # only the bytes appended by this attempt.
+    /usr/bin/sleep 0.2
+    restart_request=0
+    restart_evidence=not_checked
+    if [ "$client_status" -ne 124 ] &&
+        has_fresh_steam_restart "$webhelper_log_offset"; then
+        restart_request=1
+    fi
+    log "client_restart_evidence=$restart_evidence"
+    if [ "$restart_request" -eq 1 ]; then
+        if [ "$restart_attempts" -lt "$STEAM_RESTART_LIMIT" ]; then
+            restart_attempts=$((restart_attempts + 1))
+            log "client_restart_request=detected"
+            log "client_restart_attempt=$restart_attempts"
+            /usr/bin/sleep 1
+            continue
+        fi
+        log "client_restart=exhausted"
+    fi
+    break
+done
+log "client_attempts=$client_attempt"
+log "client_restart_attempts=$restart_attempts"
 log "client_status=$client_status"
 if [ "$client_status" -eq 124 ]; then
     log "client_timeout=expected"
@@ -844,7 +930,7 @@ if [ -f "$STEAM_ROOT/package/steam_client_steamdeck_publicbeta_linuxarm64.instal
 else
     log "client_installed=absent"
 fi
-log "client_stdout=$(wc -c <"$CLIENT_STDOUT")"
-log "client_stderr=$(wc -c <"$CLIENT_STDERR")"
+log "client_stdout=$(wc -c <"$client_stdout_path")"
+log "client_stderr=$(wc -c <"$client_stderr_path")"
 log "client_end $(date +%s)"
 exit 0
