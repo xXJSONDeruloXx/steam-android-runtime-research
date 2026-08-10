@@ -1,6 +1,7 @@
 # Nova Proton 11 ARM64 Geometry Wars Freedreno-ICD experiment — 2026-08-10
 
-Status: predeclared; no device game run has been launched under this identity.
+Status: first setup attempt discarded before Proton startup; retry predeclared
+below.
 
 ## Question
 
@@ -71,3 +72,36 @@ Before and after the run, use the exact Nova/X11 and rootfs cleanup helpers.
 Do not use broad process killing or remove installed game, prefix, Proton,
 shader-cache, or account data. Commit and push the result before another
 device experiment.
+
+## Discarded setup attempt
+
+The initial run identity `proton-arm64-20260810T044735Z-geometry-wars-freedreno-icd`
+passed the fresh X11/launcher readiness boundary and entered the direct
+chroot namespace. Proton did not start: the root-created run-specific
+`/tmp/nova-geometry-wars-freedreno-proton` directory was not writable by the
+Steam UID 501 process, producing:
+
+```text
+PermissionError: [Errno 13] Permission denied: '/tmp/nova-geometry-wars-freedreno-proton/steam-8400.log'
+direct_rc=1
+```
+
+No Wine, FEX, Vulkan, game, or frame result exists for that attempt. The
+software Steam/X11 session was cleaned with
+`nova_x11_cleanup=pass` and `nova_runtime_cleanup=pass`; the retained game,
+prefix, and Proton data were not changed. The discarded output and pre-game
+captures are retained under
+`/tmp/proton-arm64-20260810T044735Z-geometry-wars-freedreno-icd/`.
+
+## Retry predeclared run
+
+Run ID: `proton-arm64-20260810T045216Z-geometry-wars-freedreno-icd-retry`
+
+The retry keeps every declared game/display variable unchanged and changes
+only the harness setup: the direct-run helper will chown its fresh Proton log
+directory to `501:20` before invoking Proton. It will start from a new exact
+cleanup baseline, establish the default software Steam/X11 surface, and then
+repeat the direct Geometry Wars launch with the explicit Freedreno ICD. The
+retry must produce a new launcher session token before any readiness or game
+claim is accepted. Its artifacts will be retained under
+`/tmp/proton-arm64-20260810T045216Z-geometry-wars-freedreno-icd-retry/`.
