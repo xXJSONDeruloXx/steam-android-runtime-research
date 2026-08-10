@@ -1,5 +1,15 @@
 # Android app roadmap: Linux-first Steam Gamepad UI
 
+## Current status — 2026-08-10
+
+Physical controller input is now a solved baseline for the current Nova
+Termux:X11/Steam session, based on live operator confirmation; see [doc
+298](298-nova-physical-controller-live-confirmation-2026-08-10.md). Remove
+controller transport and Steam UI navigation from the immediate blocker list.
+Keep game-specific controls, rumble, lifecycle reattachment, and controller
+behavior on a future Gamescope/AHardwareBuffer path as later regression or
+integration checks.
+
 ## Target architecture
 
 The Android app should be a control plane and presentation shell. Linux owns the Steam session:
@@ -184,12 +194,15 @@ SteamRT diagnostic-tool boundaries. The process starts `steamwebhelper`, reaches
 both SteamUI WebSocket `connection ready` markers, and visibly renders the
 pre-login Gamepad UI welcome screen into the Android AHardwareBuffer queue; see
 [doc 15](15-nova-steam-ui-ahb-smoke.md). The stage is not complete until login,
-controller input, a game, and clean lifecycle behavior work, and the current
+a game, and clean lifecycle behavior work. Physical controller input is
+accepted for the current Termux:X11 path as a working baseline; see [doc
+298](298-nova-physical-controller-live-confirmation-2026-08-10.md). The current
 CEF report still identifies software `softpipe` rendering. An optional libei
 Gamescope build now accepts a keyboard scancode and completes the EIS protocol
 round trip through `gamescope-0-ei`; [doc 16](16-nova-libei-input-smoke.md)
-records the result. That proves a compositor-side control seam, not gamepad/HID
-navigation, so Android event mapping remains required.
+records the historical compositor-side control seam. The current physical
+controller path is separately accepted for Termux:X11; see [doc
+298](298-nova-physical-controller-live-confirmation-2026-08-10.md).
 The separate hardware GLX probe keeps the same Gamescope/Turnip output alive,
 but native Steam exits before `steamwebhelper` with `SIGILL` when Mesa's `msm`
 path is selected; an explicit `freedreno` profile fails at `drisw` creation.
@@ -219,10 +232,14 @@ socket into the same rooted virtual device; [doc 19](19-nova-android-input-uinpu
   holds the matching event FD. [Doc 29](29-nova-android-input-steam-ui-navigation.md)
   repeats the same acceptance through `MainActivity.dispatchKeyEvent` and the
   app socket, with a strict Steam-surface visual gate. [Doc
-  30](30-nova-android-a-button-navigation.md) corrects the Android ABXY
-  mapping and closes the virtual-device feedback loop, but A-button UI
-  activation is still open. Broader button, axis, rumble, login, and
-  game-launch checks remain open. [Doc 31](31-nova-android-touch-libei-fullscreen.md)
+  30](30-nova-android-a-button-navigation.md) records the corrected Android
+  ABXY mapping and virtual-device feedback-loop guard. The live physical
+  controller is now confirmed working in the current signed-in Termux:X11
+  session; see [doc
+  298](298-nova-physical-controller-live-confirmation-2026-08-10.md). This
+  closes the controller bridge as an immediate blocker. Game-specific button,
+  axis, rumble, and alternate-renderer checks remain later compatibility work.
+  [Doc 31](31-nova-android-touch-libei-fullscreen.md)
   now proves the Android touch → libei → Gamescope event path and native Steam Gamepad
   UI visible on the fullscreen AHardwareBuffer output after a bounded settle. Hardware
   CEF, broader controls, login, audio, game launch, and lifecycle cleanup remain open.
@@ -274,8 +291,9 @@ behavior, and controller handoff per game.
 2. Reproduce native ARM64 Steam + gamescope on Armada/PockNix or an equivalent full Linux boot.
 3. Build a rooted Android app supervisor around a fixed Holo/Arch-compatible rootfs and the same Steam
    client bootstrap; finish the Bootstrapper HTTP/child-process lifecycle first.
-4. Make the Android presentation bridge pass Steam login/Gamepad UI, then one game, then suspend/stop.
-5. Move input/audio/scheduling from root services to app-compatible bridges.
+4. Make the Android presentation bridge pass Steam login/Gamepad UI, then one game, then suspend/stop;
+   retain the confirmed physical controller path as a regression baseline.
+5. Move audio/scheduling from root services to app-compatible bridges.
 6. Remove root for the Linux process/rootfs path.
 7. Add FEX + Proton as a compatibility layer for x86 games and maintain a rooted fallback for devices that
    cannot expose the required graphics/input interfaces.
@@ -288,7 +306,7 @@ Do not advance to the next stage until the current stage produces artifacts:
 |---|---|
 | Native client | ARM64 manifest/runtime revision, bootstrap logs, `steamui.so`, `.installed` manifest |
 | Steam UI | Screenshot/video of login and Gamepad UI; `steamwebhelper` hardware-rendering logs |
-| Linux session | gamescope logs, controller navigation, one launched game |
+| Linux session | gamescope logs, the confirmed controller navigation baseline, and one launched game |
 | Network | Native Steam bootstrap plus glibc DNS/HTTPS through Android's active data path; IPv4/IPv6, reconnect, and rootless/rooted UID/VPN behavior recorded; no synthetic Wi-Fi/Ethernet registration required |
 | Android presentation | continuous synthetic and Steam UI/game frames on the app-owned surface, frame/fence metrics, a debug frame-order/pacing trace, and no unexplained 1–3 FPS visible-update behavior |
 | Lifecycle | clean start/stop, no stale Steam/gamescope processes, suspend/resume behavior |

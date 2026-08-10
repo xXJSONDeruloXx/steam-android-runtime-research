@@ -1,8 +1,8 @@
 # Termux:X11 networking phase plan — 2026-08-09
 
-Status: the Termux:X11 renderer and input path are frozen as the working
-presentation baseline. This branch investigates the remaining Steam login
-boundary: Android-hosted networking and the native Steam-to-webhelper
+Status: the Termux:X11 renderer and physical controller input path are frozen
+as the working presentation baseline. This branch investigates the remaining
+Steam login boundary: Android-hosted networking and the native Steam-to-webhelper
 connection/IPC services that populate the SteamClient bridge.
 
 ## Starting point
@@ -44,6 +44,7 @@ presentation=Termux:X11 Android SurfaceView
 gamescope=not_used
 ahb_bridge=not_used
 surfacecontrol=not_used
+controller=physical device confirmed working in the live Steam session
 client_namespace_mode=chroot-dev
 bind_android_dev=1
 bind_android_proc=1

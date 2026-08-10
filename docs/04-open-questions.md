@@ -98,7 +98,8 @@ The target should not be considered proven until all of these work on one device
 3. `steamwebhelper` uses the hardware Vulkan path rather than llvmpipe/lavapipe.
 4. Steam login UI appears.
 5. Gamepad UI/Big Picture appears without a desktop mouse/keyboard workflow.
-6. Android controller input reaches Steam navigation and a launched game.
+6. The confirmed physical controller path reaches Steam navigation; validate
+   its game-level mapping and rumble once a launched game produces a frame.
 7. Frames reach the Android display through the intended presentation path.
 8. Suspend/resume and process cleanup work without stale sessions.
 
@@ -115,47 +116,15 @@ The target should not be considered proven until all of these work on one device
   path falls back from glamor to software because GBM Wayland interfaces are absent, and CEF reports
   ANGLE/softpipe rather than hardware rendering. See [doc 15](15-nova-steam-ui-ahb-smoke.md).
 - What input protocol is least invasive: Android HID injection, Wayland input, SDL, or a custom socket?
-  The rooted Nova lab now enables Gamescope's optional libei server and proves a
-  keyboard scancode plus protocol round trip through `gamescope-0-ei`; see
-  [doc 16](16-nova-libei-input-smoke.md). This establishes a compositor control
-  seam, but not Android gamepad mapping or Linux HID navigation.
-- Can a rooted Android input bridge expose a Steam-compatible gamepad? The Nova
-  now has a repeatable `/dev/input/event7` to `/dev/uinput` relay that creates a
-  readable virtual Xbox-style device and forwards a deterministic evdev event
-  while the native Steam/AHardwareBuffer smoke passes; see [doc 18](18-nova-uinput-gamepad-smoke.md).
-  The app-side seam also passes: Android enumerates the attached Xbox
-  controller, dispatches a deterministic key event through an abstract socket,
-  and the rooted helper maps it into the virtual device; see [doc 19](19-nova-android-input-uinput-bridge.md).
-  Physical controller dispatch passes through the Android activity and rooted
-  bridge; see [doc 20](20-nova-physical-controller-dispatch.md). The lower-level
-  Holo `libudev`/uid-501 prerequisite passes independently; see [doc 21](21-nova-input-udev-device-visibility.md).
-  The next bounded native-session check now finds the actual Steam ARM64
-  process holding an open FD for the virtual event node while the full
-  AHardwareBuffer smoke passes; see [doc 22](22-nova-steam-input-process-fd.md).
-  The follow-up controlled session injects an exact physical BTN_SOUTH, observes
-  the relay and Steam FD markers, and compares a Steam language-selector region
-  before/after. The selector remains unchanged while the center greeting
-  animates through localized strings; see [doc 23](23-nova-steam-controller-ui-input.md).
-  A follow-up with Linux `BTN_DPAD_DOWN` (code 545) reaches the same virtual
-  node and Steam FD, but the selector remains unchanged under the explicit
-  navigation assertion; see [doc 24](24-nova-steam-dpad-input.md). The earlier
-  Android comparison in [doc 25](25-nova-android-input-steam-ui.md) has the same
-  historical status; both predate the exact-path and strict visual-gate
-  hardening.
-  A direct check against Valve's shipped SDL3 now discovers and opens the
-  virtual node and receives an event whose SDL instance ID matches that node;
-  see [doc 26](26-nova-sdl3-event-input.md). The first name-based result was
-  superseded after a duplicate same-name node was found. The corrected
-  path-specific Gamepad API probe now reports the Xbox 360 mapping and both
-  semantic D-pad transitions; see [doc 27](27-nova-sdl3-gamepad-event.md).
-  The exact-path live-session follow-up now also proves Steam's own consumer
-  accepts physical `BTN_DPAD_DOWN` and changes the Gamepad UI navigation panel;
-  see [doc 28](28-nova-steam-dpad-navigation.md). The Android app dispatch and
-  socket variant now also passes and changes the live panel under the strict
-  Steam-surface gate; see [doc 29](29-nova-android-input-steam-ui-navigation.md).
-  The corrected ABXY table and virtual-device feedback-loop filter are in [doc
-  30](30-nova-android-a-button-navigation.md); A-button UI activation,
-  broader controls, login, and game launch remain open.
+  The historical Nova experiments establish the available libei, uinput,
+  Android dispatch, SDL, and Steam-consumer seams; see [docs 16](16-nova-libei-input-smoke.md),
+  [18](18-nova-uinput-gamepad-smoke.md), [20](20-nova-physical-controller-dispatch.md),
+  [27](27-nova-sdl3-gamepad-event.md), and [29](29-nova-android-input-steam-ui-navigation.md).
+  The live physical controller is now confirmed working in the signed-in
+  Termux:X11/Steam session. See [doc 298](298-nova-physical-controller-live-confirmation-2026-08-10.md).
+  Controller transport and Steam UI navigation are therefore removed from the
+  immediate blocker list. Keep only game-level mapping, rumble, hotplug, and
+  alternate-renderer validation for later.
 - Can Android touch drive the live Gamescope session, and can Steam remain visible in
   the app's fullscreen presentation? The Nova touch path now passes end to end: an
   Android `MotionEvent` reaches the app's abstract socket, the ARM64 libei helper,
@@ -199,10 +168,9 @@ The target should not be considered proven until all of these work on one device
 
 ## Current recommendation
 
-Do not build a large custom Android UI yet. The Nova lab has now captured the
-native client's child-process lifecycle, a pre-login Gamepad UI screenshot, and
-the first compositor-side keyboard input round trip through the rooted Android
-display bridge. Next make the rooted Android app a supervisor + Linux session +
-input/display bridge, map a real Android controller class, then advance to login
-and a game. Rootless work should begin only after Steam UI, gamescope session,
-Android presentation, and controller input pass independently.
+Do not build a large custom Android UI yet. The Nova lab has captured the
+native client's child-process lifecycle, a signed-in Steam Gamepad UI session,
+and the physical controller path is now confirmed working for the current
+Termux:X11 route. Next focus the rooted Android app on the remaining
+presentation/game, audio, network, and lifecycle gates. Revisit controller
+behavior only as a game-level or alternate-renderer regression check.
