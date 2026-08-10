@@ -17,6 +17,7 @@ STEAM_DISABLE_PRELOAD="${NOVA_ANDROID_LAUNCHER_STEAM_DISABLE_PRELOAD:-0}"
 STEAM_DISABLE_SYSTEM_DBUS="${NOVA_ANDROID_LAUNCHER_STEAM_DISABLE_SYSTEM_DBUS:-0}"
 STEAM_HOLO_MESA_FIRST="${NOVA_ANDROID_LAUNCHER_STEAM_HOLO_MESA_FIRST:-0}"
 STEAM_FORCE_SOFTWARE_GL="${NOVA_ANDROID_LAUNCHER_STEAM_FORCE_SOFTWARE_GL:-0}"
+STEAM_CEF_ENV_SPLIT="${NOVA_ANDROID_LAUNCHER_STEAM_CEF_ENV_SPLIT:-0}"
 AUDIO_BRIDGE="${NOVA_ANDROID_LAUNCHER_AUDIO_BRIDGE:-0}"
 AUDIO_BRIDGE_PORT="${NOVA_ANDROID_LAUNCHER_AUDIO_BRIDGE_PORT:-29100}"
 X11_STRETCH="${NOVA_ANDROID_LAUNCHER_X11_STRETCH:-1}"
@@ -95,6 +96,14 @@ case "$STEAM_FORCE_SOFTWARE_GL" in
         ;;
     *)
         echo "invalid NOVA_ANDROID_LAUNCHER_STEAM_FORCE_SOFTWARE_GL: $STEAM_FORCE_SOFTWARE_GL" >&2
+        exit 2
+        ;;
+esac
+case "$STEAM_CEF_ENV_SPLIT" in
+    0|1)
+        ;;
+    *)
+        echo "invalid NOVA_ANDROID_LAUNCHER_STEAM_CEF_ENV_SPLIT: $STEAM_CEF_ENV_SPLIT" >&2
         exit 2
         ;;
 esac
@@ -361,6 +370,7 @@ mkdir -p "$DRIVER_DIR" "$ROOT/usr/bin/steamos-polkit-helpers"
 for driver_asset in \
     nova-uinput-gamepad-relay \
     libsysv-sem-shim.so \
+    libnova-cef-env-split.so \
     libffmpeg-avutil-compat.so \
     libsdl3-compat.so \
     libposix-sync-trace.so \
@@ -423,6 +433,7 @@ log "nova_launcher_steam_disable_preload=$STEAM_DISABLE_PRELOAD"
 log "nova_launcher_steam_disable_system_dbus=$STEAM_DISABLE_SYSTEM_DBUS"
 log "nova_launcher_steam_holo_mesa_first=$STEAM_HOLO_MESA_FIRST"
 log "nova_launcher_steam_force_software_gl=$STEAM_FORCE_SOFTWARE_GL"
+log "nova_launcher_steam_cef_env_split=$STEAM_CEF_ENV_SPLIT"
 log "nova_launcher_audio_bridge=$AUDIO_BRIDGE"
 log "nova_launcher_audio_bridge_port=$AUDIO_BRIDGE_PORT"
 
@@ -519,6 +530,7 @@ fi
     NOVA_TERMUX_X11_STEAM_DISABLE_PRELOAD="$STEAM_DISABLE_PRELOAD" \
     NOVA_TERMUX_X11_STEAM_HOLO_MESA_FIRST="$STEAM_HOLO_MESA_FIRST" \
     NOVA_TERMUX_X11_STEAM_FORCE_SOFTWARE_GL="$STEAM_FORCE_SOFTWARE_GL" \
+    NOVA_TERMUX_X11_STEAM_CEF_ENV_SPLIT="$STEAM_CEF_ENV_SPLIT" \
     NOVA_TERMUX_X11_STEAM_AUDIO_BRIDGE="$AUDIO_BRIDGE" \
     NOVA_TERMUX_X11_STEAM_AUDIO_BRIDGE_PORT="$AUDIO_BRIDGE_PORT" \
     NOVA_X11_ALLOW_INPUT_EVENTS="$allow_input_events" \

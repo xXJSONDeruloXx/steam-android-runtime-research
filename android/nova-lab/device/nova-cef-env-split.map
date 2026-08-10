@@ -1,0 +1,12 @@
+GLIBC_2.17 {
+    global:
+        execve;
+        execv;
+        execvp;
+        execvpe;
+        execveat;
+        posix_spawn;
+        posix_spawnp;
+    local:
+        *;
+};

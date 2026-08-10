@@ -47,6 +47,8 @@ public final class LauncherActivity extends Activity {
             LauncherService.EXTRA_STEAM_HOLO_MESA_FIRST;
     private static final String EXTRA_STEAM_FORCE_SOFTWARE_GL =
             LauncherService.EXTRA_STEAM_FORCE_SOFTWARE_GL;
+    private static final String EXTRA_STEAM_CEF_ENV_SPLIT =
+            LauncherService.EXTRA_STEAM_CEF_ENV_SPLIT;
     private static final int REQUEST_POST_NOTIFICATIONS = 42;
     private static final String[] REQUIRED_ASSETS = {
             "nova-one-click-root-launcher.sh",
@@ -62,6 +64,7 @@ public final class LauncherActivity extends Activity {
             "nova-mount-private",
             "nova-uinput-gamepad-relay",
             "libsysv-sem-shim.so",
+            "libnova-cef-env-split.so",
             "libffmpeg-avutil-compat.so",
             "libsdl3-compat.so",
             "libposix-sync-trace.so",
@@ -224,6 +227,8 @@ public final class LauncherActivity extends Activity {
                 EXTRA_STEAM_HOLO_MESA_FIRST, false);
         boolean steamForceSoftwareGl = getIntent().getBooleanExtra(
                 EXTRA_STEAM_FORCE_SOFTWARE_GL, false);
+        boolean steamCefEnvSplit = getIntent().getBooleanExtra(
+                EXTRA_STEAM_CEF_ENV_SPLIT, false);
         service.putExtra(LauncherService.EXTRA_HARDWARE_ACCEL, hardwareAccel);
         service.putExtra(LauncherService.EXTRA_CEF_DISABLE_GPU, cefDisableGpu);
         service.putExtra(LauncherService.EXTRA_STEAM_UI_MODE, steamUiMode);
@@ -231,6 +236,7 @@ public final class LauncherActivity extends Activity {
         service.putExtra(LauncherService.EXTRA_STEAM_DISABLE_SYSTEM_DBUS, steamDisableSystemDbus);
         service.putExtra(LauncherService.EXTRA_STEAM_HOLO_MESA_FIRST, steamHoloMesaFirst);
         service.putExtra(LauncherService.EXTRA_STEAM_FORCE_SOFTWARE_GL, steamForceSoftwareGl);
+        service.putExtra(LauncherService.EXTRA_STEAM_CEF_ENV_SPLIT, steamCefEnvSplit);
         if (Build.VERSION.SDK_INT >= 26) {
             startForegroundService(service);
         } else {

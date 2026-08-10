@@ -55,6 +55,7 @@ for optional_helper in \
     nova-mount-private \
     nova-uinput-gamepad-relay \
     libsysv-sem-shim.so \
+    libnova-cef-env-split.so \
     libffmpeg-avutil-compat.so \
     libsdl3-compat.so \
     libposix-sync-trace.so \

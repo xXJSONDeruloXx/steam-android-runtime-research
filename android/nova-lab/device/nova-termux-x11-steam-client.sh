@@ -27,6 +27,7 @@ STEAM_UI_MODE=${NOVA_TERMUX_X11_STEAM_UI_MODE:-gamepadui}
 STEAM_DISABLE_PRELOAD=${NOVA_TERMUX_X11_STEAM_DISABLE_PRELOAD:-0}
 STEAM_HOLO_MESA_FIRST=${NOVA_TERMUX_X11_STEAM_HOLO_MESA_FIRST:-0}
 STEAM_FORCE_SOFTWARE_GL=${NOVA_TERMUX_X11_STEAM_FORCE_SOFTWARE_GL:-0}
+CEF_ENV_SPLIT=${NOVA_TERMUX_X11_STEAM_CEF_ENV_SPLIT:-0}
 AUDIO_BRIDGE=${NOVA_TERMUX_X11_STEAM_AUDIO_BRIDGE:-0}
 AUDIO_BRIDGE_PORT=${NOVA_TERMUX_X11_STEAM_AUDIO_BRIDGE_PORT:-29100}
 AUDIO_BRIDGE_LOG=${NOVA_TERMUX_X11_STEAM_AUDIO_BRIDGE_LOG:-/tmp/nova-alsa-audiotrack-bridge.log}
@@ -144,6 +145,18 @@ case "$STEAM_FORCE_SOFTWARE_GL" in
         exit 2
         ;;
 esac
+case "$CEF_ENV_SPLIT" in
+    0|1)
+        ;;
+    *)
+        echo "invalid NOVA_TERMUX_X11_STEAM_CEF_ENV_SPLIT: $CEF_ENV_SPLIT" >&2
+        exit 2
+        ;;
+esac
+if [ "$CEF_ENV_SPLIT" -eq 1 ] && [ "$STEAM_DISABLE_PRELOAD" -eq 1 ]; then
+    echo "CEF environment split requires preload support" >&2
+    exit 2
+fi
 case "$STEAM_VULKAN_ICD" in
     /*)
         ;;
@@ -356,6 +369,7 @@ log "client_steam_ui_mode=$STEAM_UI_MODE"
 log "client_disable_preload=$STEAM_DISABLE_PRELOAD"
 log "client_holo_mesa_first=$STEAM_HOLO_MESA_FIRST"
 log "client_force_software_gl=$STEAM_FORCE_SOFTWARE_GL"
+log "client_cef_env_split=$CEF_ENV_SPLIT"
 log "client_audio_bridge=$AUDIO_BRIDGE"
 log "client_audio_bridge_port=$AUDIO_BRIDGE_PORT"
 log "client_audio_bridge_log=$AUDIO_BRIDGE_LOG"
@@ -504,6 +518,23 @@ if [ -f /opt/nova-kgsl-driver/libsysv-sem-shim.so ]; then
             preload_paths=/opt/nova-kgsl-driver/libsysv-sem-shim.so
         fi
     fi
+fi
+if [ "$CEF_ENV_SPLIT" -eq 1 ]; then
+    if [ ! -f /opt/nova-kgsl-driver/libnova-cef-env-split.so ]; then
+        log "client_started=fail"
+        log "client_error=missing_cef_env_split_library"
+        exit 1
+    fi
+    if [ -n "$preload_paths" ]; then
+        preload_paths="$preload_paths:/opt/nova-kgsl-driver/libnova-cef-env-split.so"
+    else
+        preload_paths=/opt/nova-kgsl-driver/libnova-cef-env-split.so
+    fi
+    export NOVA_CEF_ENV_SPLIT_TRACE=1
+    log "client_cef_env_split_status=enabled"
+else
+    unset NOVA_CEF_ENV_SPLIT_TRACE
+    log "client_cef_env_split_status=disabled"
 fi
 if [ -n "$preload_paths" ]; then
     export LD_PRELOAD="$preload_paths"

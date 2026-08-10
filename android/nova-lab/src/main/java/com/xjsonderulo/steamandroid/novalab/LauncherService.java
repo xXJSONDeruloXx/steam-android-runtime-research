@@ -35,6 +35,7 @@ public final class LauncherService extends Service {
     public static final String EXTRA_STEAM_DISABLE_SYSTEM_DBUS = "steam_disable_system_dbus";
     public static final String EXTRA_STEAM_HOLO_MESA_FIRST = "steam_holo_mesa_first";
     public static final String EXTRA_STEAM_FORCE_SOFTWARE_GL = "steam_force_software_gl";
+    public static final String EXTRA_STEAM_CEF_ENV_SPLIT = "steam_cef_env_split";
     private static final String TAG = "NovaLauncher";
     private static final String CHANNEL_ID = "nova-steam-session";
     private static final int NOTIFICATION_ID = 17;
@@ -56,6 +57,7 @@ public final class LauncherService extends Service {
     private boolean steamDisableSystemDbus;
     private boolean steamHoloMesaFirst;
     private boolean steamForceSoftwareGl;
+    private boolean steamCefEnvSplit;
     private boolean audioOnly;
 
     public static String getStatus() {
@@ -124,6 +126,7 @@ public final class LauncherService extends Service {
             steamDisableSystemDbus = intent.getBooleanExtra(EXTRA_STEAM_DISABLE_SYSTEM_DBUS, false);
             steamHoloMesaFirst = intent.getBooleanExtra(EXTRA_STEAM_HOLO_MESA_FIRST, false);
             steamForceSoftwareGl = intent.getBooleanExtra(EXTRA_STEAM_FORCE_SOFTWARE_GL, false);
+            steamCefEnvSplit = intent.getBooleanExtra(EXTRA_STEAM_CEF_ENV_SPLIT, false);
             startForeground(NOTIFICATION_ID, buildNotification("Starting Steam"));
             if (!startAudioBridgeLocked()) {
                 stopForeground(STOP_FOREGROUND_REMOVE);
@@ -176,6 +179,8 @@ public final class LauncherService extends Service {
                 + shellQuote(steamHoloMesaFirst ? "1" : "0")
                 + " NOVA_ANDROID_LAUNCHER_STEAM_FORCE_SOFTWARE_GL="
                 + shellQuote(steamForceSoftwareGl ? "1" : "0")
+                + " NOVA_ANDROID_LAUNCHER_STEAM_CEF_ENV_SPLIT="
+                + shellQuote(steamCefEnvSplit ? "1" : "0")
                 + " NOVA_ANDROID_LAUNCHER_AUDIO_BRIDGE="
                 + shellQuote(audioBridgeEnabled ? "1" : "0")
                 + " NOVA_ANDROID_LAUNCHER_AUDIO_BRIDGE_PORT="
