@@ -55,6 +55,12 @@ identity and launcher flags. Stop the session after both variants, run exact
 cleanup, remove only this run's temporary state, and verify no matching
 Gamescope, Xwayland, Steam, Wine/Proton, libei, or uinput process remains.
 
+The launcher readiness file is a literal `pass` marker, matching the
+`nova_launcher_ready=pass` log line. The initial host-side poll for this run
+incorrectly expected `1`; it timed out without running a Vulkan command.
+Readiness was then verified from the fresh launcher log and the literal
+`pass` file before continuing.
+
 This declaration is committed and pushed before the device probe. Artifacts
 will be retained under:
 
