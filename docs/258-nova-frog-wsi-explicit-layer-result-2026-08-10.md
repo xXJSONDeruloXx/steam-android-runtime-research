@@ -19,18 +19,29 @@ that it loaded and inserted
 `/usr/lib/libVkLayer_FROG_gamescope_wsi_aarch64.so`; its own diagnostics only
 report forcing `VK_EXT_swapchain_maintenance1`.
 
-This closes the “FROG is installed but inactive” hypothesis. The layer is
-active, but it does not provide the missing instance-level WSI surface path in
-this native probe. It therefore cannot, by itself, unblock the DXVK log
-sequence where WineVulkan requests `VK_KHR_win32_surface` and
-`DxvkInstance::createInstance` fails. The existing Gamescope headless vkcube
-negative control remains consistent with this result.
+The local Gamescope source adds an important qualification. Its
+`VkInstanceOverrides::CreateInstance` enters the bypass path only when
+`GAMESCOPE_WAYLAND_DISPLAY` is set and the process is running under that
+Gamescope socket. The one-click session used here is direct Termux:X11, and
+the probe environment deliberately did not contain that variable. Therefore
+this run proves that the manifest and library load, but it does not exercise
+FROG's Gamescope surface-bypass path. It is not evidence that FROG is
+functionally broken.
+
+It does establish that direct Termux:X11 has no native surface extension to
+hand to WineVulkan, and that simply loading the FROG layer in that direct
+profile does not change the extension inventory. It therefore cannot, in
+that profile, unblock the DXVK log sequence where WineVulkan requests
+`VK_KHR_win32_surface` and `DxvkInstance::createInstance` fails. The
+existing Gamescope headless vkcube negative control remains consistent with
+this result.
 
 The layer binary does contain XCB/Wayland and Gamescope surface/present hooks,
 including `vkCreateXcbSurfaceKHR` and `vkCreateWaylandSurfaceKHR`, and its
 manifest depends on the `ENABLE_GAMESCOPE_WSI` environment variable. Those
-strings establish intended capability, not a successful surface negotiation;
-the Vulkan loader's fresh extension inventory is the authoritative result here.
+strings establish intended capability, not a successful surface negotiation.
+The Vulkan loader's fresh extension inventory is authoritative for this
+direct-X11 profile.
 
 ## Run identity and evidence
 
@@ -70,8 +81,10 @@ The fresh Steam manifest inventory contains only three installed game titles:
 198X (AppID `1086010`), Peggle Deluxe (AppID `3480`), and Geometry Wars:
 Retro Evolved (AppID `8400`); the other manifests are Proton or Steam
 runtime packages. 198X was covered by the earlier Proton 11 run, and the
-Geometry Wars/Peggle runs reproduce the shared pre-frame failure. The FROG
-layer is now proven active without supplying a usable WSI surface.
-The next rendering implementation must either repair the WineVulkan/WSI
-bridge or use a different forwarding path that gives the Windows client a
+Geometry Wars/Peggle runs reproduce the shared pre-frame failure. The next
+FROG test must be a separate Gamescope-nested run with
+`GAMESCOPE_WAYLAND_DISPLAY=gamescope-0`; the current direct Termux:X11 path
+cannot exercise that layer mode. Independently, the rendering implementation
+must either provide Mesa/Turnip WSI extensions, repair the WineVulkan/WSI
+bridge, or use a different forwarding path that gives the Windows client a
 real surface. A future game run becomes useful after that boundary changes.
