@@ -25,6 +25,7 @@ STEAM_VULKAN_ICD=${NOVA_TERMUX_X11_STEAM_VULKAN_ICD:-/opt/nova-kgsl-driver/freed
 CEF_DISABLE_GPU=${NOVA_TERMUX_X11_STEAM_CEF_DISABLE_GPU:-}
 STEAM_UI_MODE=${NOVA_TERMUX_X11_STEAM_UI_MODE:-gamepadui}
 STEAM_DISABLE_PRELOAD=${NOVA_TERMUX_X11_STEAM_DISABLE_PRELOAD:-0}
+STEAM_HOLO_MESA_FIRST=${NOVA_TERMUX_X11_STEAM_HOLO_MESA_FIRST:-0}
 AUDIO_BRIDGE=${NOVA_TERMUX_X11_STEAM_AUDIO_BRIDGE:-0}
 AUDIO_BRIDGE_PORT=${NOVA_TERMUX_X11_STEAM_AUDIO_BRIDGE_PORT:-29100}
 AUDIO_BRIDGE_LOG=${NOVA_TERMUX_X11_STEAM_AUDIO_BRIDGE_LOG:-/tmp/nova-alsa-audiotrack-bridge.log}
@@ -123,6 +124,14 @@ case "$STEAM_DISABLE_PRELOAD" in
         ;;
     *)
         echo "invalid NOVA_TERMUX_X11_STEAM_DISABLE_PRELOAD: $STEAM_DISABLE_PRELOAD" >&2
+        exit 2
+        ;;
+esac
+case "$STEAM_HOLO_MESA_FIRST" in
+    0|1)
+        ;;
+    *)
+        echo "invalid NOVA_TERMUX_X11_STEAM_HOLO_MESA_FIRST: $STEAM_HOLO_MESA_FIRST" >&2
         exit 2
         ;;
 esac
@@ -336,6 +345,7 @@ log "client_vulkan_icd=$STEAM_VULKAN_ICD"
 log "client_cef_disable_gpu=$CEF_DISABLE_GPU"
 log "client_steam_ui_mode=$STEAM_UI_MODE"
 log "client_disable_preload=$STEAM_DISABLE_PRELOAD"
+log "client_holo_mesa_first=$STEAM_HOLO_MESA_FIRST"
 log "client_audio_bridge=$AUDIO_BRIDGE"
 log "client_audio_bridge_port=$AUDIO_BRIDGE_PORT"
 log "client_audio_bridge_log=$AUDIO_BRIDGE_LOG"
@@ -443,7 +453,13 @@ else
     log "client_libgl_always_software=1"
     log "client_vk_icd=unset"
 fi
-export LD_LIBRARY_PATH="$STEAM_ROOT/steamrtarm64:$STEAM_ROOT/lib/aarch64-linux-gnu:/usr/lib${steam_runtime_files_bin:+:${steam_runtime_files_bin%/bin}/lib/aarch64-linux-gnu}${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+if [ "$STEAM_HOLO_MESA_FIRST" -eq 1 ]; then
+    export LD_LIBRARY_PATH="/usr/lib:$STEAM_ROOT/steamrtarm64:$STEAM_ROOT/lib/aarch64-linux-gnu${steam_runtime_files_bin:+:${steam_runtime_files_bin%/bin}/lib/aarch64-linux-gnu}${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+    log "client_library_order=holo-mesa-first"
+else
+    export LD_LIBRARY_PATH="$STEAM_ROOT/steamrtarm64:$STEAM_ROOT/lib/aarch64-linux-gnu:/usr/lib${steam_runtime_files_bin:+:${steam_runtime_files_bin%/bin}/lib/aarch64-linux-gnu}${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+    log "client_library_order=steamrt-first"
+fi
 preload_paths=
 if [ "$STEAM_DISABLE_PRELOAD" -eq 1 ]; then
     log "client_preload_mode=disabled"
