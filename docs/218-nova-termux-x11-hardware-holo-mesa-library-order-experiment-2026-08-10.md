@@ -89,3 +89,77 @@ Termux:X11 EGL/XCB/shared-buffer evidence even if Steam exits early.
 No game title should be launched from a run without a fresh stable Steam
 frame. Commit and push this predeclaration before installing the APK or
 launching the device session.
+
+## Result
+
+Status: completed; putting Holo's `/usr/lib` ahead of SteamRT did not change
+the hardware Steam startup crash.
+
+The source commit was `a09eb20`. The rebuilt APK SHA-256 was
+`c82f1d3b49db16313f85e69bdf72db8247e6252b5f79cdd96204d0616f572509`, and
+the installed device APK reported the same hash. The valid run ID was
+`steam-20260810T060113Z-hardware-holo-mesa-first`.
+
+The launcher and client both confirmed the opt-in ordering while retaining
+the other controlled values:
+
+```text
+nova_launcher_hardware_accel=1
+nova_launcher_vulkan_icd=/opt/nova-kgsl-driver/freedreno-kgsl.icd.json
+nova_launcher_cef_disable_gpu=1
+nova_launcher_steam_ui_mode=minimal
+nova_launcher_steam_disable_preload=0
+nova_launcher_steam_disable_system_dbus=1
+nova_launcher_steam_holo_mesa_first=1
+nova_launcher_ready=pass display=:0 geometry=1280x960
+client_hardware_accel=1
+client_vk_icd=/opt/nova-kgsl-driver/freedreno-kgsl.icd.json
+client_holo_mesa_first=1
+client_library_order=holo-mesa-first
+client_preload=/opt/nova-kgsl-driver/libsysv-sem-shim.so
+client_dbus_session_status=pass
+client_flags_final=... -nobootstrapperupdate -skipinitialbootstrap -no-child-update-ui -no-cef-sandbox -cef-disable-gpu -fullscreen -fulldesktopres
+client_started=pass
+client_status=139
+```
+
+Steam still segfaulted before a usable frame. Fresh stderr reported CrashID
+`bp-ec6dc845-7032-4392-b0d0-6ff402260809`; the matching device minidump was
+pulled before cleanup. The same-run screenshot is the Nova launcher with exit
+status `143`, not Steam UI. No game, input, audio, or network result is
+attributable to this run.
+
+The display boundary remained independently healthy: Termux:X11 loaded the
+Android Adreno EGL driver `0676.53`, initialized EGL 1.5, completed XCB
+connection setup, exchanged 1280x1024 and 1280x960 shared buffers, and
+continued receiving fresh buffers while Steam exited. Holo-first ordering
+therefore does not resolve the direct ARM64 client crash and is not promoted
+to the default.
+
+Fresh artifacts are retained at
+`/tmp/steam-20260810T060113Z-hardware-holo-mesa-first/`:
+
+| Artifact | SHA-256 |
+| --- | --- |
+| `launcher.log` | `50bf14898531e19fb3f17cefffb061a65e87c485e8f0d5707f571a42ed3ff628` |
+| `client.log` | `93443700b8cd97555b73c63580a8eb09ac412686373e3af96ebc384d2093852c` |
+| `client-runtime.log` | `83d670fee89558e7c77128e74d692b27b142f55cb09557364c45ad8da6e1b63d` |
+| `client-stdout.log` | `e7a3de096b981f2fadf271a67881392867aa0bcceffb3e9f701aecbcf8c376fa` |
+| `client-stderr.log` | `f4b55a7f4643b2665129d19bdf01357eb7f63f60b457662ac8e96e4985733fa5` |
+| `server.log` | `fee02a9bceb6bfd8fbbe22ef5262d941dc3c16c229c1dc909588db43c9ec5ad7` |
+| `screen-00.png` | `294c8ea1524e5ba28b65293df3a0a8f6979d9e3ebb2615368c9d8bfa3f2979f5` |
+| `logcat.txt` | `07a9126bfe8d09369e6e4a37d114e3e485bdb7eca32563ccbf3f1951831fcc63` |
+| `device-crash_20260810060146_3.dmp` | `ac61e0ac2d7cf98f89f0b4dba440625fb007c056712c562f36c369ccf3925b01` |
+| `cleanup.log` | `9b6e91b55629b83b9fa135e34b45d705812edf35577ee88caed9d151f142fc02` |
+| `runtime-cleanup.log` | `1bb8add9bfa2a0ad115fa08807f1927364b44300ae706823e12964cc74539be8` |
+
+The exact X11 and runtime cleanup helpers returned `pass`. Final checks found
+no matching Steam, Xwayland, Termux:X11, D-Bus, Gamescope, rootfs-specific
+process, X11 socket, mount, or device dump. The final rootfs filesystem
+reported `80,062,512 KiB` available.
+
+This closes the Holo-first ordering split. The accumulated hardware evidence
+now points below the display transport and these launcher-level variables;
+the next useful work should be a separate Steam binary/runtime investigation
+or productizing the already-working software UI route, not another compositor
+patch or game launch from a non-rendering hardware run.
