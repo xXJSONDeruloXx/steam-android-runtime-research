@@ -56,3 +56,13 @@ After capture, stop the one-click session, run exact cleanup, remove only the
 run-scoped temporary state, and verify no matching process, mount, or socket
 remains. This declaration is committed and pushed before the corrected
 exact-environment Vulkan probe.
+
+## Harness correction before execution
+
+The first host launch on 2026-08-10T08:31Z reached fresh
+`nova_launcher_ready=pass`, but the immediate state-file read raced the
+launcher and the host script stopped before writing either Vulkan probe
+command. No probe ran. The live session was then stopped; both exact cleanup
+helpers returned `pass`, no matching process remained, and only the two
+baseline udev sockets remained. The corrected retry uses a new run identity
+and retries every launcher-state read before proceeding.
