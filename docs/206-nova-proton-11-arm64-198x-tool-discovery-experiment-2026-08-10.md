@@ -343,6 +343,47 @@ status, stderr/Proton log, child-process tree, and any Wine/FEX evidence, then
 remove only the wrapper and execute the exact X11/runtime cleanup helpers.
 It will not modify the 198X files, compatdata, prefix, or Steam account state.
 
+## Phase 4 result
+
+The fresh launcher session was `20260810T023743Z-15368`; readiness passed for
+the direct Termux:X11 profile at 1280x960. The direct command used an isolated
+scratch compatdata/log directory under
+`/tmp/nova-proton-11-direct-20260810T023604Z`, so the installed 198X prefix
+was not selected.
+
+The wrapper failed before Python/Proton started:
+
+```text
+timeout: failed to run command
+  '/opt/nova-steam/home/.local/share/Steam/compatibilitytools.d/proton-11-arm64/proton':
+  No such file or directory
+```
+
+The wrapper's `proton` symlink resolved to
+`/data/local/tmp/nova-holo-rootfs/opt/nova-steam/home/.local/share/Steam/steamapps/common/Proton 11.0 (ARM64)/proton`.
+That absolute target exists from Android's view of the rootfs, but it is
+outside the chroot-visible namespace; inside the chroot the target is
+therefore absent. No Proton log, Wine/Wineserver/FEX process, or game frame
+was produced. This explains the phase 3 early exit and identifies a harness
+bug in the wrapper setup, not a Proton 11 ARM64 runtime failure.
+
+The run artifacts are retained under
+`/tmp/proton-arm64-20260810T023604Z-direct-entrypoint/`, including the fresh
+launcher evidence, wrapper hashes, direct command output, symlink/readlink
+captures, scratch-state check, and cleanup evidence. The exact X11 and runtime
+cleanup helpers both passed. The transient wrapper, scratch directory, and
+staging files were removed; two stale Steam singleton/shmem sockets were
+removed by their exact paths after Steam exited. Final process, mount, and
+rootfs temporary-socket checks were empty. AppID `1086010` remained on
+`proton_hotfix`, and no game, prefix, shader-cache, or account data was
+changed.
+
+The next implementation change must make wrapper links chroot-visible (for
+example, relative links rooted at the installed Proton package), add a setup
+fixture that asserts the wrapper `proton` target exists from inside the
+rootfs, and repeat the Steam launch only after that fix is committed and
+pushed.
+
 ## Cleanup contract
 
 The exact Nova/X11 cleanup helper and rootfs runtime cleanup helper must run
