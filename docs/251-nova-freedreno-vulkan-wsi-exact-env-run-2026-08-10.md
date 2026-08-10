@@ -55,3 +55,13 @@ After capture, stop the one-click session, run exact cleanup, remove only the
 run-scoped temporary state, and verify no matching process, mount, or socket
 remains. This declaration is committed and pushed before the exact-environment
 Vulkan probe.
+
+## Harness correction before execution
+
+The first host invocation on 2026-08-10T08:28Z used the correct run ID but
+omitted `android/nova-lab/build/runs/` from its host artifact path. All local
+artifact opens failed before `adb` was invoked, so neither Vulkan probe ran.
+The already-started one-click session was stopped afterward; both exact
+cleanup helpers returned `pass`, no matching process remained, and only the
+two baseline udev sockets remained. The corrected retry uses a new run
+identity and the complete run-directory path.
