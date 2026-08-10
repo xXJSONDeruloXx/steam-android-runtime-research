@@ -78,6 +78,29 @@ all_runtime_pids() {
     printf '%s\n' "$pids" | /system/bin/awk 'NF && !seen[$1]++ { print $1 }'
 }
 
+runtime_process_snapshot() {
+    snapshot_label="$1"
+    snapshot_targets="$2"
+    if [ -z "$snapshot_targets" ]; then
+        return 0
+    fi
+    echo "nova_runtime_cleanup_${snapshot_label}_snapshot_begin"
+    /system/bin/ps -A -o PID,PPID,ARGS 2>/dev/null | \
+        /system/bin/awk -v targets="$snapshot_targets" '
+            BEGIN {
+                count = split(targets, values, /[[:space:]]+/)
+                for (slot = 1; slot <= count; slot++) {
+                    if (values[slot] != "") {
+                        wanted[values[slot]] = 1
+                    }
+                }
+            }
+            NR == 1 { next }
+            wanted[$1] { print }
+        '
+    echo "nova_runtime_cleanup_${snapshot_label}_snapshot_end"
+}
+
 kill_runtime() {
     signal="$1"
     pids=$(all_runtime_pids)
@@ -101,6 +124,7 @@ $current_term"
     elif [ -n "$current_term" ]; then
         term_pids=$current_term
     fi
+    runtime_process_snapshot "term" "$current_term"
     /system/bin/sleep 1
     current_kill=$(kill_runtime KILL)
     if [ -n "$kill_pids" ] && [ -n "$current_kill" ]; then
@@ -109,8 +133,10 @@ $current_kill"
     elif [ -n "$current_kill" ]; then
         kill_pids=$current_kill
     fi
+    runtime_process_snapshot "kill" "$current_kill"
     /system/bin/sleep 1
     remaining=$(all_runtime_pids)
+    runtime_process_snapshot "remaining" "$remaining"
     attempts=$((attempts + 1))
     if [ -z "$remaining" ]; then
         break
