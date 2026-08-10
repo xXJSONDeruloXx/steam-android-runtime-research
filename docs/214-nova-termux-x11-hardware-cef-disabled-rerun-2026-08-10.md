@@ -149,3 +149,22 @@ the Steam binary/runtime crash itself—e.g. a minimal direct Steam launch with
 the same display and UID boundary but without `-gamepadui`/Steam Deck flags—or
 revisit the known software profile as a control. Geometry Wars should begin
 only after one of those profiles produces a fresh stable Steam library frame.
+
+### Post-run storage reconciliation
+
+The first post-run storage check still reported zero free space even though
+the visible rootfs accounted for only a fraction of the device volume. A
+read-only `/proc` audit found two orphaned AppID-8400 Wine process groups from
+the earlier Geometry Wars direct runs. The verified stale child PIDs were
+`12761`, `12773`, `12779`, `12811`, `12829`, `12840`, `12848`, `12862`,
+`17892`, `17904`, `17910`, `17941`, and `17959`; their command lines were
+Windows Wine services, `xalia`, and `conhost`, and their file descriptors
+referenced deleted `steam-8400.log` paths. These exact PIDs were terminated;
+no broad process kill was used.
+
+After `sync`, the data filesystem reported 79,935,844 KiB available (75%
+free). The current run minidump had already been pulled into the host artifact
+directory, so the device `/tmp/dumps` directory was then removed as disposable
+run output. A final process, matching-handle, Gamescope/Xwayland, socket, and
+mount check was empty. No user/emulated-storage data, Steam account data,
+installed game, prefix, or Proton 11 ARM64 files were removed.

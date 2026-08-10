@@ -212,3 +212,16 @@ Run artifacts are retained under
 `/tmp/proton-arm64-20260810T045759Z-geometry-wars-freedreno-icd-clean-log/`.
 The device's 67,392-byte run log and helper script were removed after capture;
 the host copy, bounded excerpts, screenshots, and direct-run record remain.
+
+### Post-run cleanup correction
+
+On 2026-08-10, a later storage audit found two orphaned AppID-8400 Wine
+process groups that the original final filter had missed. The verified stale
+child PIDs were `12761`, `12773`, `12779`, `12811`, `12829`, `12840`, `12848`,
+`12862`, `17892`, `17904`, `17910`, `17941`, and `17959`; they were Windows
+Wine services, `xalia`, and `conhost` processes holding deleted
+`steam-8400.log` descriptors. They were terminated by exact PID after command
+line verification, followed by `sync`; no broad process kill was used. The
+Geometry Wars install, prefix, Proton 11 ARM64 wrapper, account state, and
+game files were preserved. This correction supersedes the original claim that
+the first final process check was sufficient to prove the Wine groups absent.
