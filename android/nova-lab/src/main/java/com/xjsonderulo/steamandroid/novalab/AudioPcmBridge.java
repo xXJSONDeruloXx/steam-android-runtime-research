@@ -36,6 +36,8 @@ final class AudioPcmBridge {
     private volatile String status = "audio_bridge=stopped";
     private volatile long framesReceived;
     private volatile long bytesReceived;
+    private volatile long shortWrites;
+    private volatile long zeroWrites;
     private ServerSocket serverSocket;
     private Thread worker;
     private AudioTrack track;
@@ -185,13 +187,7 @@ final class AudioPcmBridge {
             int total = carry + read;
             int aligned = total - (total % FRAME_BYTES);
             if (aligned > 0) {
-                int written = currentTrack.write(
-                        buffer, 0, aligned, AudioTrack.WRITE_BLOCKING);
-                if (written < 0) {
-                    throw new IOException("audiotrack_write=" + written);
-                }
-                bytesReceived += written;
-                framesReceived += written / FRAME_BYTES;
+                writeAll(currentTrack, buffer, aligned);
             }
             carry = total - aligned;
             if (carry > 0) {
@@ -202,7 +198,45 @@ final class AudioPcmBridge {
             throw new EOFException("partial_pcm_frame bytes=" + carry);
         }
         updateStatus("audio_bridge_stream=closed frames=" + framesReceived
-                + " bytes=" + bytesReceived);
+                + " bytes=" + bytesReceived + " short_writes=" + shortWrites
+                + " zero_writes=" + zeroWrites);
+    }
+
+    private void writeAll(AudioTrack currentTrack, byte[] buffer, int length)
+            throws IOException {
+        int offset = 0;
+        int consecutiveZeroWrites = 0;
+        while (offset < length) {
+            int written = currentTrack.write(
+                    buffer, offset, length - offset, AudioTrack.WRITE_BLOCKING);
+            if (written < 0) {
+                throw new IOException("audiotrack_write=" + written);
+            }
+            if (written == 0) {
+                zeroWrites++;
+                consecutiveZeroWrites++;
+                if (consecutiveZeroWrites >= 1000) {
+                    throw new IOException("audiotrack_zero_write_loop");
+                }
+                try {
+                    Thread.sleep(1L);
+                } catch (InterruptedException error) {
+                    Thread.currentThread().interrupt();
+                    throw new IOException("audiotrack_write_interrupted", error);
+                }
+                continue;
+            }
+            if (written > length - offset) {
+                throw new IOException("audiotrack_write_overrun=" + written);
+            }
+            if (written < length - offset) {
+                shortWrites++;
+            }
+            offset += written;
+            bytesReceived += written;
+            framesReceived += written / FRAME_BYTES;
+            consecutiveZeroWrites = 0;
+        }
     }
 
     private AudioTrack createTrack() throws IOException {
