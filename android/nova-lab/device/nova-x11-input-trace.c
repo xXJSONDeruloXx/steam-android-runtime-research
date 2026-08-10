@@ -4,6 +4,7 @@
 #include <X11/extensions/XInput2.h>
 
 #include <errno.h>
+#include <limits.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -22,7 +23,22 @@ capture_x11_error(Display *display, XErrorEvent *event)
 static void
 print_usage(const char *program)
 {
-    fprintf(stderr, "usage: %s --xi2-trace SECONDS\n", program);
+    fprintf(stderr, "usage: %s --xi2-trace SECONDS [--window WINDOW_ID]\n",
+            program);
+}
+
+static int
+parse_window_id(const char *value, Window *window)
+{
+    char *end = NULL;
+    errno = 0;
+    unsigned long long parsed = strtoull(value, &end, 0);
+    if (errno != 0 || end == value || *end != '\0' || parsed == 0 ||
+        parsed > (unsigned long long)ULONG_MAX) {
+        return 0;
+    }
+    *window = (Window)parsed;
+    return 1;
 }
 
 static int
@@ -72,7 +88,7 @@ event_name(int event_type)
 }
 
 static unsigned long
-trace_events(Display *display, Window root, int xi_opcode,
+trace_events(Display *display, Window root, Window target, int xi_opcode,
              unsigned int seconds)
 {
     unsigned char selected_events[(XI_LASTEVENT + 7) / 8] = {0};
@@ -83,15 +99,29 @@ trace_events(Display *display, Window root, int xi_opcode,
     XISetMask(selected_events, XI_ButtonRelease);
     XISetMask(selected_events, XI_Motion);
 
-    XIEventMask event_mask = {
-        .deviceid = XIAllMasterDevices,
-        .mask_len = (int)sizeof(selected_events),
-        .mask = selected_events,
+    XIEventMask event_masks[2] = {
+        {
+            .deviceid = XIAllMasterDevices,
+            .mask_len = (int)sizeof(selected_events),
+            .mask = selected_events,
+        },
     };
+    int event_mask_count = 1;
+    if (target != None) {
+        event_masks[1] = (XIEventMask){
+            .deviceid = XIAllMasterDevices,
+            .mask_len = (int)sizeof(selected_events),
+            .mask = selected_events,
+        };
+        event_mask_count = 2;
+    }
     x11_error_code = 0;
     XErrorHandler previous_error_handler =
         XSetErrorHandler(capture_x11_error);
-    XISelectEvents(display, root, &event_mask, 1);
+    XISelectEvents(display, root, event_masks, 1);
+    if (target != None) {
+        XISelectEvents(display, target, &event_masks[1], 1);
+    }
     XSync(display, False);
     XSetErrorHandler(previous_error_handler);
     if (x11_error_code != 0) {
@@ -99,8 +129,10 @@ trace_events(Display *display, Window root, int xi_opcode,
                 x11_error_code);
         return 0;
     }
-    printf("nova_xi2_select=pass root=0x%lx opcode=%d\n",
-           (unsigned long)root, xi_opcode);
+    printf("nova_xi2_select=pass root=0x%lx target=0x%lx windows=%d "
+           "opcode=%d\n",
+           (unsigned long)root, (unsigned long)target, event_mask_count,
+           xi_opcode);
     fflush(stdout);
 
     const unsigned int interval_milliseconds = 50;
@@ -162,9 +194,17 @@ int
 main(int argc, char **argv)
 {
     unsigned int seconds = 0;
-    if (argc == 3 && strcmp(argv[1], "--xi2-trace") == 0) {
+    Window target_window = None;
+    if ((argc == 3 || argc == 5) &&
+        strcmp(argv[1], "--xi2-trace") == 0) {
         if (!parse_seconds(argv[2], &seconds)) {
             fprintf(stderr, "invalid trace seconds: %s\n", argv[2]);
+            return 2;
+        }
+        if (argc == 5 &&
+            (strcmp(argv[3], "--window") != 0 ||
+             !parse_window_id(argv[4], &target_window))) {
+            fprintf(stderr, "invalid target window\n");
             return 2;
         }
     } else if (argc == 2 && strcmp(argv[1], "--help") == 0) {
@@ -203,7 +243,8 @@ main(int argc, char **argv)
            "root=0x%lx\n",
            xi_opcode, event_base, major, minor, (unsigned long)root);
     fflush(stdout);
-    int success = trace_events(display, root, xi_opcode, seconds);
+    int success = trace_events(display, root, target_window, xi_opcode,
+                               seconds);
     XCloseDisplay(display);
     return success ? 0 : 1;
 }
