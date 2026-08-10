@@ -384,6 +384,19 @@ fixture that asserts the wrapper `proton` target exists from inside the
 rootfs, and repeat the Steam launch only after that fix is committed and
 pushed.
 
+## Phase 5 predeclared run
+
+Run ID: `proton-arm64-20260810T024222Z-chroot-visible-wrapper-retry`
+
+The fixed wrapper helper is now committed and pushed. This retry will deploy
+that helper, require its relative-link and chroot-visible-target checks to
+pass, preserve the current `proton_hotfix` mapping, and then map only AppID
+`1086010` to `proton11_arm64` for a fresh Steam restart. It will launch 198X
+and capture the compatibility command, Proton/Wine/FEX/pressure-vessel process
+tree, game-process lifetime, Proton logs, and a same-run screen capture. The
+original config mapping will be restored and the transient wrapper/staging
+files removed through the exact cleanup contract on every exit.
+
 ## Cleanup contract
 
 The exact Nova/X11 cleanup helper and rootfs runtime cleanup helper must run
