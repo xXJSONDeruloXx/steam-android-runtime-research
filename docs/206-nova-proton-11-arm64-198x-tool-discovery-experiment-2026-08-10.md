@@ -138,6 +138,39 @@ a frame correlated to the same run ID. If Steam rejects the mapping or still
 does not expose the ARM64 tool, that is a documented catalog boundary and the
 run must be cleaned before any alternate installation alias is considered.
 
+## Phase 2 predeclared run
+
+Run ID: `proton-arm64-20260810T020843Z-198x-alias`
+
+The built-in catalog boundary requires a separate, explicitly named alias
+experiment. Before launch, preserve the current `config.vdf` and its
+`proton_hotfix` value as a rollback artifact. Then create only this transient
+registration under Steam's user-owned `compatibilitytools.d` directory:
+
+```text
+compat_tools/proton11_arm64
+  install_path = /opt/nova-steam/home/.local/share/Steam/steamapps/common/Proton 11.0 (ARM64)
+  display_name = Proton 11.0 (ARM64)
+  from_oslist = windows
+  to_oslist = linux
+```
+
+This uses the Steam-downloaded Proton files in place; it does not copy or
+modify the Proton package and it does not alter the required-runtime manifest.
+The format follows Valve's documented local compatibility-tool layout in the
+[Proton README](https://github.com/ValveSoftware/Proton#using-a-local-build-of-proton-with-steam).
+The alias name is intentionally distinct from the absent built-in catalog
+name, so a successful result is attributable to this registration shim.
+
+The run will restart Steam from a fresh baseline, confirm that the new tool is
+registered, set AppID `1086010` to `proton11_arm64`, and launch 198X. It will
+capture the post-change mapping, compatibility log, `StartSession`, process
+tree, Proton/Wine/FEX/pressure-vessel evidence, game lifetime, and a fresh
+screen capture. It will then restore the original mapping and remove only the
+transient alias unless the result is promoted into the one-click launcher.
+No game success will be claimed from the Steam UI alone: a game process and a
+frame from the same run are required.
+
 ## Cleanup contract
 
 The exact Nova/X11 cleanup helper and rootfs runtime cleanup helper must run
