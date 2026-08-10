@@ -339,6 +339,7 @@ the gamescope frames on its own surface.
 - [Nova Peggle Deluxe Steam-applaunch experiment](docs/221-nova-peggle-steam-applaunch-experiment-2026-08-10.md)
 - [Nova 198X Steam-applaunch Proton 11 ARM64 experiment](docs/222-nova-198x-steam-applaunch-proton11-experiment-2026-08-10.md)
 - [Nova Gamescope/AHardwareBuffer product-promotion baseline](docs/223-nova-gamescope-ahb-product-promotion-baseline-2026-08-10.md)
+- [Nova Gamescope/AHardwareBuffer product-promotion baseline result](docs/224-nova-gamescope-ahb-product-promotion-baseline-result-2026-08-10.md)
 - [Retroid Pocket Nova flashing kit](tools/retroid-pocket-nova/README.md)
 
 ## Evidence standard
