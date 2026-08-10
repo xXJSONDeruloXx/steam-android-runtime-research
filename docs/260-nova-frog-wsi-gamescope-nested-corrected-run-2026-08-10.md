@@ -59,6 +59,13 @@ ellipsis paths with the installed app paths. Capture stdout, stderr, child
 environment evidence, status, process polls, and screenshots where
 applicable.
 
+The first corrected invocation did pass environment assignments through
+`/usr/bin/env` and entered Gamescope, but it omitted
+`XDG_RUNTIME_DIR`. Gamescope then stopped before spawning the child with
+`Unable to open wayland socket: No such file or directory`; no FROG child
+WSI evidence was collected. Exact cleanup returned pass. The next fresh run
+sets `XDG_RUNTIME_DIR=/tmp` inside the rootfs.
+
 ## Lifecycle and acceptance
 
 Read the Nova lifecycle contract immediately before launch. Force-stop the
