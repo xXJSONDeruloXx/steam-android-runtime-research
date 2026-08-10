@@ -25,7 +25,11 @@ nova_mounts=$(/system/bin/mount | /system/bin/awk \
 for mountpoint in $nova_mounts; do
     case "$mountpoint" in
         /data/local/tmp/nova*)
-            /system/bin/umount "$mountpoint" 2>/dev/null || \
+            # A Nova APEX mount can be a shared mount. Toybox may report a
+            # successful ordinary unmount while leaving the shared view
+            # attached, so force it first and use lazy detach only as the
+            # fallback for a busy exact-scope target.
+            /system/bin/umount -f "$mountpoint" 2>/dev/null || \
                 /system/bin/umount -l "$mountpoint"
             ;;
         *)
