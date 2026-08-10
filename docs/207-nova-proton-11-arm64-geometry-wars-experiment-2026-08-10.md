@@ -19,7 +19,7 @@ no existing game, prefix, account, or shader-cache data will be removed.
 
 ## Run identity
 
-Run ID: `proton-arm64-20260810T-geometry-wars`
+Run ID: `proton-arm64-20260810T033239Z-geometry-wars-install-and-launch`
 
 Profile:
 
@@ -31,9 +31,8 @@ Profile:
 - Proton package AppID `4628740`, Steam directory `Proton 11.0 (ARM64)`;
 - Termux:X11 display geometry `1280x960` through the existing one-click APK.
 
-The exact run timestamp and launcher session ID will be filled in before the
-device launch. This document is committed and pushed before requesting the
-download or changing the device's compatibility mapping.
+This document is committed and pushed before requesting the download or
+changing the device's compatibility mapping.
 
 ## Controlled variables
 
