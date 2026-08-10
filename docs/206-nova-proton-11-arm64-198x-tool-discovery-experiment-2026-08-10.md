@@ -503,6 +503,21 @@ removed, and the two stale Steam singleton/shmem sockets left by Steam were
 removed by exact path. Final process, mount, and rootfs temporary-socket
 checks were empty; the existing compatdata state was preserved.
 
+## Phase 7 predeclared run
+
+Run ID: `proton-arm64-20260810T025147Z-direct-198x-entrypoint`
+
+This run will keep the Steam client mapping restored to `proton_hotfix`,
+recreate the fixed chroot-visible Proton 11 ARM64 wrapper, and invoke
+`proton runinprefix` directly on the installed
+`steamapps/common/198X/198X.exe`. That bypasses the Windows Steam relay seen
+in Phase 6 while retaining the actual 198X compatdata path. It will set
+`PROTON_LOG=1` with a run-specific log directory, poll the process table
+through startup, capture the screen, and inspect whether a real 198X process
+or frame appears. Proton may update the existing prefix's normal startup
+metadata; no game files, installed Steam packages, or account data will be
+removed. The wrapper and X11/runtime session will be cleaned afterward.
+
 ## Cleanup contract
 
 The exact Nova/X11 cleanup helper and rootfs runtime cleanup helper must run
