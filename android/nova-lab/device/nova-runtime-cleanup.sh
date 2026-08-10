@@ -18,6 +18,12 @@ runtime_pids() {
                 if (index(args, "awk") || index(args, "nova-runtime-cleanup")) {
                     next
                 }
+                # Magisk may expose an in-flight `su -c` as a content-provider
+                # policy-log wrapper. Its --command argument can contain ROOT,
+                # but it is not part of the Nova runtime to terminate.
+                if (index(args, "com.android.commands.content.Content")) {
+                    next
+                }
                 # The launch wrappers carry ROOT as an argument, while their
                 # chrooted descendants expose only /opt/nova-steam. Matching
                 # ROOT here seeds the descendant walk with the exact Nova

@@ -416,7 +416,7 @@ residual_runtime_check() {
            -e '/opt/nova-kgsl-driver/gamescope-headless' \
            -e '/opt/nova-kgsl-driver/nova-libei-input-bridge' \
            -e '/opt/nova-kgsl-driver/nova-uinput-gamepad-relay' | \
-        rg -v 'nova-runtime-cleanup|ps -A -o PID,PPID,ARGS' || true)
+        rg -v 'nova-runtime-cleanup|com.android.commands.content.Content|ps -A -o PID,PPID,ARGS' || true)
     if [ -n "$residual" ]; then
         echo "headless_ahb_residual_processes=fail" >&2
         printf '%s\n' "$residual" >&2
