@@ -19,6 +19,8 @@ STEAM_HOLO_MESA_FIRST="${NOVA_ANDROID_LAUNCHER_STEAM_HOLO_MESA_FIRST:-0}"
 STEAM_FORCE_SOFTWARE_GL="${NOVA_ANDROID_LAUNCHER_STEAM_FORCE_SOFTWARE_GL:-0}"
 AUDIO_BRIDGE="${NOVA_ANDROID_LAUNCHER_AUDIO_BRIDGE:-0}"
 AUDIO_BRIDGE_PORT="${NOVA_ANDROID_LAUNCHER_AUDIO_BRIDGE_PORT:-29100}"
+X11_STRETCH="${NOVA_ANDROID_LAUNCHER_X11_STRETCH:-1}"
+X11_STRETCH_RESOLUTION="${NOVA_ANDROID_LAUNCHER_X11_STRETCH_RESOLUTION:-1280x800}"
 X11_SOCKET="$ROOT/tmp/.X11-unix/X$DISPLAY_NUMBER"
 PRIVATE_HELPER="$APP_DIR/nova-x11-private-namespace.sh"
 CLEANUP_HELPER="$APP_DIR/nova-termux-x11-cleanup.sh"
@@ -29,6 +31,10 @@ MOUNT_PRIVATE="$APP_DIR/nova-mount-private"
 NETWORK_COMPAT_SOURCE="$APP_DIR/nova-steam-network-api-compat.sh"
 STEAMOS_UPDATE_COMPAT_SOURCE="$APP_DIR/nova-steamos-update-compat.sh"
 DRIVER_DIR="$ROOT/opt/nova-kgsl-driver"
+TERMUX_PREFS=/data/user/0/com.termux.x11/shared_prefs/com.termux.x11_preferences.xml
+TERMUX_PREFS_BACKUP="$STATE/termux-x11-preferences.before.xml"
+TERMUX_PREFS_META="$STATE/termux-x11-preferences.meta"
+TERMUX_PREFS_TEMP="$STATE/termux-x11-preferences.tmp.xml"
 
 case "$HARDWARE_ACCEL" in
     0|1)
@@ -122,6 +128,22 @@ if [ "$AUDIO_BRIDGE_PORT" -lt 1024 ] || [ "$AUDIO_BRIDGE_PORT" -gt 65535 ]; then
     echo "NOVA_ANDROID_LAUNCHER_AUDIO_BRIDGE_PORT out of range: $AUDIO_BRIDGE_PORT" >&2
     exit 2
 fi
+case "$X11_STRETCH" in
+    0|1)
+        ;;
+    *)
+        echo "invalid NOVA_ANDROID_LAUNCHER_X11_STRETCH: $X11_STRETCH" >&2
+        exit 2
+        ;;
+esac
+case "$X11_STRETCH_RESOLUTION" in
+    1280x800)
+        ;;
+    *)
+        echo "unsupported NOVA_ANDROID_LAUNCHER_X11_STRETCH_RESOLUTION: $X11_STRETCH_RESOLUTION" >&2
+        exit 2
+        ;;
+esac
 
 if [ ! -x "$MOUNT_PRIVATE" ]; then
     if [ -x /data/local/tmp/nova-mount-private ]; then
@@ -147,6 +169,90 @@ read_state() {
     fi
 }
 
+restore_x11_preferences() {
+    if [ ! -f "$TERMUX_PREFS_BACKUP" ]; then
+        return 0
+    fi
+    /system/bin/am force-stop com.termux.x11 >/dev/null 2>&1 || true
+    if ! /system/bin/cp "$TERMUX_PREFS_BACKUP" "$TERMUX_PREFS"; then
+        log "nova_launcher_x11_stretch_restore=fail reason=copy"
+        return 1
+    fi
+    if [ -r "$TERMUX_PREFS_META" ]; then
+        owner=$(/system/bin/sed -n '1p' "$TERMUX_PREFS_META")
+        group=$(/system/bin/sed -n '2p' "$TERMUX_PREFS_META")
+        mode=$(/system/bin/sed -n '3p' "$TERMUX_PREFS_META")
+        if [ -n "$owner" ] && [ -n "$group" ] && [ -n "$mode" ]; then
+            /system/bin/chown "$owner:$group" "$TERMUX_PREFS" || return 1
+            /system/bin/chmod "$mode" "$TERMUX_PREFS" || return 1
+        fi
+    fi
+    /system/bin/rm -f "$TERMUX_PREFS_BACKUP" "$TERMUX_PREFS_META" "$TERMUX_PREFS_TEMP"
+    /system/bin/rm -f "$STATE/termux-x11-preferences.changed"
+    log "nova_launcher_x11_stretch_restore=pass"
+    return 0
+}
+
+apply_x11_stretch() {
+    if [ "$X11_STRETCH" -eq 0 ]; then
+        log "nova_launcher_x11_stretch=0"
+        return 0
+    fi
+    if [ ! -f "$TERMUX_PREFS" ]; then
+        log "nova_launcher_x11_stretch=fail reason=missing_preferences"
+        return 1
+    fi
+    if [ -f "$TERMUX_PREFS_BACKUP" ]; then
+        if ! restore_x11_preferences; then
+            return 1
+        fi
+    fi
+    if ! /system/bin/stat -c '%u\n%g\n%a\n' "$TERMUX_PREFS" >"$TERMUX_PREFS_META" ||
+        ! /system/bin/cp "$TERMUX_PREFS" "$TERMUX_PREFS_BACKUP" ||
+        ! /system/bin/cp "$TERMUX_PREFS" "$TERMUX_PREFS_TEMP"; then
+        log "nova_launcher_x11_stretch=fail reason=backup"
+        /system/bin/rm -f "$TERMUX_PREFS_BACKUP" "$TERMUX_PREFS_META" "$TERMUX_PREFS_TEMP"
+        return 1
+    fi
+    /system/bin/sed -i \
+        -e 's#<string name="displayResolutionMode">[^<]*</string>#<string name="displayResolutionMode">custom</string>#' \
+        -e "s#<string name=\"displayResolutionExact\">[^<]*</string>#<string name=\"displayResolutionExact\">$X11_STRETCH_RESOLUTION</string>#" \
+        -e "s#<string name=\"displayResolutionCustom\">[^<]*</string>#<string name=\"displayResolutionCustom\">$X11_STRETCH_RESOLUTION</string>#" \
+        -e 's#<boolean name="displayStretch" value="[^"]*" />#<boolean name="displayStretch" value="true" />#' \
+        "$TERMUX_PREFS_TEMP" || {
+        log "nova_launcher_x11_stretch=fail reason=rewrite"
+        restore_x11_preferences
+        return 1
+    }
+    if ! /system/bin/grep -q 'name="displayResolutionMode">custom' "$TERMUX_PREFS_TEMP" ||
+        ! /system/bin/grep -q "name=\"displayResolutionExact\">$X11_STRETCH_RESOLUTION" "$TERMUX_PREFS_TEMP" ||
+        ! /system/bin/grep -q "name=\"displayResolutionCustom\">$X11_STRETCH_RESOLUTION" "$TERMUX_PREFS_TEMP" ||
+        ! /system/bin/grep -q 'name="displayStretch" value="true"' "$TERMUX_PREFS_TEMP" ||
+        ! /system/bin/cp "$TERMUX_PREFS_TEMP" "$TERMUX_PREFS"; then
+        log "nova_launcher_x11_stretch=fail reason=verify"
+        restore_x11_preferences
+        return 1
+    fi
+    owner=$(/system/bin/sed -n '1p' "$TERMUX_PREFS_META")
+    group=$(/system/bin/sed -n '2p' "$TERMUX_PREFS_META")
+    mode=$(/system/bin/sed -n '3p' "$TERMUX_PREFS_META")
+    if [ -n "$owner" ] && [ -n "$group" ] && [ -n "$mode" ]; then
+        /system/bin/chown "$owner:$group" "$TERMUX_PREFS" || {
+            restore_x11_preferences
+            return 1
+        }
+        /system/bin/chmod "$mode" "$TERMUX_PREFS" || {
+            restore_x11_preferences
+            return 1
+        }
+    fi
+    /system/bin/rm -f "$TERMUX_PREFS_TEMP"
+    /system/bin/am force-stop com.termux.x11 >/dev/null 2>&1 || true
+    : >"$STATE/termux-x11-preferences.changed"
+    log "nova_launcher_x11_stretch=1 resolution=$X11_STRETCH_RESOLUTION"
+    return 0
+}
+
 runtime_present() {
     /system/bin/ps -A -o PID,ARGS 2>/dev/null |
         /system/bin/awk -v root="$ROOT" '
@@ -162,6 +268,9 @@ runtime_present() {
 
 stop_session() {
     if [ ! -d "$STATE" ] || [ ! -f "$STATE/server-token" ]; then
+        if [ -f "$TERMUX_PREFS_BACKUP" ]; then
+            restore_x11_preferences || exit 1
+        fi
         log "nova_launcher_stop=not_running"
         exit 0
     fi
@@ -176,6 +285,9 @@ stop_session() {
     fi
     if [ -x "$RUNTIME_CLEANUP" ]; then
         /system/bin/sh "$RUNTIME_CLEANUP" "$ROOT" >>"$STATE/runtime-cleanup.log" 2>&1 || cleanup_status=$?
+    fi
+    if ! restore_x11_preferences; then
+        cleanup_status=1
     fi
 
     for path in \
@@ -255,6 +367,11 @@ done
 /system/bin/rm -f "$STATE/launcher.log" "$STATE/cleanup.log" \
     "$STATE/runtime-cleanup.log" "$STATE/server.log" "$STATE/client.log" \
     "$STATE/relay.log" "$STATE/activity.log" "$STATE/ready"
+
+if ! apply_x11_stretch; then
+    log "nova_launcher_start=fail reason=x11_stretch_preferences"
+    exit 1
+fi
 
 session="$(date -u '+%Y%m%dT%H%M%SZ')-$$"
 CLIENT_STAGE="$ROOT/tmp/nova-android-launcher-steam-$session.sh"
