@@ -33,7 +33,7 @@ for path in "$PROTON_ROOT"/*; do
     esac
 done
 /system/bin/cp "$PROTON_ROOT/toolmanifest.vdf" "$WRAPPER_ROOT/toolmanifest.vdf"
-/system/bin/sed -i '/require_tool_appid[[:space:]]*"4185400"/d' \
+/system/bin/sed -i '/4185400/d' \
     "$WRAPPER_ROOT/toolmanifest.vdf"
 /system/bin/cp "$COMPATIBILITY_VDF" "$WRAPPER_ROOT/compatibilitytool.vdf"
 /system/bin/chown 501:20 "$WRAPPER_ROOT" "$WRAPPER_ROOT/toolmanifest.vdf" \

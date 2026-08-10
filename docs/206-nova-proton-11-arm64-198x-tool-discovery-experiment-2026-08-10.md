@@ -251,6 +251,24 @@ entry point, the exact runtime/container command, Wine/FEX process state, and
 the first game frame. It must restore `proton_hotfix`, remove the wrapper, and
 run the exact cleanup helpers before any further hypothesis.
 
+### Discarded phase 3 setup
+
+The first wrapper setup was discarded before Steam launch. Android's `sed`
+did not match the tabbed `require_tool_appid` line, so the wrapper and the
+Steam package had identical `toolmanifest.vdf` hashes. No Steam process was
+started against that wrapper; it was removed and `proton_hotfix` was restored.
+The setup helper now removes the exact `4185400` line with a literal AppID
+match.
+
+## Phase 3 retry predeclared run
+
+Run ID: `proton-arm64-20260810T022711Z-198x-dependency-neutralized-retry`
+
+The retry will require a differing wrapper-manifest hash and a direct
+no-`4185400` verification before `am start`. If that preflight passes, it
+will repeat the mapped 198X launch and capture the same runtime/frame gates;
+otherwise it will be cleaned without interpreting the result.
+
 ## Cleanup contract
 
 The exact Nova/X11 cleanup helper and rootfs runtime cleanup helper must run
