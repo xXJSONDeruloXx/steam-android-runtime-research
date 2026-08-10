@@ -16,6 +16,7 @@ Read these in order when picking up the project:
 5. [APK first-run provisioning requirement](00-start-here/333-nova-apk-idempotent-first-run-provisioning-2026-08-10.md)
 6. [Latest clean-device OOBE boundary](00-start-here/336-nova-clean-device-apk-oobe-2026-08-10.md)
 7. [Truthful SteamOS update adapter boundary](00-start-here/337-nova-steamos-update-truthful-no-update-adapter-2026-08-10.md)
+8. [Fresh APK bootstrap, OOBE, and QR result](00-start-here/347-nova-bootstrap-network-fix-result-2026-08-10.md)
 
 Before any Nova device run, read the lifecycle contract. Before importing
 SteamclientTermux behavior, read the comparison record; it pins the target
