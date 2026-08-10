@@ -25,7 +25,8 @@ The final UTC timestamp will replace `00xxxx` in the result section after the
 device run begins. The selected profile is:
 
 - Retroid Pocket Nova, Android 13, adb serial `675a2365`;
-- APK `com.xjsonderulo.steamandroid.novalab`, normal `LauncherActivity` path;
+- APK `com.xjsonderulo.steamandroid.novalab`, `LauncherActivity` with the
+  newly explicit `run_steam_session=true` auto-start extra;
 - direct Termux:X11, display `:0`, software Steam/CEF (`HARDWARE_ACCEL=0`);
 - Steam flags `-fullscreen -fulldesktopres`;
 - audio bridge disabled;
@@ -33,6 +34,10 @@ device run begins. The selected profile is:
   `displayResolutionCustom=1280x800`, `displayResolutionExact=1280x800`,
   `displayStretch=true`, `fullscreen=true`;
 - no button, touch, keyboard, pointer, controller, or game-launch action.
+
+The explicit normal-session extra is launcher plumbing, not a geometry
+variable: without it, an automated run would need to tap the product
+launcher. The audio bridge extra is deliberately not set.
 
 Before changing preferences, the run will pull and hash the exact
 `com.termux.x11_preferences.xml` file. After the captures, it will restore

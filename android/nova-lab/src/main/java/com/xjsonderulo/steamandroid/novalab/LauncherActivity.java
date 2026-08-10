@@ -30,6 +30,7 @@ public final class LauncherActivity extends Activity {
     private static final String TERMUX_X11_PACKAGE = "com.termux.x11";
     private static final String DEFAULT_ROOTFS = "/data/local/tmp/nova-holo-rootfs";
     private static final String LAUNCHER_DIR = "launcher";
+    private static final String EXTRA_RUN_STEAM_SESSION = "run_steam_session";
     private static final String EXTRA_RUN_AUDIO_BRIDGE_STEAM =
             "run_audio_bridge_steam";
     private static final int REQUEST_POST_NOTIFICATIONS = 42;
@@ -140,7 +141,8 @@ public final class LauncherActivity extends Activity {
             stopAudioBridgeOnly();
         } else if (getIntent().getBooleanExtra("run_audio_bridge_only", false)) {
             startAudioBridgeOnly();
-        } else if (getIntent().getBooleanExtra(EXTRA_RUN_AUDIO_BRIDGE_STEAM, false)) {
+        } else if (getIntent().getBooleanExtra(EXTRA_RUN_STEAM_SESSION, false)
+                || getIntent().getBooleanExtra(EXTRA_RUN_AUDIO_BRIDGE_STEAM, false)) {
             startSteamSession();
         }
     }
