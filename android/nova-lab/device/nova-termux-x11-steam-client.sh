@@ -334,6 +334,22 @@ if ! /usr/bin/chown "$STEAM_UID:$STEAM_GID" "$RUNTIME_DIR" ||
 fi
 log "client_runtime_owner_status=pass"
 
+# The seeded rootfs may carry a root-owned HOME cache even though Steam runs
+# under the stable non-root uid below.  CEF/Mesa disables its shader cache when
+# this directory is inaccessible; repair only this disposable cache boundary
+# before launching Steam and make the result explicit in the run log.
+MESA_SHADER_CACHE_DIR="$STEAM_HOME/.cache/mesa_shader_cache"
+if ! /bin/mkdir -p "$MESA_SHADER_CACHE_DIR" ||
+    ! /usr/bin/chown "$STEAM_UID:$STEAM_GID" "$STEAM_HOME/.cache" \
+        "$MESA_SHADER_CACHE_DIR" ||
+    ! /usr/bin/chmod 700 "$STEAM_HOME/.cache" "$MESA_SHADER_CACHE_DIR"; then
+    log "client_mesa_shader_cache_owner_status=fail"
+    exit 1
+fi
+export MESA_SHADER_CACHE_DIR
+log "client_mesa_shader_cache_owner_status=pass"
+log "client_mesa_shader_cache_dir=$MESA_SHADER_CACHE_DIR"
+
 if [ -x /opt/nova-kgsl-driver/nova-steam-network-api-compat.sh ]; then
     /opt/nova-kgsl-driver/nova-steam-network-api-compat.sh "$STEAM_ROOT" \
         >>"$CLIENT_LOG" 2>&1
