@@ -604,6 +604,27 @@ scripts were removed only after the process/socket checks passed. The original
 The retry must clear the exact app-owned state directory after preflight and
 record a new session ID before treating readiness as current.
 
+## Phase 8 retry predeclared run
+
+Run ID: `proton-arm64-20260810T030852Z-arm64ec-registry-key-retry`
+
+This retry repeats the same registry-only hypothesis from a genuinely fresh
+APK state. After the exact X11/runtime preflight and a verified empty process
+and socket set, it will remove only the app-owned transient state directory,
+deploy the committed chroot-visible Proton 11 ARM64 wrapper, and map AppID
+`1086010` to `proton11_arm64`. It will record the new launcher session ID
+before readiness, snapshot the 198X prefix registry files, create only
+`HKLM\\Hardware\\Description\\System\\CentralProcessor\\0`, and run the
+installed 198X executable directly with Proton logging and subsecond process
+polling.
+
+The retry will preserve the same acceptance gates: FEX must get past its
+`Couldn't detect CPU features` diagnostic, and a real 198X process plus a
+same-run frame are required for a game success claim. Afterward it will stop
+and clean the session, restore the three prefix registry files byte-for-byte,
+restore `proton_hotfix`, remove the wrapper and staging directory, and verify
+that no matching process, mount, or rootfs temporary socket remains.
+
 ## Cleanup contract
 
 The exact Nova/X11 cleanup helper and rootfs runtime cleanup helper must run
