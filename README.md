@@ -342,6 +342,7 @@ the gamescope frames on its own surface.
 - [Nova Gamescope/AHardwareBuffer product-promotion baseline result](docs/224-nova-gamescope-ahb-product-promotion-baseline-result-2026-08-10.md)
 - [Nova libei-enabled Gamescope artifact rebuild](docs/225-nova-libei-gamescope-artifact-rebuild-2026-08-10.md)
 - [Nova libei-enabled Gamescope artifact rebuild result](docs/226-nova-libei-gamescope-artifact-rebuild-result-2026-08-10.md)
+- [Nova libei-enabled Gamescope touch/fullscreen run](docs/227-nova-libei-gamescope-touch-fullscreen-run-2026-08-10.md)
 - [Retroid Pocket Nova flashing kit](tools/retroid-pocket-nova/README.md)
 
 ## Evidence standard
