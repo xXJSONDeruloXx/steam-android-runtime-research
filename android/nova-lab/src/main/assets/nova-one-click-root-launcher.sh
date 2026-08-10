@@ -283,11 +283,17 @@ stop_session() {
         log "nova_launcher_cleanup=missing_helper"
         cleanup_status=1
     fi
-    if [ -x "$RUNTIME_CLEANUP" ]; then
-        /system/bin/sh "$RUNTIME_CLEANUP" "$ROOT" >>"$STATE/runtime-cleanup.log" 2>&1 || cleanup_status=$?
-    fi
     if ! restore_x11_preferences; then
         cleanup_status=1
+    fi
+    cleanup_exclude_pids="$$"
+    if [ -n "${PPID:-}" ]; then
+        cleanup_exclude_pids="$cleanup_exclude_pids $PPID"
+    fi
+    if [ -x "$RUNTIME_CLEANUP" ]; then
+        NOVA_RUNTIME_CLEANUP_EXCLUDE_PIDS="$cleanup_exclude_pids" \
+            /system/bin/sh "$RUNTIME_CLEANUP" "$ROOT" \
+            >>"$STATE/runtime-cleanup.log" 2>&1 || cleanup_status=$?
     fi
 
     for path in \
@@ -368,12 +374,22 @@ done
     "$STATE/runtime-cleanup.log" "$STATE/server.log" "$STATE/client.log" \
     "$STATE/relay.log" "$STATE/activity.log" "$STATE/ready"
 
+if [ -f "$TERMUX_PREFS_BACKUP" ]; then
+    if ! restore_x11_preferences; then
+        log "nova_launcher_start=fail reason=stale_x11_preferences_backup"
+        exit 1
+    fi
+fi
+/system/bin/rm -f "$STATE/server-token" "$STATE/client-active" \
+    "$STATE/server.pid" "$STATE/client.pid" "$STATE/relay.pid"
+
 if ! apply_x11_stretch; then
     log "nova_launcher_start=fail reason=x11_stretch_preferences"
     exit 1
 fi
 
 session="$(date -u '+%Y%m%dT%H%M%SZ')-$$"
+printf '%s\n' "$session" >"$STATE/session"
 CLIENT_STAGE="$ROOT/tmp/nova-android-launcher-steam-$session.sh"
 RELAY_STAGE="$ROOT/tmp/nova-android-launcher-relay-$session.sh"
 CAPTURE_STAGE="$ROOT/tmp/nova-android-launcher-capture-$session"
@@ -399,7 +415,6 @@ printf '%s\n' "$LOCK_STAGE" >"$STATE/lock.path"
 printf '%s\n' "termux-x11" >"$STATE/server-token"
 printf '%s\n' "$CLIENT_STAGE_NAME" >"$STATE/client-token"
 printf '%s\n' "1" >"$STATE/client-active"
-printf '%s\n' "$session" >"$STATE/session"
 log "nova_launcher_hardware_accel=$HARDWARE_ACCEL"
 log "nova_launcher_vulkan_icd=$VULKAN_ICD"
 log "nova_launcher_cef_disable_gpu=$CEF_DISABLE_GPU"

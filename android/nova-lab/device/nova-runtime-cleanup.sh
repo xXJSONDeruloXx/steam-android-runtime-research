@@ -4,15 +4,25 @@ set -u
 
 ROOT="${1:-/data/local/tmp/nova-holo-rootfs}"
 SELF_PID=$$
+EXCLUDE_PIDS="${NOVA_RUNTIME_CLEANUP_EXCLUDE_PIDS:-}"
+EXCLUDE_PIDS=$(printf '%s\n' "$EXCLUDE_PIDS" | tr '\n' ' ')
 
 runtime_pids() {
     /system/bin/ps -A -o PID,PPID,ARGS 2>/dev/null | \
-        /system/bin/awk -v root="$ROOT" -v self="$SELF_PID" '
+        /system/bin/awk -v root="$ROOT" -v self="$SELF_PID" -v exclude="$EXCLUDE_PIDS" '
+            BEGIN {
+                count = split(exclude, values, /[[:space:]]+/)
+                for (slot = 1; slot <= count; slot++) {
+                    if (values[slot] != "") {
+                        protected[values[slot]] = 1
+                    }
+                }
+            }
             NR == 1 { next }
             {
                 pid = $1
                 args = $0
-                if (pid == "" || pid == self) {
+                if (pid == "" || pid == self || protected[pid]) {
                     next
                 }
                 if (index(args, "awk") || index(args, "nova-runtime-cleanup")) {
@@ -42,7 +52,7 @@ runtime_pids() {
 descendant_pids() {
     parents=$(printf '%s\n' "$1" | tr '\n' ' ')
     /system/bin/ps -A -o PID,PPID,ARGS 2>/dev/null | \
-        /system/bin/awk -v parents="$parents" -v self="$SELF_PID" '
+        /system/bin/awk -v parents="$parents" -v self="$SELF_PID" -v exclude="$EXCLUDE_PIDS" '
             BEGIN {
                 count = split(parents, values, /[[:space:]]+/)
                 for (slot = 1; slot <= count; slot++) {
@@ -50,12 +60,18 @@ descendant_pids() {
                         wanted[values[slot]] = 1
                     }
                 }
+                count = split(exclude, values, /[[:space:]]+/)
+                for (slot = 1; slot <= count; slot++) {
+                    if (values[slot] != "") {
+                        protected[values[slot]] = 1
+                    }
+                }
             }
             NR == 1 { next }
             {
                 pid = $1
                 parent = $2
-                if (pid == "" || pid == self) {
+                if (pid == "" || pid == self || protected[pid]) {
                     next
                 }
                 if (index($0, "awk") || index($0, "nova-runtime-cleanup")) {
@@ -96,7 +112,7 @@ runtime_process_snapshot() {
     snapshot_targets=$(printf '%s\n' "$snapshot_targets" | tr '\n' ' ')
     echo "nova_runtime_cleanup_${snapshot_label}_snapshot_begin"
     /system/bin/ps -A -o PID,PPID,ARGS 2>/dev/null | \
-        /system/bin/awk -v targets="$snapshot_targets" '
+        /system/bin/awk -v targets="$snapshot_targets" -v exclude="$EXCLUDE_PIDS" '
             BEGIN {
                 count = split(targets, values, /[[:space:]]+/)
                 for (slot = 1; slot <= count; slot++) {
@@ -104,9 +120,15 @@ runtime_process_snapshot() {
                         wanted[values[slot]] = 1
                     }
                 }
+                count = split(exclude, values, /[[:space:]]+/)
+                for (slot = 1; slot <= count; slot++) {
+                    if (values[slot] != "") {
+                        protected[values[slot]] = 1
+                    }
+                }
             }
             NR == 1 { next }
-            wanted[$1] { print }
+            wanted[$1] && !protected[$1] { print }
         '
     echo "nova_runtime_cleanup_${snapshot_label}_snapshot_end"
 }
