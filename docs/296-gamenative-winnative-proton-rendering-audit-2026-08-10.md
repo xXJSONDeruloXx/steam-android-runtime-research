@@ -120,6 +120,11 @@ current rootfs, is `DISPLAY=:0`, `HODLL=libwow64fex.dll`,
 SysV-shm preload. The direct wrapper will record every effective variable and
 the hashes of the staged WCP and extracted Wine files.
 
+The tracked bounded wrapper for this control is
+`android/nova-lab/device/nova-gamenative-proton-geometry-wars.sh`. It runs the
+GameNative `bin/wine` directly with the existing AppID-8400 prefix and a
+45-second timeout; it does not replace the installed Steam compatibility tool.
+
 Acceptance is a fresh Geometry Wars frame in the post-launch screenshot plus
 log evidence that the game reached its graphics path. A repeat of
 `vkCreateDevice extension VK_KHR_swapchain not available` is still useful: it
