@@ -7,7 +7,7 @@ run_id="${2:-}"
 game="${3:-/opt/nova-steam/home/.local/share/Steam/steamapps/common/Geometry Wars/GeometryWars.exe}"
 
 case "$mode" in
-    wined3d|wined3d-noaudio)
+    wined3d|wined3d-noaudio|dxvk|dxvk-wsi)
         ;;
     *)
         echo "nova_glibc_proton=fail reason=invalid_mode mode=$mode" >&2
@@ -28,12 +28,70 @@ run_root="/tmp/$run_id"
 compat_data="$run_root/compatdata/8400"
 proton_log_dir="$run_root/proton-log"
 dxvk_log_dir="$run_root/dxvk-log"
+renderer_mode=$mode
 audio_mode=enabled
-if [ "$mode" = "wined3d-noaudio" ]; then
-    audio_mode=disabled
-    export WINEDLLOVERRIDES='winepulse.drv=d;winealsa.drv=d'
-else
-    unset WINEDLLOVERRIDES
+wsi_mode=disabled
+
+case "$mode" in
+    wined3d)
+        export PROTON_USE_WINED3D=1
+        unset WINEDLLOVERRIDES
+        unset VK_ICD_FILENAMES
+        unset VK_IMPLICIT_LAYER_PATH
+        unset MESA_LOADER_DRIVER_OVERRIDE
+        unset GALLIUM_DRIVER
+        unset LIBGL_ALWAYS_SOFTWARE
+        export MESA_LOADER_DRIVER_OVERRIDE=swrast
+        export GALLIUM_DRIVER=softpipe
+        export LIBGL_ALWAYS_SOFTWARE=1
+        export WINE_X11FORCEGLX=1
+        ;;
+    wined3d-noaudio)
+        export PROTON_USE_WINED3D=1
+        audio_mode=disabled
+        export WINEDLLOVERRIDES='winepulse.drv=d;winealsa.drv=d'
+        unset VK_ICD_FILENAMES
+        unset VK_IMPLICIT_LAYER_PATH
+        unset MESA_LOADER_DRIVER_OVERRIDE
+        unset GALLIUM_DRIVER
+        unset LIBGL_ALWAYS_SOFTWARE
+        export MESA_LOADER_DRIVER_OVERRIDE=swrast
+        export GALLIUM_DRIVER=softpipe
+        export LIBGL_ALWAYS_SOFTWARE=1
+        export WINE_X11FORCEGLX=1
+        ;;
+    dxvk)
+        export PROTON_USE_WINED3D=0
+        export WINEDLLOVERRIDES='d3d11=n;d3d10core=n;d3d9=n;dxgi=n'
+        export VK_ICD_FILENAMES=/opt/nova-kgsl-driver/freedreno-kgsl.icd.json
+        unset VK_IMPLICIT_LAYER_PATH
+        unset MESA_LOADER_DRIVER_OVERRIDE
+        unset GALLIUM_DRIVER
+        unset LIBGL_ALWAYS_SOFTWARE
+        unset WINE_X11FORCEGLX
+        ;;
+    dxvk-wsi)
+        export PROTON_USE_WINED3D=0
+        export WINEDLLOVERRIDES='d3d11=n;d3d10core=n;d3d9=n;dxgi=n'
+        export VK_ICD_FILENAMES=/opt/nova-kgsl-driver/freedreno-kgsl.icd.json
+        export VK_IMPLICIT_LAYER_PATH="$run_root/wsi-stage"
+        wsi_mode=implicit
+        unset MESA_LOADER_DRIVER_OVERRIDE
+        unset GALLIUM_DRIVER
+        unset LIBGL_ALWAYS_SOFTWARE
+        unset WINE_X11FORCEGLX
+        ;;
+esac
+
+if [ "$mode" = "dxvk-wsi" ]; then
+    for path in \
+        "$run_root/wsi-stage/VkLayer_window_system_integration.json" \
+        "$run_root/wsi-stage/libVkLayer_window_system_integration.so"; do
+        if [ ! -e "$path" ]; then
+            echo "nova_glibc_proton=fail reason=missing_wsi_path path=$path" >&2
+            exit 1
+        fi
+    done
 fi
 
 for path in "$proton" "$game" "$compat_data/pfx"; do
@@ -57,20 +115,13 @@ export STEAM_COMPAT_CLIENT_INSTALL_PATH="$steam_root"
 export STEAM_COMPAT_DATA_PATH="$compat_data"
 export SteamAppId=8400
 export SteamGameId=8400
-export PROTON_USE_WINED3D=1
 export PROTON_LOG=1
 export PROTON_LOG_DIR="$proton_log_dir"
 export DXVK_LOG_LEVEL=info
 export DXVK_LOG_PATH="$dxvk_log_dir"
-export WINE_X11FORCEGLX=1
 export WINE_NEW_NDIS=1
-export MESA_LOADER_DRIVER_OVERRIDE=swrast
-export GALLIUM_DRIVER=softpipe
-export LIBGL_ALWAYS_SOFTWARE=1
 export LD_LIBRARY_PATH="$steam_root/steamrtarm64:$steam_root/lib/aarch64-linux-gnu:/usr/lib:$steam_root/steam-runtime-steamrt-arm64/steamrt3c_platform_3c.0.20260714.251839/files/lib/aarch64-linux-gnu"
 export LD_PRELOAD=/opt/nova-kgsl-driver/libsysv-sem-shim.so
-unset VK_ICD_FILENAMES
-unset VK_IMPLICIT_LAYER_PATH
 unset VK_INSTANCE_LAYERS
 
 echo "nova_glibc_proton=pass mode=$mode run_id=$run_id" >&2
@@ -78,11 +129,14 @@ echo "nova_glibc_proton_tool=$proton" >&2
 echo "nova_glibc_proton_game=$game" >&2
 echo "nova_glibc_proton_compat_data=$compat_data" >&2
 echo "nova_glibc_proton_setup=proton_run" >&2
+echo "nova_glibc_proton_renderer=$renderer_mode" >&2
 echo "nova_glibc_proton_wined3d=$PROTON_USE_WINED3D" >&2
-echo "nova_glibc_proton_software_gl=$MESA_LOADER_DRIVER_OVERRIDE/$GALLIUM_DRIVER" >&2
+echo "nova_glibc_proton_software_gl=${MESA_LOADER_DRIVER_OVERRIDE:-unset}/${GALLIUM_DRIVER:-unset}" >&2
 echo "nova_glibc_proton_audio=$audio_mode" >&2
 echo "nova_glibc_proton_winedlloverrides=${WINEDLLOVERRIDES:-unset}" >&2
-echo "nova_glibc_proton_vk_icd=unset" >&2
+echo "nova_glibc_proton_vk_icd=${VK_ICD_FILENAMES:-unset}" >&2
+echo "nova_glibc_proton_wsi_layer=$wsi_mode" >&2
+echo "nova_glibc_proton_vk_implicit_layer_path=${VK_IMPLICIT_LAYER_PATH:-unset}" >&2
 echo "nova_glibc_proton_ld_library_path=$LD_LIBRARY_PATH" >&2
 echo "nova_glibc_proton_ld_preload=$LD_PRELOAD" >&2
 
