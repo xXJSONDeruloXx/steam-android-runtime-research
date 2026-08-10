@@ -62,3 +62,70 @@ Steam stderr/minidump evidence if it still fails.
 After capture, run the exact X11 and rootfs cleanup helpers and verify no
 matching process, mount, socket, or temporary launcher state remains. Commit
 and push the result before the next CEF, input, audio, or game experiment.
+
+## Result
+
+Status: completed; the cache ownership repair passed, but it did not unblock
+the hardware Steam client.
+
+The fresh launcher session was
+`20260810T050818Z-23720`. The expected hardware profile was selected:
+
+```text
+nova_launcher_hardware_accel=1
+nova_launcher_vulkan_icd=/opt/nova-kgsl-driver/freedreno-kgsl.icd.json
+nova_launcher_ready=pass display=:0 geometry=1280x960
+```
+
+The client repaired the cache boundary and retained the hardware environment:
+
+```text
+client_runtime_owner_status=pass
+client_mesa_shader_cache_owner_status=pass
+client_mesa_shader_cache_dir=/opt/nova-steam/home/.cache/mesa_shader_cache
+client_mesa_driver=unset
+client_gallium_driver=unset
+client_libgl_always_software=unset
+client_vk_icd=/opt/nova-kgsl-driver/freedreno-kgsl.icd.json
+client_started=pass
+```
+
+The hardware branch kept CEF GPU enabled: `client_flags_final` contained no
+`-cef-disable-gpu`.
+
+Post-run device inspection confirmed both cache directories are now owned by
+`501:20` with mode `700`. The cache hypothesis is therefore disproved as the
+root cause of the hardware startup failure.
+
+The display boundary still passed. Fresh server output loaded Android Adreno
+EGL (`libEGL_adreno.so`, driver `0676.53`, EGL 1.5), completed XCB setup, and
+sent and received 1280x1024 and 1280x960 shared buffers. The Steam client then
+exited with status `139` before producing a usable Steam frame. Fresh stderr
+reported CrashID `bp-fad92c66-dc36-414e-a837-ce0e72260809`; no device minidump
+was retained after cleanup. The captured screenshot is only the Nova launcher
+showing `Nova launcher exited with status 143`, not Steam UI.
+
+The client log also records successful network-compatibility, D-Bus, and
+installation probes. This run did not exercise Proton or a game because the
+Steam client failed before the library became available. In particular, it is
+not evidence that Geometry Wars or another small title fails at game launch.
+
+Fresh artifacts were retained at
+`/tmp/gpu-20260810T050644Z-x11-steam-hardware-cache-ownership/`:
+
+| Artifact | SHA-256 |
+| --- | --- |
+| `launcher.log` | `6a0aba61224939d9e6f8066bcc1bb25cbf5e046bbf40d1f3abf133c85e110ada` |
+| `client.log` | `6074adccf8dad542811c438415e1c66d10ccb7813527941acb702cd3dc06c755` |
+| `server.log` | `ae8e2184e4e9b2341dfc69734aa0f35958a2ae4b7f2273ae230a7c319980c48d` |
+| `client-stderr.log` | `cce0da1d3837ddcb5263c9c0a447bb981cbbeac19e8083f7ce22f9199e97a784` |
+| `client-stdout.log` | `e7a3de096b981f2fadf271a67881392867aa0bcceffb3e9f701aecbcf8c376fa` |
+| `screen-00.png` | `294c8ea1524e5ba28b65293df3a0a8f6979d9e3ebb2615368c9d8bfa3f2979f5` |
+| `logcat.txt` | `f3938fcd44d13d140a81f6b9e118720ec2adbfdb3dfacaeb8d93460811106dcc` |
+
+The exact X11 cleanup helper and rootfs cleanup helper both returned `pass`,
+and the post-cleanup process, socket, and mount checks were clear. The next
+controlled experiment should add an independent CEF-GPU switch, preserving
+the hardware ICD and environment while testing `-cef-disable-gpu`; it should
+not be described as a game-launch result unless Steam first reaches the
+library.
