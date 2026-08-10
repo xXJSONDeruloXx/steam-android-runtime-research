@@ -397,6 +397,53 @@ tree, game-process lifetime, Proton logs, and a same-run screen capture. The
 original config mapping will be restored and the transient wrapper/staging
 files removed through the exact cleanup contract on every exit.
 
+## Phase 5 result
+
+The fixed helper passed both new gates before Steam started: the wrapper
+`proton` link was relative (`../../steamapps/common/Proton 11.0 (ARM64)/proton`),
+and a real `chroot` check reported `chroot_proton=pass` and
+`chroot_wine=pass`. The fresh launcher session was
+`20260810T024339Z-20250`, with readiness passing at 1280x960.
+
+Steam registered and selected the ARM64 alias after restart, including:
+
+```text
+Posting queued tool registration callback 0 proton11_arm64
+Posting queued app config changed callback 1086010
+Command prefix for tool 0 "Proton 11.0 (ARM64)" set to:
+  "'/opt/nova-steam/home/.local/share/Steam/compatibilitytools.d/proton-11-arm64'/proton run "
+```
+
+The 198X launch reached compat session `730bf06aaadfd5b` at
+`2026-08-10 02:44:37`. Steam emitted the expected Proton 11 ARM64 command,
+and `gameprocess_log.txt` recorded the wrapper plus eleven child PIDs
+(`22021`, `22022`, `22024`, `22025`, `22027`, `22030`, `22032`, `22035`,
+`22044`, `22050`, and `22056`). This is a substantial advance over the
+broken-wrapper run: the chroot-visible Proton entry point ran far enough to
+create the expected multi-process launch tree. The short capture did not
+retain child command lines, so it is not yet proof of a persistent Wine/FEX
+game process. All children exited by `02:44:41`; the
+wrapper returned `0` while its children returned `-1`, and Steam marked the
+action `Completed`/`WaitingGameWindow`. No persistent game process or game
+frame existed in the 15-second capture; the screenshot returned to the Steam
+UI rather than showing 198X.
+
+The run touched the installed `steamapps/compatdata/1086010` prefix while
+initializing Proton state: `pfx`, `tracked_files`, `config_info`, `version`,
+and `proton-fex-config.json` carried the run's `02:44` timestamps. Those files
+were preserved; no compatdata, game, shader-cache, or account data was
+deleted or rolled back. The failure is now below compatibility registration
+and wrapper resolution, in the short-lived Wine/FEX/game startup path.
+
+Artifacts are retained under
+`/tmp/proton-arm64-20260810T024222Z-chroot-visible-wrapper-retry/`, including
+the chroot-link checks, fresh mapping, launch command, process/log captures,
+and screenshot. The exact X11 and runtime cleanup helpers passed. The
+original `proton_hotfix` mapping was restored, the transient wrapper/staging
+files were removed, and the two stale Steam singleton/shmem sockets left by
+Steam were removed by exact path. Final process, mount, and rootfs
+temporary-socket checks were empty.
+
 ## Cleanup contract
 
 The exact Nova/X11 cleanup helper and rootfs runtime cleanup helper must run
