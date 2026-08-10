@@ -24,6 +24,7 @@ public final class LauncherService extends Service {
     public static final String ACTION_AUDIO_ONLY =
             "com.xjsonderulo.steamandroid.novalab.AUDIO_ONLY";
     public static final String EXTRA_ROOTFS = "rootfs";
+    public static final String EXTRA_LEGACY_ROOTFS = "legacy_rootfs";
     public static final String EXTRA_ASSET_DIRECTORY = "asset_directory";
     public static final String EXTRA_TERMUX_APK = "termux_apk";
     public static final String EXTRA_AUDIO_BRIDGE = "audio_bridge";
@@ -41,10 +42,15 @@ public final class LauncherService extends Service {
     private static final int NOTIFICATION_ID = 17;
 
     private static volatile String status = "Nova session is stopped";
+    private static volatile boolean provisioningActive;
+    private static volatile int provisioningProgress = -1;
+    private static volatile String provisioningPhase = "Ready";
     private final ExecutorService executor = Executors.newSingleThreadExecutor();
     private final Object processLock = new Object();
     private Process launcherProcess;
+    private Process provisioningProcess;
     private String rootfs;
+    private String legacyRootfs;
     private String assetDirectory;
     private String termuxApk;
     private AudioPcmBridge audioBridge;
@@ -59,14 +65,68 @@ public final class LauncherService extends Service {
     private boolean steamForceSoftwareGl;
     private boolean steamCefEnvSplit;
     private boolean audioOnly;
+    private volatile boolean stopRequested;
 
     public static String getStatus() {
         return status;
     }
 
+    public static boolean isProvisioning() {
+        return provisioningActive;
+    }
+
+    public static int getProvisioningProgress() {
+        return provisioningProgress;
+    }
+
+    public static String getProvisioningPhase() {
+        return provisioningPhase;
+    }
+
     public static void setStatus(String value) {
-        status = value;
+        if (value != null && value.startsWith("nova_provision_progress=")) {
+            updateProvisioningProgress(value);
+        } else {
+            status = value;
+        }
         Log.i(TAG, value);
+    }
+
+    private static void updateProvisioningProgress(String line) {
+        String phase = "Preparing";
+        String artifact = "";
+        String[] fields = line.split(" ");
+        for (String field : fields) {
+            if (field.startsWith("nova_provision_progress=")) {
+                try {
+                    provisioningProgress = Integer.parseInt(
+                            field.substring("nova_provision_progress=".length()));
+                } catch (NumberFormatException ignored) {
+                    provisioningProgress = -1;
+                }
+            } else if (field.startsWith("phase=")) {
+                phase = friendlyProvisioningPhase(field.substring("phase=".length()));
+            } else if (field.startsWith("artifact=")) {
+                artifact = field.substring("artifact=".length());
+            }
+        }
+        provisioningPhase = artifact.isEmpty() ? phase : phase + " · " + artifact;
+        status = "Provisioning: " + provisioningPhase;
+    }
+
+    private static String friendlyProvisioningPhase(String phase) {
+        if ("preflight".equals(phase)) return "Checking rooted device";
+        if ("rootfs".equals(phase)) return "Downloading Holo runtime";
+        if ("rootfs_extract".equals(phase)) return "Unpacking Holo runtime";
+        if ("packages".equals(phase)) return "Installing X11 package closure";
+        if ("package_install".equals(phase)) return "Finalizing package closure";
+        if ("steam_manifest".equals(phase)) return "Verifying Steam seed manifest";
+        if ("steam_seed".equals(phase)) return "Downloading Steam ARM64 seed";
+        if ("steam_seed_extract".equals(phase)) return "Installing Steam client";
+        if ("steamrt".equals(phase)) return "Downloading SteamRT3C";
+        if ("steamrt_extract".equals(phase)) return "Unpacking SteamRT3C";
+        if ("complete".equals(phase)) return "Activating verified runtime";
+        return phase;
     }
 
     @Override
@@ -113,8 +173,10 @@ public final class LauncherService extends Service {
                 return START_NOT_STICKY;
             }
             rootfs = intent.getStringExtra(EXTRA_ROOTFS);
+            legacyRootfs = intent.getStringExtra(EXTRA_LEGACY_ROOTFS);
             assetDirectory = intent.getStringExtra(EXTRA_ASSET_DIRECTORY);
             termuxApk = intent.getStringExtra(EXTRA_TERMUX_APK);
+            stopRequested = false;
             audioOnly = false;
             audioBridgeEnabled = intent.getBooleanExtra(EXTRA_AUDIO_BRIDGE, false);
             audioBridgePort = requestedAudioPort(intent);
@@ -128,15 +190,10 @@ public final class LauncherService extends Service {
             steamForceSoftwareGl = intent.getBooleanExtra(EXTRA_STEAM_FORCE_SOFTWARE_GL, false);
             steamCefEnvSplit = intent.getBooleanExtra(EXTRA_STEAM_CEF_ENV_SPLIT, false);
             startForeground(NOTIFICATION_ID, buildNotification("Starting Steam"));
-            if (!startAudioBridgeLocked()) {
-                stopForeground(STOP_FOREGROUND_REMOVE);
-                stopSelf();
-                return START_NOT_STICKY;
-            }
             executor.execute(new Runnable() {
                 @Override
                 public void run() {
-                    runLauncher();
+                    runProvisionAndLauncher();
                 }
             });
         }
@@ -145,13 +202,20 @@ public final class LauncherService extends Service {
 
     @Override
     public void onDestroy() {
+        stopRequested = true;
         Process process;
+        Process provisioning;
         synchronized (processLock) {
             process = launcherProcess;
             launcherProcess = null;
+            provisioning = provisioningProcess;
+            provisioningProcess = null;
         }
         if (process != null) {
             process.destroy();
+        }
+        if (provisioning != null) {
+            provisioning.destroy();
         }
         stopAudioBridge();
         executor.shutdownNow();
@@ -224,22 +288,93 @@ public final class LauncherService extends Service {
         }
     }
 
+    private void runProvisionAndLauncher() {
+        int provisionStatus = runProvisioner();
+        if (stopRequested) {
+            setStatus("Nova provisioning stopped");
+            return;
+        }
+        if (provisionStatus != 0) {
+            setStatus("Nova provisioning failed; attempting preserved rollback");
+        } else {
+            setStatus("Nova runtime provisioned; starting Steam");
+        }
+        synchronized (processLock) {
+            if (!startAudioBridgeLocked()) {
+                stopForeground(STOP_FOREGROUND_REMOVE);
+                stopSelf();
+                return;
+            }
+        }
+        runLauncher();
+    }
+
+    private int runProvisioner() {
+        File script = new File(assetDirectory, "nova-provision-runtime.sh");
+        String command = "/system/bin/sh " + shellQuote(script.getAbsolutePath())
+                + " provision " + shellQuote(legacyRootfs == null
+                ? "/data/local/tmp/nova-holo-rootfs" : legacyRootfs)
+                + " " + shellQuote(termuxApk)
+                + " " + shellQuote(assetDirectory);
+        provisioningActive = true;
+        provisioningProgress = 0;
+        provisioningPhase = "Checking rooted device";
+        setStatus("Provisioning versioned Nova runtime");
+        try {
+            Process process = new ProcessBuilder("su", "-mm", "0", "-c", command)
+                    .redirectErrorStream(true)
+                    .start();
+            synchronized (processLock) {
+                provisioningProcess = process;
+            }
+            try (BufferedReader reader = new BufferedReader(
+                    new InputStreamReader(process.getInputStream()))) {
+                String line;
+                while ((line = reader.readLine()) != null) {
+                    setStatus(line);
+                }
+            }
+            int exitCode = process.waitFor();
+            setStatus("Nova provisioner exited with status " + exitCode);
+            return exitCode;
+        } catch (IOException error) {
+            setStatus("Nova provisioning root launch failed: " + error.getMessage());
+            return 1;
+        } catch (InterruptedException error) {
+            Thread.currentThread().interrupt();
+            setStatus("Nova provisioning interrupted");
+            return 1;
+        } finally {
+            provisioningActive = false;
+            synchronized (processLock) {
+                provisioningProcess = null;
+            }
+        }
+    }
+
     private void stopSession() {
+        stopRequested = true;
         final String currentRootfs = rootfs == null
-                ? "/data/local/tmp/nova-holo-rootfs" : rootfs;
+                ? "/data/local/tmp/nova-active-runtime" : rootfs;
         final String currentAssets = assetDirectory == null
                 ? new File(getFilesDir(), "launcher").getAbsolutePath() : assetDirectory;
         final String currentTermuxApk = termuxApk == null ? "" : termuxApk;
         Process process;
+        Process provisioning;
         boolean audioOnlyRun;
         synchronized (processLock) {
             process = launcherProcess;
             launcherProcess = null;
+            provisioning = provisioningProcess;
+            provisioningProcess = null;
             audioOnlyRun = audioOnly;
             audioOnly = false;
         }
         if (process != null) {
             process.destroy();
+        }
+        if (provisioning != null) {
+            provisioning.destroy();
         }
         stopAudioBridge();
         if (audioOnlyRun) {

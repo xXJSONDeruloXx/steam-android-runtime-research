@@ -43,9 +43,36 @@ for helper in \
     nova-uinput-gamepad-relay-launcher.sh \
     nova-runtime-cleanup.sh \
     nova-steam-network-api-compat.sh \
-    nova-steamos-update-compat.sh; do
+    nova-steamos-update-compat.sh \
+    holo-package-install.sh \
+    nova-proton-11-arm64-wrapper-setup.sh \
+    nova-proton-11-arm64-compatibilitytool.vdf \
+    nova-proton-11-arm64-wrapper-compatibilitytool.vdf; do
     cp "$SCRIPT_DIR/device/$helper" "$APK_ASSET_DIR/$helper"
 done
+
+for provisioning_asset in \
+    nova-runtime-manifest.tsv \
+    holo-direct-termux-x11.packages.tsv; do
+    cp "$SCRIPT_DIR/provisioning/$provisioning_asset" "$APK_ASSET_DIR/$provisioning_asset"
+done
+
+for required_artifact in \
+    "$BUILD_DIR/nova-zstd" \
+    "$BUILD_DIR/nova-zip-rebase" \
+    "$BUILD_DIR/mesa-kgsl/libvulkan_freedreno.so"; do
+    if [ ! -f "$required_artifact" ]; then
+        echo "missing first-run provisioning artifact: $required_artifact" >&2
+        echo "run build-zstd.sh, build-zip-rebase.sh, and build-kgsl-turnip.sh first" >&2
+        exit 1
+    fi
+done
+cp "$BUILD_DIR/nova-zstd" "$APK_ASSET_DIR/nova-zstd"
+cp "$BUILD_DIR/nova-zip-rebase" "$APK_ASSET_DIR/nova-zip-rebase"
+cp "$BUILD_DIR/mesa-kgsl/libvulkan_freedreno.so" "$APK_ASSET_DIR/libvulkan_freedreno.so"
+cp "$SCRIPT_DIR/device/freedreno-kgsl.icd.json" "$APK_ASSET_DIR/freedreno-kgsl.icd.json"
+chmod 755 "$APK_ASSET_DIR/nova-zstd" "$APK_ASSET_DIR/nova-zip-rebase" \
+    "$APK_ASSET_DIR/libvulkan_freedreno.so"
 
 # These are device-side helpers, not Android JNI libraries. Package them only
 # when the corresponding local build artifact exists; the launcher reports a

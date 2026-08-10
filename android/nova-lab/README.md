@@ -46,6 +46,57 @@ sink. The product launcher requests the Nova `1280x960` fullscreen flags, but
 the first device run must verify the mapped X11 window rather than infer the
 geometry from the Android surface.
 
+## First-run product provisioning
+
+`build-one-click-apk.sh` now packages the authoritative rooted provisioner in
+`src/main/assets/nova-provision-runtime.sh`. Pressing **Start Steam** performs
+an idempotent, versioned install before opening Termux:X11:
+
+1. Verify root, ARM64, writable `/data/local/tmp`, free bytes, and free inodes.
+2. Download and SHA-256 verify the pinned Holo ARM64 glibc rootfs and the exact
+   59-package direct Termux:X11 closure, including Adwaita fonts.
+3. Download and verify Valve's ARM64 Steam seed and the pinned SteamRT3C
+   runtime, then repair the seed archive prefix and required SONAME links.
+4. Verify and stage the KGSL Turnip driver/ICD, APK helpers, audio/input shims,
+   and the Proton 11 ARM64 compatibility-tool path.
+5. Validate the complete staged tree and atomically move the active marker only
+   after every check passes.
+
+The pinned manifest and package closure are kept in
+`provisioning/nova-runtime-manifest.tsv` and
+`provisioning/holo-direct-termux-x11.packages.tsv`. The device layout and
+rollback/authentication policy are recorded in
+[`docs/333-nova-apk-idempotent-first-run-provisioning-2026-08-10.md`](../../docs/333-nova-apk-idempotent-first-run-provisioning-2026-08-10.md).
+
+The important device paths are:
+
+- `/data/local/tmp/nova-holo-rootfs`: preserved legacy rollback root; never
+  overwritten by provisioning;
+- `/data/local/tmp/nova-runtimes/<version>/rootfs`: immutable-after-activation
+  versioned runtime tree;
+- `/data/local/tmp/nova-active-runtime`: atomically replaced active-root
+  marker; and
+- `/data/local/tmp/nova-runtimes/previous-active-runtime`: previous active
+  marker for rollback inspection.
+
+Steam data is reused only inside the selected runtime when it is already safe
+to do so. Authentication secrets are never exported or backed up; a fresh
+runtime can require the normal QR login. Gamescope and AHardwareBuffer remain
+optional and are not in this first-run critical path.
+
+The research-only `nova-steamos-update-compat.sh` helper is bundled for
+diagnostics but is not installed at Steam's host-updater path by default. The
+clean profile must not report a fake SteamOS update success or hide the
+client's reboot handoff; enable it only for the historical compatibility
+experiment with `NOVA_ANDROID_LAUNCHER_STEAMOS_UPDATE_COMPAT=1`.
+
+The APK keeps the foreground service visible during provisioning and translates
+the shell's weighted `nova_provision_progress=<percent>` protocol into a
+determinate progress bar and phase label. It waits for provisioning to finish
+before launching Termux:X11, so a slow first run is visible rather than looking
+like a frozen Steam start. The current clean-runtime OOBE/restart boundary is
+also documented as an acceptance result, not hidden by the product UI.
+
 `deploy-and-test.sh` installs the debug APK, runs the root probe directly through
 `adb shell su`, launches the app, captures filtered logcat, and saves a device
 screenshot under `android/nova-lab/build/`.

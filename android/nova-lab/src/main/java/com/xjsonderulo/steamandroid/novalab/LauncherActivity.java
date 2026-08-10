@@ -18,6 +18,7 @@ import android.view.WindowInsets;
 import android.view.WindowInsetsController;
 import android.widget.Button;
 import android.widget.LinearLayout;
+import android.widget.ProgressBar;
 import android.widget.TextView;
 
 import java.io.File;
@@ -29,6 +30,7 @@ import java.io.InputStream;
 public final class LauncherActivity extends Activity {
     private static final String TERMUX_X11_PACKAGE = "com.termux.x11";
     private static final String DEFAULT_ROOTFS = "/data/local/tmp/nova-holo-rootfs";
+    private static final String ACTIVE_ROOTFS = "/data/local/tmp/nova-active-runtime";
     private static final String LAUNCHER_DIR = "launcher";
     private static final String EXTRA_RUN_STEAM_SESSION = "run_steam_session";
     private static final String EXTRA_RUN_AUDIO_BRIDGE_STEAM =
@@ -58,7 +60,18 @@ public final class LauncherActivity extends Activity {
             "nova-uinput-gamepad-relay-launcher.sh",
             "nova-runtime-cleanup.sh",
             "nova-steam-network-api-compat.sh",
-            "nova-steamos-update-compat.sh"
+            "nova-steamos-update-compat.sh",
+            "nova-provision-runtime.sh",
+            "holo-package-install.sh",
+            "nova-runtime-manifest.tsv",
+            "holo-direct-termux-x11.packages.tsv",
+            "nova-zstd",
+            "nova-zip-rebase",
+            "libvulkan_freedreno.so",
+            "freedreno-kgsl.icd.json",
+            "nova-proton-11-arm64-wrapper-setup.sh",
+            "nova-proton-11-arm64-compatibilitytool.vdf",
+            "nova-proton-11-arm64-wrapper-compatibilitytool.vdf"
     };
     private static final String[] OPTIONAL_ASSETS = {
             "nova-mount-private",
@@ -73,12 +86,31 @@ public final class LauncherActivity extends Activity {
 
     private final Handler handler = new Handler(Looper.getMainLooper());
     private TextView statusView;
+    private TextView provisioningView;
+    private ProgressBar provisioningProgressBar;
     private boolean startPendingNotificationPermission;
     private final Runnable statusRefresh = new Runnable() {
         @Override
         public void run() {
             if (statusView != null) {
                 statusView.setText(LauncherService.getStatus());
+            }
+            if (provisioningView != null && provisioningProgressBar != null) {
+                boolean active = LauncherService.isProvisioning();
+                provisioningView.setVisibility(active ? View.VISIBLE : View.GONE);
+                provisioningProgressBar.setVisibility(active ? View.VISIBLE : View.GONE);
+                if (active) {
+                    int progress = LauncherService.getProvisioningProgress();
+                    if (progress < 0) {
+                        provisioningProgressBar.setIndeterminate(true);
+                    } else {
+                        provisioningProgressBar.setIndeterminate(false);
+                        provisioningProgressBar.setProgress(progress);
+                    }
+                    String phase = LauncherService.getProvisioningPhase();
+                    provisioningView.setText(progress < 0
+                            ? phase : phase + "  (" + progress + "%)");
+                }
             }
             handler.postDelayed(this, 500);
         }
@@ -113,6 +145,19 @@ public final class LauncherActivity extends Activity {
         statusView.setPadding(0, dp(22), 0, dp(22));
         page.addView(statusView, new LinearLayout.LayoutParams(-1, -2));
 
+        provisioningView = statusText("Preparing first-run runtime");
+        provisioningView.setTextSize(13);
+        provisioningView.setVisibility(View.GONE);
+        page.addView(provisioningView, new LinearLayout.LayoutParams(-1, -2));
+
+        provisioningProgressBar = new ProgressBar(
+                this, null, android.R.attr.progressBarStyleHorizontal);
+        provisioningProgressBar.setMax(100);
+        provisioningProgressBar.setVisibility(View.GONE);
+        LinearLayout.LayoutParams progressParams = new LinearLayout.LayoutParams(-1, dp(8));
+        progressParams.setMargins(0, dp(8), 0, dp(12));
+        page.addView(provisioningProgressBar, progressParams);
+
         Button start = new Button(this);
         start.setText("Start Steam");
         start.setOnClickListener(new View.OnClickListener() {
@@ -144,8 +189,9 @@ public final class LauncherActivity extends Activity {
         page.addView(lab, new LinearLayout.LayoutParams(-1, -2));
 
         TextView note = new TextView(this);
-        note.setText("One-time setup: install Termux:X11 and prepare the Holo rootfs.\n"
-                + "Steam data stays on the device; this APK owns launch and cleanup.");
+        note.setText("Start performs idempotent rooted provisioning on first use.\n"
+                + "The known-good rootfs remains untouched as rollback; Steam auth is never exported.\n"
+                + "Gamescope/AHardwareBuffer stay optional; the critical path is direct Termux:X11.");
         note.setTextColor(Color.GRAY);
         note.setTextSize(12);
         note.setPadding(0, dp(24), 0, 0);
@@ -206,7 +252,8 @@ public final class LauncherActivity extends Activity {
 
         Intent service = new Intent(this, LauncherService.class);
         service.setAction(LauncherService.ACTION_START);
-        service.putExtra(LauncherService.EXTRA_ROOTFS, DEFAULT_ROOTFS);
+        service.putExtra(LauncherService.EXTRA_ROOTFS, ACTIVE_ROOTFS);
+        service.putExtra(LauncherService.EXTRA_LEGACY_ROOTFS, DEFAULT_ROOTFS);
         service.putExtra(LauncherService.EXTRA_ASSET_DIRECTORY,
                 assetDirectory.getAbsolutePath());
         service.putExtra(LauncherService.EXTRA_TERMUX_APK, x11Info.sourceDir);
@@ -246,12 +293,18 @@ public final class LauncherActivity extends Activity {
             startService(service);
         }
 
-        // The root-side launcher also opens this Activity after the X socket is
-        // ready. This fallback covers devices that restrict am from su.
+        // The root-side launcher opens Termux:X11 after the X socket is ready.
+        // Keep the APK screen visible while first-run provisioning is active so
+        // its phase/percentage bar is useful; this remains a fallback for
+        // devices that restrict am from su.
         handler.postDelayed(new Runnable() {
             @Override
             public void run() {
-                openTermuxX11();
+                if (LauncherService.isProvisioning()) {
+                    handler.postDelayed(this, 1000);
+                } else {
+                    openTermuxX11();
+                }
             }
         }, 1400);
     }
@@ -353,7 +406,10 @@ public final class LauncherActivity extends Activity {
                 + (notificationPermissionGranted() ? "enabled" : "required before start");
         return "Termux:X11: "
                 + (isPackageInstalled(TERMUX_X11_PACKAGE) ? "installed" : "missing")
-                + "\nRootfs: " + DEFAULT_ROOTFS
+                + "\nActive runtime marker: " + ACTIVE_ROOTFS
+                + "\nRollback rootfs: " + DEFAULT_ROOTFS
+                + "\nFirst run: verified downloads with phase progress"
+                + "\nSteamOS host-update shim: disabled by default"
                 + "\n" + notification;
     }
 

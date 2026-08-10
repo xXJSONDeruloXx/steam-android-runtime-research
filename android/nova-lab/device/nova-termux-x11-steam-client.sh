@@ -31,6 +31,7 @@ CEF_ENV_SPLIT=${NOVA_TERMUX_X11_STEAM_CEF_ENV_SPLIT:-0}
 AUDIO_BRIDGE=${NOVA_TERMUX_X11_STEAM_AUDIO_BRIDGE:-0}
 AUDIO_BRIDGE_PORT=${NOVA_TERMUX_X11_STEAM_AUDIO_BRIDGE_PORT:-29100}
 AUDIO_BRIDGE_LOG=${NOVA_TERMUX_X11_STEAM_AUDIO_BRIDGE_LOG:-/tmp/nova-alsa-audiotrack-bridge.log}
+STEAM_BOOTSTRAP=${NOVA_TERMUX_X11_STEAM_BOOTSTRAP:-auto}
 DBUS_SESSION_MODE=${NOVA_TERMUX_X11_DBUS_SESSION:-0}
 DBUS_SESSION_USER=${NOVA_TERMUX_X11_DBUS_SESSION_USER:-steam}
 DBUS_SESSION_UID_RECORD=${NOVA_TERMUX_X11_DBUS_SESSION_UID_RECORD:-0}
@@ -157,6 +158,14 @@ if [ "$CEF_ENV_SPLIT" -eq 1 ] && [ "$STEAM_DISABLE_PRELOAD" -eq 1 ]; then
     echo "CEF environment split requires preload support" >&2
     exit 2
 fi
+case "$STEAM_BOOTSTRAP" in
+    auto|0|1)
+        ;;
+    *)
+        echo "invalid NOVA_TERMUX_X11_STEAM_BOOTSTRAP: $STEAM_BOOTSTRAP" >&2
+        exit 2
+        ;;
+esac
 case "$STEAM_VULKAN_ICD" in
     /*)
         ;;
@@ -215,6 +224,20 @@ case "$DBUS_SYSTEM_MODE" in
         exit 2
         ;;
 esac
+
+STEAMUI_PRESENT=0
+if [ -d "$STEAM_ROOT/steamui" ]; then
+    STEAMUI_PRESENT=1
+fi
+if [ "$STEAM_BOOTSTRAP" = auto ]; then
+    if [ "$STEAMUI_PRESENT" -eq 1 ]; then
+        STEAM_BOOTSTRAP_ALLOWED=0
+    else
+        STEAM_BOOTSTRAP_ALLOWED=1
+    fi
+else
+    STEAM_BOOTSTRAP_ALLOWED="$STEAM_BOOTSTRAP"
+fi
 
 log() {
     echo "$1" >>"$CLIENT_LOG"
@@ -349,7 +372,17 @@ log "client_display=${DISPLAY:-unset}"
 log "client_home=$STEAM_HOME"
 log "client_root=$STEAM_ROOT"
 log "client_executable=$STEAM_EXECUTABLE"
-if [ "$STEAM_UI_MODE" = gamepadui ] && [ "$CEF_DISABLE_GPU" -eq 0 ]; then
+if [ "$STEAM_BOOTSTRAP_ALLOWED" -eq 1 ]; then
+    if [ "$STEAM_UI_MODE" = gamepadui ] && [ "$CEF_DISABLE_GPU" -eq 0 ]; then
+        log "client_flags_base=-gamepadui -steamos3 -steampal -steamdeck -no-cef-sandbox"
+    elif [ "$STEAM_UI_MODE" = gamepadui ]; then
+        log "client_flags_base=-gamepadui -steamos3 -steampal -steamdeck -no-cef-sandbox -cef-disable-gpu"
+    elif [ "$CEF_DISABLE_GPU" -eq 0 ]; then
+        log "client_flags_base=-no-cef-sandbox"
+    else
+        log "client_flags_base=-no-cef-sandbox -cef-disable-gpu"
+    fi
+elif [ "$STEAM_UI_MODE" = gamepadui ] && [ "$CEF_DISABLE_GPU" -eq 0 ]; then
     log "client_flags_base=-gamepadui -steamos3 -steampal -steamdeck -nobootstrapperupdate -skipinitialbootstrap -no-child-update-ui -no-cef-sandbox"
 elif [ "$STEAM_UI_MODE" = gamepadui ]; then
     log "client_flags_base=-gamepadui -steamos3 -steampal -steamdeck -nobootstrapperupdate -skipinitialbootstrap -no-child-update-ui -no-cef-sandbox -cef-disable-gpu"
@@ -383,6 +416,8 @@ log "client_dbus_session_mode=$DBUS_SESSION_MODE"
 log "client_dbus_session_user=$DBUS_SESSION_USER"
 log "client_dbus_session_uid_record=$DBUS_SESSION_UID_RECORD"
 log "client_dbus_system_mode=$DBUS_SYSTEM_MODE"
+log "client_steamui_present=$STEAMUI_PRESENT"
+log "client_bootstrap_allowed=$STEAM_BOOTSTRAP_ALLOWED"
 
 if [ ! -x "$STEAM_EXECUTABLE" ]; then
     log "client_started=fail"
@@ -424,7 +459,12 @@ export MESA_SHADER_CACHE_DIR
 log "client_mesa_shader_cache_owner_status=pass"
 log "client_mesa_shader_cache_dir=$MESA_SHADER_CACHE_DIR"
 
-if [ -x /opt/nova-kgsl-driver/nova-steam-network-api-compat.sh ]; then
+if [ "$STEAMUI_PRESENT" -eq 0 ]; then
+    # A native ARM64 seed does not include SteamUI until the first bootstrap.
+    # Defer the post-bootstrap network compatibility rewrite so a clean
+    # device can reach normal Steam OOBE instead of failing at startup.
+    log "client_network_api_compat=deferred reason=missing_steamui"
+elif [ -x /opt/nova-kgsl-driver/nova-steam-network-api-compat.sh ]; then
     /opt/nova-kgsl-driver/nova-steam-network-api-compat.sh "$STEAM_ROOT" \
         >>"$CLIENT_LOG" 2>&1
     network_status=$?
@@ -456,8 +496,21 @@ for candidate in "$STEAM_ROOT"/steam-runtime-steamrt-arm64/*/files/bin; do
         break
     fi
 done
+steam_runtime_lib=
+for candidate in "$STEAM_ROOT"/steam-runtime-steamrt-arm64/*/files/lib/aarch64-linux-gnu; do
+    if [ -d "$candidate" ]; then
+        steam_runtime_lib=$candidate
+        break
+    fi
+done
+steam_runtime_pulse_lib=
+if [ -n "$steam_runtime_lib" ] && [ -d "$steam_runtime_lib/pulseaudio" ]; then
+    steam_runtime_pulse_lib="$steam_runtime_lib/pulseaudio"
+fi
 export PATH="$STEAM_ROOT/steam-runtime-steamrt-arm64/bin${steam_runtime_files_bin:+:$steam_runtime_files_bin}:/usr/bin:/bin"
 log "client_runtime_files_bin=${steam_runtime_files_bin:-unset}"
+log "client_runtime_lib=${steam_runtime_lib:-unset}"
+log "client_runtime_pulse_lib=${steam_runtime_pulse_lib:-unset}"
 if [ "$STEAM_HARDWARE_ACCEL" -eq 1 ]; then
     unset MESA_LOADER_DRIVER_OVERRIDE
     unset GALLIUM_DRIVER
@@ -490,10 +543,10 @@ else
     log "client_vk_icd=unset"
 fi
 if [ "$STEAM_HOLO_MESA_FIRST" -eq 1 ]; then
-    export LD_LIBRARY_PATH="/usr/lib:$STEAM_ROOT/steamrtarm64:$STEAM_ROOT/lib/aarch64-linux-gnu${steam_runtime_files_bin:+:${steam_runtime_files_bin%/bin}/lib/aarch64-linux-gnu}${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+    export LD_LIBRARY_PATH="/usr/lib:$STEAM_ROOT/steamrtarm64:$STEAM_ROOT/lib/aarch64-linux-gnu${steam_runtime_lib:+:$steam_runtime_lib}${steam_runtime_pulse_lib:+:$steam_runtime_pulse_lib}${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
     log "client_library_order=holo-mesa-first"
 else
-    export LD_LIBRARY_PATH="$STEAM_ROOT/steamrtarm64:$STEAM_ROOT/lib/aarch64-linux-gnu:/usr/lib${steam_runtime_files_bin:+:${steam_runtime_files_bin%/bin}/lib/aarch64-linux-gnu}${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+    export LD_LIBRARY_PATH="$STEAM_ROOT/steamrtarm64:$STEAM_ROOT/lib/aarch64-linux-gnu:/usr/lib${steam_runtime_lib:+:$steam_runtime_lib}${steam_runtime_pulse_lib:+:$steam_runtime_pulse_lib}${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
     log "client_library_order=steamrt-first"
 fi
 preload_paths=
@@ -754,9 +807,10 @@ set -- "$STEAM_EXECUTABLE"
 if [ "$STEAM_UI_MODE" = gamepadui ]; then
     set -- "$@" -gamepadui -steamos3 -steampal -steamdeck
 fi
-set -- "$@" \
-    -nobootstrapperupdate -skipinitialbootstrap -no-child-update-ui \
-    -no-cef-sandbox
+if [ "$STEAM_BOOTSTRAP_ALLOWED" -eq 0 ]; then
+    set -- "$@" -nobootstrapperupdate -skipinitialbootstrap -no-child-update-ui
+fi
+set -- "$@" -no-cef-sandbox
 if [ "$CEF_DISABLE_GPU" -eq 1 ]; then
     set -- "$@" -cef-disable-gpu
 fi

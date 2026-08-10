@@ -3,7 +3,25 @@
 set -u
 
 ACTION="${1:-}"
-ROOT="${2:-/data/local/tmp/nova-holo-rootfs}"
+ROOT_ARGUMENT="${2:-/data/local/tmp/nova-holo-rootfs}"
+ROOT="$ROOT_ARGUMENT"
+VERSIONED_RUNTIME=0
+if [ "$ROOT_ARGUMENT" = "/data/local/tmp/nova-active-runtime" ]; then
+    if [ -f "$ROOT_ARGUMENT" ]; then
+        active_root=$(/system/bin/tr -d '\r\n' <"$ROOT_ARGUMENT")
+        case "$active_root" in
+            /data/local/tmp/nova-runtimes/*/rootfs)
+                ROOT="$active_root"
+                VERSIONED_RUNTIME=1
+                ;;
+            *)
+                ROOT=/data/local/tmp/nova-holo-rootfs
+                ;;
+        esac
+    else
+        ROOT=/data/local/tmp/nova-holo-rootfs
+    fi
+fi
 STATE="${3:-/data/local/tmp/nova-android-launcher}"
 TERMUX_APK="${4:-}"
 APP_DIR="${5:-}"
@@ -18,6 +36,7 @@ STEAM_DISABLE_SYSTEM_DBUS="${NOVA_ANDROID_LAUNCHER_STEAM_DISABLE_SYSTEM_DBUS:-0}
 STEAM_HOLO_MESA_FIRST="${NOVA_ANDROID_LAUNCHER_STEAM_HOLO_MESA_FIRST:-0}"
 STEAM_FORCE_SOFTWARE_GL="${NOVA_ANDROID_LAUNCHER_STEAM_FORCE_SOFTWARE_GL:-0}"
 STEAM_CEF_ENV_SPLIT="${NOVA_ANDROID_LAUNCHER_STEAM_CEF_ENV_SPLIT:-0}"
+STEAMOS_UPDATE_COMPAT="${NOVA_ANDROID_LAUNCHER_STEAMOS_UPDATE_COMPAT:-0}"
 AUDIO_BRIDGE="${NOVA_ANDROID_LAUNCHER_AUDIO_BRIDGE:-0}"
 AUDIO_BRIDGE_PORT="${NOVA_ANDROID_LAUNCHER_AUDIO_BRIDGE_PORT:-29100}"
 X11_STRETCH="${NOVA_ANDROID_LAUNCHER_X11_STRETCH:-1}"
@@ -108,6 +127,14 @@ case "$STEAM_CEF_ENV_SPLIT" in
         exit 2
         ;;
 esac
+case "$STEAMOS_UPDATE_COMPAT" in
+    0|1)
+        ;;
+    *)
+        echo "invalid NOVA_ANDROID_LAUNCHER_STEAMOS_UPDATE_COMPAT: $STEAMOS_UPDATE_COMPAT" >&2
+        exit 2
+        ;;
+esac
 DBUS_SYSTEM_MODE=1
 if [ "$STEAM_DISABLE_SYSTEM_DBUS" -eq 1 ]; then
     DBUS_SYSTEM_MODE=0
@@ -183,6 +210,47 @@ log() {
         echo "$line" >>"$STATE/launcher.log"
     fi
 }
+
+prepare_versioned_runtime_resolver() {
+    if [ "$VERSIONED_RUNTIME" -ne 1 ]; then
+        log "nova_launcher_resolver=legacy-preserved"
+        return 0
+    fi
+
+    if [ ! -x /system/bin/dumpsys ]; then
+        log "nova_launcher_resolver=unavailable reason=missing_dumpsys"
+        return 0
+    fi
+
+    dns_addresses=$(
+        /system/bin/dumpsys connectivity 2>/dev/null |
+            /system/bin/grep -m 1 'DnsAddresses:' |
+            /system/bin/sed 's/.*DnsAddresses: \[//; s/\] Domains.*//' |
+            /system/bin/tr ',' '\n' |
+            /system/bin/sed 's#^[[:space:]/]*##; s#[[:space:]/]*$##'
+    )
+    resolver_tmp="$ROOT/etc/resolv.conf.nova.$$"
+    /system/bin/mkdir -p "$ROOT/etc"
+    /system/bin/rm -f "$resolver_tmp"
+    for dns in $dns_addresses; do
+        case "$dns" in
+            ''|*[!0-9A-Fa-f:.-]*)
+                continue
+                ;;
+        esac
+        /system/bin/printf 'nameserver %s\n' "$dns" >>"$resolver_tmp"
+    done
+    if [ -s "$resolver_tmp" ]; then
+        /system/bin/chmod 644 "$resolver_tmp"
+        /system/bin/mv -f "$resolver_tmp" "$ROOT/etc/resolv.conf"
+        log "nova_launcher_resolver=pass dns=$(/system/bin/tr '\n' ',' <"$ROOT/etc/resolv.conf" | /system/bin/sed 's/,*$//')"
+    else
+        /system/bin/rm -f "$resolver_tmp"
+        log "nova_launcher_resolver=unavailable reason=no_android_dns"
+    fi
+}
+
+log "nova_launcher_root=$ROOT"
 
 read_state() {
     path="$STATE/$1"
@@ -434,13 +502,21 @@ if ! clear_stale_dbus_state; then
     exit 1
 fi
 
+prepare_versioned_runtime_resolver
+
 mkdir -p "$STATE" "$ROOT/tmp/.X11-unix"
 mkdir -p "$DRIVER_DIR" "$ROOT/usr/bin/steamos-polkit-helpers"
 /system/bin/cp "$NETWORK_COMPAT_SOURCE" "$DRIVER_DIR/nova-steam-network-api-compat.sh"
-/system/bin/cp "$STEAMOS_UPDATE_COMPAT_SOURCE" \
-    "$ROOT/usr/bin/steamos-polkit-helpers/steamos-update"
-/system/bin/chmod 755 "$DRIVER_DIR/nova-steam-network-api-compat.sh" \
-    "$ROOT/usr/bin/steamos-polkit-helpers/steamos-update"
+/system/bin/chmod 755 "$DRIVER_DIR/nova-steam-network-api-compat.sh"
+if [ "$STEAMOS_UPDATE_COMPAT" -eq 1 ]; then
+    /system/bin/cp "$STEAMOS_UPDATE_COMPAT_SOURCE" \
+        "$ROOT/usr/bin/steamos-polkit-helpers/steamos-update"
+    /system/bin/chmod 755 "$ROOT/usr/bin/steamos-polkit-helpers/steamos-update"
+    log "nova_launcher_steamos_update_compat=enabled"
+else
+    /system/bin/rm -f "$ROOT/usr/bin/steamos-polkit-helpers/steamos-update"
+    log "nova_launcher_steamos_update_compat=disabled"
+fi
 for driver_asset in \
     nova-uinput-gamepad-relay \
     libsysv-sem-shim.so \

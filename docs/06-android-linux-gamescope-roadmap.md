@@ -16,6 +16,50 @@ is a research harness only. The app must acquire and verify its app-owned
 Linux/Steam/graphics/compatibility runtime during first-run setup; see [doc
 299](299-nova-standalone-runtime-acquisition-product-requirement-2026-08-10.md).
 
+## Immediate execution queue — 2026-08-10
+
+The next substantive integration is the official ARM64 runtime registration
+from the [SteamclientTermux comparison](333-steamclienttermux-comparison-2026-08-10.md),
+not another Gamescope/AHardwareBuffer or embedded-X11 rewrite. The current
+versioned direct Termux:X11/SteamRT3C profile remains the baseline for QR/OOBE,
+signed-in Big Picture, display, inherited Android networking, physical
+controller input, and the now-confirmed-but-delayed audio path. Preserve
+`/data/local/tmp/nova-holo-rootfs` and keep that profile selectable as the
+rollback comparison.
+
+The running implementation agent should follow this order:
+
+1. **Freeze the baseline.** Keep the current direct-X11 profile unchanged for
+   comparison, add the target-derived per-run log cap/guard, and capture fresh
+   Steam, SteamUI, Proton, and Pressure Vessel artifacts. Do not export Steam
+   authentication state.
+2. **Add an isolated official-runtime profile.** Register Proton 11 ARM64
+   (`AppID 4628740`, depot `4628741`) with its declared Steam Linux Runtime 4
+   ARM64 dependency (`AppID 4185400`, depot `4185401`). Preserve the
+   `require_tool_appid` relationship; do not use the current dependency-neutral
+   wrapper as the success criterion. Stage it versionedly beside, rather than
+   over, the SteamRT3C profile.
+3. **Smoke-test the runtime before launching a game.** Run the Runtime 4
+   `_v2-entry-point --verb=run -- /bin/true` (or the exact equivalent exposed by
+   the installed runtime) through the same Holo/chroot-visible environment.
+   Verify the selected runtime, bind/link cleanliness, ABI startup, and fresh
+   logs.
+4. **Run one first-frame game gate.** Use Geometry Wars or the current small
+   library test with display, input, network, audio, and storage variables held
+   constant; change only the compatibility-tool/runtime selection. Require a
+   fresh Proton/DXVK/Wine/FEX log set and screenshot, then classify the result
+   as game startup, Vulkan device, Vulkan/WSI surface, compositor, or game-level
+   failure.
+5. **Only after that gate passes**, promote the profile and revisit the target's
+   conventional loopback PulseAudio setup, `/proc/net`/route compatibility,
+   full OOBE packaging, embedded X11, and Gamescope/AHardwareBuffer. Those are
+   follow-on improvements, not prerequisites for this runtime A/B test.
+
+This queue is intentionally an A/B experiment: it imports the target's proven
+runtime/tool semantics while leaving Nova's display and Android lifecycle
+work intact. It must not become a wholesale PRoot transplant. The detailed
+comparison and artifact pins remain in doc 333.
+
 ## Target architecture
 
 The Android app should be a control plane and presentation shell. Linux owns the Steam session:

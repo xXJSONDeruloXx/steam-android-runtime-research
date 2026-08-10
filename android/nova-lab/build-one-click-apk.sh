@@ -23,4 +23,35 @@ if [ ! -f "$BUILD_DIR/libnova-alsa-audiotrack-bridge.so" ]; then
     "$SCRIPT_DIR/build-alsa-audiotrack-bridge.sh" >/dev/null
 fi
 
+if [ ! -x "$BUILD_DIR/nova-zstd" ]; then
+    "$SCRIPT_DIR/build-zstd.sh" >/dev/null
+fi
+if [ ! -x "$BUILD_DIR/nova-zip-rebase" ]; then
+    "$SCRIPT_DIR/build-zip-rebase.sh" >/dev/null
+fi
+
+NOVA_KGSL_DRIVER=${NOVA_KGSL_DRIVER:-$BUILD_DIR/mesa-kgsl/libvulkan_freedreno.so}
+if [ ! -f "$NOVA_KGSL_DRIVER" ]; then
+    echo "missing known-good KGSL Turnip driver: $NOVA_KGSL_DRIVER" >&2
+    echo "run build-kgsl-turnip.sh before building the first-run APK" >&2
+    exit 1
+fi
+if [ "$NOVA_KGSL_DRIVER" != "$BUILD_DIR/mesa-kgsl/libvulkan_freedreno.so" ]; then
+    mkdir -p "$BUILD_DIR/mesa-kgsl"
+    cp "$NOVA_KGSL_DRIVER" "$BUILD_DIR/mesa-kgsl/libvulkan_freedreno.so"
+fi
+
+for required_helper in \
+    nova-mount-private \
+    nova-uinput-gamepad-relay \
+    libsysv-sem-shim.so \
+    libnova-cef-env-split.so \
+    libffmpeg-avutil-compat.so \
+    libnova-alsa-audiotrack-bridge.so; do
+    if [ ! -f "$BUILD_DIR/$required_helper" ]; then
+        echo "missing product helper: $BUILD_DIR/$required_helper" >&2
+        exit 1
+    fi
+done
+
 "$SCRIPT_DIR/build.sh"
