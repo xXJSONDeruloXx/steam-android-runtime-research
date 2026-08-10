@@ -584,6 +584,26 @@ transient wrapper, mapping, log directory, and prefix modification will not be
 left installed. A passing result first requires the FEX diagnostic to
 disappear; a game frame remains the stronger success gate.
 
+### Discarded Phase 8 startup attempt
+
+The first `am start -W` attempt returned `LaunchState: COLD`, but the APK
+rejected the request before creating a new session. Its launcher log still
+contained the prior session `20260810T025223Z-28667` and
+`nova_launcher_start=fail reason=existing_nova_runtime`; no fresh Steam,
+Proton, registry, process, or game result exists for this attempt. The
+captured screen is therefore not acceptance evidence.
+
+The exact X11 and runtime cleanup checks found no matching process and zero
+rootfs temporary sockets. The direct stop invocation was interrupted before
+clearing the stale app-owned state directory, so that exact state directory,
+the transient ARM64 wrapper, the temporary mapping, and the generated relay
+scripts were removed only after the process/socket checks passed. The original
+`config.vdf` hash was restored as
+`25c66f417c7f439498d795357e9c8fa308e8f5dc2ed5291ac778b001b993188c`.
+
+The retry must clear the exact app-owned state directory after preflight and
+record a new session ID before treating readiness as current.
+
 ## Cleanup contract
 
 The exact Nova/X11 cleanup helper and rootfs runtime cleanup helper must run
