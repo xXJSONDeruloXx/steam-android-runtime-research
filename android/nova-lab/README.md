@@ -97,6 +97,19 @@ before launching Termux:X11, so a slow first run is visible rather than looking
 like a frozen Steam start. The current clean-runtime OOBE/restart boundary is
 also documented as an acceptance result, not hidden by the product UI.
 
+For a destructive clean-device acceptance run, use the guarded scrub wrapper
+only with its explicit confirmation token:
+
+```sh
+NOVA_SCRUB_CONFIRM=remove-nova-device-state android/nova-lab/scrub-device.sh
+```
+
+It records before/after inventories, stops the Nova session, removes the
+resolved top-level `/data/local/tmp/nova*` experiment set and two documented
+non-`nova` project artifacts, uninstalls the Nova APK, and verifies that
+Termux:X11 remains installed. It does not remove unrelated Android data or
+export Steam credentials.
+
 `deploy-and-test.sh` installs the debug APK, runs the root probe directly through
 `adb shell su`, launches the app, captures filtered logcat, and saves a device
 screenshot under `android/nova-lab/build/`.
