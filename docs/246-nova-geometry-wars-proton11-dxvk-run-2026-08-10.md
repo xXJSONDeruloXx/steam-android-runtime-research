@@ -60,3 +60,16 @@ clean process/mount/socket state.
 
 This declaration is committed and pushed before changing the Proton renderer
 environment or launching the game.
+
+## Harness correction before execution
+
+The first invocation on 2026-08-10T08:08Z did not reach the game. The host
+command passed the whole `su -c` payload as separate `adb shell` arguments;
+the remote shell therefore split the quoted `Geometry Wars` directory at its
+space. Proton reported `wine: failed to open
+"/opt/nova-steam/home/.local/share/Steam/steamapps/common/Geometry"` and no
+Geometry Wars process or frame was created. The APK session was stopped, both
+cleanup helpers returned `pass`, no matching process remained, and only the
+two baseline udev sockets remained. This is a harness setup failure, not a
+renderer result. The corrected retry uses a single remote `su -c "..."`
+argument and a new run identity.
