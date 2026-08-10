@@ -101,7 +101,7 @@ public final class LauncherActivity extends Activity {
         page.addView(title, new LinearLayout.LayoutParams(-1, -2));
 
         TextView subtitle = new TextView(this);
-        subtitle.setText("Rooted ARM64 Steam session · 1280×960 target");
+        subtitle.setText("Prepared Nova profile · Steam, controller, audio · 1280×960 target");
         subtitle.setTextColor(Color.LTGRAY);
         subtitle.setTextSize(14);
         page.addView(subtitle, new LinearLayout.LayoutParams(-1, -2));
@@ -210,14 +210,17 @@ public final class LauncherActivity extends Activity {
         service.putExtra(LauncherService.EXTRA_ASSET_DIRECTORY,
                 assetDirectory.getAbsolutePath());
         service.putExtra(LauncherService.EXTRA_TERMUX_APK, x11Info.sourceDir);
-        if (getIntent().getBooleanExtra(EXTRA_RUN_AUDIO_BRIDGE_STEAM, false)) {
-            service.putExtra(LauncherService.EXTRA_AUDIO_BRIDGE, true);
-            service.putExtra(LauncherService.EXTRA_AUDIO_BRIDGE_PORT,
-                    AudioPcmBridge.DEFAULT_PORT);
-        }
-        boolean hardwareAccel = getIntent().getBooleanExtra(EXTRA_HARDWARE_ACCEL, false);
+        // The visible Start button must launch the same prepared-device profile
+        // that has been tested through the adb harness. Explicit extras still
+        // override these defaults for diagnostics and bounded experiments.
+        boolean audioBridge = getIntent().getBooleanExtra(
+                EXTRA_RUN_AUDIO_BRIDGE_STEAM, true);
+        service.putExtra(LauncherService.EXTRA_AUDIO_BRIDGE, audioBridge);
+        service.putExtra(LauncherService.EXTRA_AUDIO_BRIDGE_PORT,
+                AudioPcmBridge.DEFAULT_PORT);
+        boolean hardwareAccel = getIntent().getBooleanExtra(EXTRA_HARDWARE_ACCEL, true);
         boolean cefDisableGpu = getIntent().hasExtra(EXTRA_CEF_DISABLE_GPU)
-                ? getIntent().getBooleanExtra(EXTRA_CEF_DISABLE_GPU, false) : !hardwareAccel;
+                ? getIntent().getBooleanExtra(EXTRA_CEF_DISABLE_GPU, false) : true;
         String steamUiMode = "minimal".equals(getIntent().getStringExtra(EXTRA_STEAM_UI_MODE))
                 ? "minimal" : "gamepadui";
         boolean steamDisablePreload = getIntent().getBooleanExtra(EXTRA_STEAM_DISABLE_PRELOAD, false);
@@ -226,9 +229,9 @@ public final class LauncherActivity extends Activity {
         boolean steamHoloMesaFirst = getIntent().getBooleanExtra(
                 EXTRA_STEAM_HOLO_MESA_FIRST, false);
         boolean steamForceSoftwareGl = getIntent().getBooleanExtra(
-                EXTRA_STEAM_FORCE_SOFTWARE_GL, false);
+                EXTRA_STEAM_FORCE_SOFTWARE_GL, true);
         boolean steamCefEnvSplit = getIntent().getBooleanExtra(
-                EXTRA_STEAM_CEF_ENV_SPLIT, false);
+                EXTRA_STEAM_CEF_ENV_SPLIT, true);
         service.putExtra(LauncherService.EXTRA_HARDWARE_ACCEL, hardwareAccel);
         service.putExtra(LauncherService.EXTRA_CEF_DISABLE_GPU, cefDisableGpu);
         service.putExtra(LauncherService.EXTRA_STEAM_UI_MODE, steamUiMode);
