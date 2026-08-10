@@ -24,6 +24,7 @@ STEAM_HARDWARE_ACCEL=${NOVA_TERMUX_X11_STEAM_HARDWARE_ACCEL:-0}
 STEAM_VULKAN_ICD=${NOVA_TERMUX_X11_STEAM_VULKAN_ICD:-/opt/nova-kgsl-driver/freedreno-kgsl.icd.json}
 CEF_DISABLE_GPU=${NOVA_TERMUX_X11_STEAM_CEF_DISABLE_GPU:-}
 STEAM_UI_MODE=${NOVA_TERMUX_X11_STEAM_UI_MODE:-gamepadui}
+STEAM_DISABLE_PRELOAD=${NOVA_TERMUX_X11_STEAM_DISABLE_PRELOAD:-0}
 AUDIO_BRIDGE=${NOVA_TERMUX_X11_STEAM_AUDIO_BRIDGE:-0}
 AUDIO_BRIDGE_PORT=${NOVA_TERMUX_X11_STEAM_AUDIO_BRIDGE_PORT:-29100}
 AUDIO_BRIDGE_LOG=${NOVA_TERMUX_X11_STEAM_AUDIO_BRIDGE_LOG:-/tmp/nova-alsa-audiotrack-bridge.log}
@@ -114,6 +115,14 @@ case "$STEAM_UI_MODE" in
         ;;
     *)
         echo "invalid NOVA_TERMUX_X11_STEAM_UI_MODE: $STEAM_UI_MODE" >&2
+        exit 2
+        ;;
+esac
+case "$STEAM_DISABLE_PRELOAD" in
+    0|1)
+        ;;
+    *)
+        echo "invalid NOVA_TERMUX_X11_STEAM_DISABLE_PRELOAD: $STEAM_DISABLE_PRELOAD" >&2
         exit 2
         ;;
 esac
@@ -326,6 +335,7 @@ log "client_hardware_accel=$STEAM_HARDWARE_ACCEL"
 log "client_vulkan_icd=$STEAM_VULKAN_ICD"
 log "client_cef_disable_gpu=$CEF_DISABLE_GPU"
 log "client_steam_ui_mode=$STEAM_UI_MODE"
+log "client_disable_preload=$STEAM_DISABLE_PRELOAD"
 log "client_audio_bridge=$AUDIO_BRIDGE"
 log "client_audio_bridge_port=$AUDIO_BRIDGE_PORT"
 log "client_audio_bridge_log=$AUDIO_BRIDGE_LOG"
@@ -435,7 +445,9 @@ else
 fi
 export LD_LIBRARY_PATH="$STEAM_ROOT/steamrtarm64:$STEAM_ROOT/lib/aarch64-linux-gnu:/usr/lib${steam_runtime_files_bin:+:${steam_runtime_files_bin%/bin}/lib/aarch64-linux-gnu}${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
 preload_paths=
-if [ "$AUDIO_BRIDGE" -eq 1 ]; then
+if [ "$STEAM_DISABLE_PRELOAD" -eq 1 ]; then
+    log "client_preload_mode=disabled"
+elif [ "$AUDIO_BRIDGE" -eq 1 ]; then
     if [ ! -f /opt/nova-kgsl-driver/libnova-alsa-audiotrack-bridge.so ]; then
         log "client_started=fail"
         log "client_error=missing_audio_bridge_library"
@@ -447,15 +459,20 @@ else
     unset NOVA_TERMUX_X11_STEAM_AUDIO_BRIDGE_LOG
 fi
 if [ -f /opt/nova-kgsl-driver/libsysv-sem-shim.so ]; then
-    if [ -n "$preload_paths" ]; then
-        preload_paths="$preload_paths:/opt/nova-kgsl-driver/libsysv-sem-shim.so"
-    else
-        preload_paths=/opt/nova-kgsl-driver/libsysv-sem-shim.so
+    if [ "$STEAM_DISABLE_PRELOAD" -eq 0 ]; then
+        if [ -n "$preload_paths" ]; then
+            preload_paths="$preload_paths:/opt/nova-kgsl-driver/libsysv-sem-shim.so"
+        else
+            preload_paths=/opt/nova-kgsl-driver/libsysv-sem-shim.so
+        fi
     fi
 fi
 if [ -n "$preload_paths" ]; then
     export LD_PRELOAD="$preload_paths"
     log "client_preload=$LD_PRELOAD"
+elif [ "$STEAM_DISABLE_PRELOAD" -eq 1 ]; then
+    unset LD_PRELOAD
+    log "client_preload=disabled"
 else
     unset LD_PRELOAD
     log "client_preload=missing_libsysv_sem_shim"
