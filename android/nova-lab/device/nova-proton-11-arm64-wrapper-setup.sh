@@ -28,10 +28,33 @@ for path in "$PROTON_ROOT"/*; do
         toolmanifest.vdf)
             ;;
         *)
-            /system/bin/ln -s "$path" "$WRAPPER_ROOT/$name"
+            # The wrapper is executed after chroot. An Android-visible
+            # absolute target such as /data/local/tmp/nova-holo-rootfs/... is
+            # outside that chroot and becomes a broken link there. Keep the
+            # link relative to the Steam tree so both views resolve it.
+            /system/bin/ln -s "../../steamapps/common/Proton 11.0 (ARM64)/$name" \
+                "$WRAPPER_ROOT/$name"
             ;;
     esac
 done
+
+proton_link_target="$(/system/bin/readlink "$WRAPPER_ROOT/proton" 2>/dev/null || true)"
+case "$proton_link_target" in
+    "")
+        echo "proton11_wrapper=fail reason=missing_proton_link" >&2
+        exit 3
+        ;;
+    /*)
+        echo "proton11_wrapper=fail reason=absolute_proton_link target=$proton_link_target" >&2
+        exit 3
+        ;;
+esac
+if [ ! -e "$WRAPPER_ROOT/proton" ] || \
+    [ ! -e "$WRAPPER_ROOT/files/bin-arm64/wine" ]; then
+    echo "proton11_wrapper=fail reason=broken_chroot_visible_link" >&2
+    exit 3
+fi
+
 /system/bin/cp "$PROTON_ROOT/toolmanifest.vdf" "$WRAPPER_ROOT/toolmanifest.vdf"
 /system/bin/sed -i '/4185400/d' \
     "$WRAPPER_ROOT/toolmanifest.vdf"
