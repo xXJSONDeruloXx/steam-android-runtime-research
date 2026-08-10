@@ -91,3 +91,92 @@ buffer evidence either way.
 No game title should be launched from a run without a fresh stable Steam
 frame. Commit and push this predeclaration before installing the APK or
 launching the device session.
+
+## Result
+
+Status: completed as a rendering diagnostic; forcing software GL inside Steam
+kept the ARM64 client alive and produced a stable logged-in desktop Steam UI
+on the hardware-backed Termux:X11 surface.
+
+The source commit was `5e848fc`. The rebuilt APK SHA-256 was
+`809f5c09801efa2f5ca75534123fd1d64fd5521b01e24245b78b346ed92d334b`, and
+the installed device APK reported the same hash. The run ID was
+`steam-20260810T060728Z-hardware-client-software-gl`; its stage token was
+`20260810T060756Z-22867`.
+
+The launcher selected the intended split:
+
+```text
+nova_launcher_hardware_accel=1
+nova_launcher_vulkan_icd=/opt/nova-kgsl-driver/freedreno-kgsl.icd.json
+nova_launcher_cef_disable_gpu=1
+nova_launcher_steam_ui_mode=minimal
+nova_launcher_steam_disable_preload=0
+nova_launcher_steam_disable_system_dbus=0
+nova_launcher_steam_holo_mesa_first=0
+nova_launcher_steam_force_software_gl=1
+nova_launcher_ready=pass display=:0 geometry=1280x960
+```
+
+The client retained the explicit Freedreno Vulkan ICD and semaphore shim but
+used software GL for its GLX path:
+
+```text
+client_hardware_accel=1
+client_vk_icd=/opt/nova-kgsl-driver/freedreno-kgsl.icd.json
+client_force_software_gl=1
+client_gl_mode=software
+client_mesa_driver=swrast
+client_gallium_driver=softpipe
+client_libgl_always_software=1
+client_preload=/opt/nova-kgsl-driver/libsysv-sem-shim.so
+client_dbus_system_status=pass
+client_dbus_session_status=pass
+client_flags_final=... -nobootstrapperupdate -skipinitialbootstrap -no-child-update-ui -no-cef-sandbox -cef-disable-gpu -fullscreen -fulldesktopres
+client_started=pass
+```
+
+Unlike every hardware-GL run, the client did not emit `client_status=139`.
+The live process snapshot retained the ARM64 Steam client, multiple
+`steamwebhelper` processes, both D-Bus daemons, and Termux:X11. Two captures
+eight seconds apart were both rendered Steam frames with different hashes.
+The visible UI was the authenticated desktop client with Store/Library and
+Friends views, not the Nova launcher or a black surface. Current webhelper
+records also show the active Steam browser windows and a 1280x960 available
+screen; the desktop client remains letterboxed inside the 1280x960 surface
+instead of presenting the desired 4:3 GamepadUI/game surface.
+
+Termux:X11 independently continued to load Android Adreno EGL (`0676.53`,
+EGL 1.5), complete XCB setup, and exchange 1280x1024 and 1280x960 shared
+buffers. This is therefore a meaningful rendering unblock: the Android
+display path is hardware-backed, while Steam's own GLX client path is the
+part forced to software. It is not yet evidence of hardware-rendered Steam
+games.
+
+No game was launched during this acceptance capture. The Steam session was
+intentionally left alive after the stable-frame evidence for a separately
+documented small-game launch action; its exact cleanup will be recorded with
+that action rather than reusing this result as a new readiness baseline.
+
+Fresh artifacts are retained at
+`/tmp/steam-20260810T060728Z-hardware-client-software-gl/`:
+
+| Artifact | SHA-256 |
+| --- | --- |
+| `launcher.log` | `1dd8fe98f564f4ad7a157b65eb527977d2612d0078c17959e3cbde68291348db` |
+| `client.log` | `1619903f56f05254d534cdef3a73b870320808649bc159c8b5f57bca9e223eec` |
+| `client-runtime.log` | `b1a9dc12e328ef9b822f0ea09f8a08bdb78b0d6a2127604590912ec400284304` |
+| `client-stderr.log` | `aa2c3bb07f8b73648eb598b2d25bc1bb8c6da6e66276c318cb62d1f3dc93bb29` |
+| `server.log` | `1d5cad475fb68e5ea521a53985eeaffda0ccdfcaef2960ba45c988d2fd33260f` |
+| `screen-live-01.png` | `0c22fe1c1c46850642725ed76b2af7e01e8aa64cac4076756d31991a17430c32` |
+| `screen-live-02.png` | `f91445e3aafb722113680b038218f6962f132dcf20816ee6110735a7519b1992` |
+| `process-snapshot.txt` | `98ae55e53817cd1820ee1dccea503688f00d7baee5244117d9c41c31d1213933` |
+| `logcat.txt` | `fcacdda6f667ac3d2ba16d476fb66f0c8570281c4adb4ba2e8d4708a56d5c82d` |
+| `current-webhelper-lines.txt` | `fe207ae91f2d937495b9cb55b9f50648d5d29f6b1abbdae847c25f5085c382ff` |
+| `steam-steamwebhelper.log` | `55a152021fb2bb8bfa9124f98cf77112027bb680bace8365a8a8f5aefb10d5b6` |
+| `steam-gameprocess_log.txt` | `ddb227143c914fdc07ce8939a1754b70c6e633ed7f7ab71e74bd45fc475` |
+
+The next controlled action may use this live session to request one installed
+small title, beginning with Geometry Wars, but it must keep the software-GL
+diagnostic boundary explicit and must not be reported as a hardware-rendering
+result.
