@@ -302,6 +302,13 @@ X11 cleanup marker was pass with absent server/client/parent/socket state, and
 the post-stop check found no matching runtime process or run-scoped bridge
 files.
 
+The proposed sender fix is deliberately narrow: the preload removes its
+one-second `SO_SNDTIMEO`, enlarges the loopback send buffer, and retries
+`EAGAIN` after waiting for writability. Local ARM64 compilation, exported
+symbol inspection, shell syntax checks, Java compilation, APK signing, and
+APK build all pass for that change. The next device run must use the newly
+built APK and library hashes, not the prior instrumented artifact.
+
 ## Acceptance gates
 
 The bounded device run must establish, in order:

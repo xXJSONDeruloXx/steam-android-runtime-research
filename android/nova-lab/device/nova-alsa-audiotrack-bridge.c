@@ -5,13 +5,13 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <netinet/in.h>
+#include <poll.h>
 #include <pthread.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/socket.h>
-#include <sys/time.h>
 #include <unistd.h>
 
 /* Keep this shim independent of the ALSA development headers. The opaque
@@ -155,6 +155,29 @@ static int send_all(int fd, const void *payload, size_t length, size_t *sent_out
         if (result < 0 && errno == EINTR) {
             continue;
         }
+        if (result < 0 && (errno == EAGAIN || errno == EWOULDBLOCK)) {
+            struct pollfd waiter = {
+                .fd = fd,
+                .events = POLLOUT,
+                .revents = 0
+            };
+            int poll_result;
+            do {
+                poll_result = poll(&waiter, 1, 1000);
+            } while (poll_result < 0 && errno == EINTR);
+            if (poll_result >= 0 &&
+                (poll_result == 0 ||
+                 (waiter.revents & (POLLOUT | POLLERR | POLLHUP | POLLNVAL)))) {
+                if (poll_result > 0 &&
+                    (waiter.revents & (POLLERR | POLLHUP | POLLNVAL))) {
+                    if (sent_out != NULL) {
+                        *sent_out = sent;
+                    }
+                    return -1;
+                }
+                continue;
+            }
+        }
         if (result <= 0) {
             if (sent_out != NULL) {
                 *sent_out = sent;
@@ -174,13 +197,14 @@ static int connect_audio_endpoint(struct nova_pcm_state *state)
     struct sockaddr_in address;
     unsigned int port = bridge_port();
     int fd;
-    struct timeval timeout = {.tv_sec = 1, .tv_usec = 0};
+    int send_buffer_bytes = 1024 * 1024;
 
     fd = socket(AF_INET, SOCK_STREAM, 0);
     if (fd < 0) {
         return -1;
     }
-    (void)setsockopt(fd, SOL_SOCKET, SO_SNDTIMEO, &timeout, sizeof(timeout));
+    (void)setsockopt(fd, SOL_SOCKET, SO_SNDBUF,
+                     &send_buffer_bytes, sizeof(send_buffer_bytes));
     memset(&address, 0, sizeof(address));
     address.sin_family = AF_INET;
     address.sin_port = htons((uint16_t)port);
