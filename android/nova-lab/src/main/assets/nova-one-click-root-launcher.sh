@@ -191,6 +191,33 @@ read_state() {
     fi
 }
 
+parent_pid() {
+    target_pid="$1"
+    /system/bin/ps -A -o PID,PPID 2>/dev/null |
+        /system/bin/awk -v target="$target_pid" \
+            'NR > 1 && $1 == target { print $2; exit }' |
+        /system/bin/tr -d '\r'
+}
+
+append_cleanup_ancestors() {
+    ancestor_pid="${PPID:-}"
+    depth=0
+    while [ "$depth" -lt 16 ]; do
+        case "$ancestor_pid" in
+            ''|*[!0-9]*|0|1)
+                break
+                ;;
+        esac
+        cleanup_exclude_pids="$cleanup_exclude_pids $ancestor_pid"
+        next_pid="$(parent_pid "$ancestor_pid")"
+        if [ "$next_pid" = "$ancestor_pid" ]; then
+            break
+        fi
+        ancestor_pid="$next_pid"
+        depth=$((depth + 1))
+    done
+}
+
 restore_x11_preferences() {
     if [ ! -f "$TERMUX_PREFS_BACKUP" ]; then
         return 0
@@ -313,9 +340,8 @@ stop_session() {
         cleanup_status=1
     fi
     cleanup_exclude_pids="$$"
-    if [ -n "${PPID:-}" ]; then
-        cleanup_exclude_pids="$cleanup_exclude_pids $PPID"
-    fi
+    append_cleanup_ancestors
+    log "nova_launcher_cleanup_exclude_pids=$cleanup_exclude_pids"
     if [ -x "$RUNTIME_CLEANUP" ]; then
         NOVA_RUNTIME_CLEANUP_EXCLUDE_PIDS="$cleanup_exclude_pids" \
             /system/bin/sh "$RUNTIME_CLEANUP" "$ROOT" \
