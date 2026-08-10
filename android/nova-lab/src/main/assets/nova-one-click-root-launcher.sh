@@ -11,6 +11,7 @@ DISPLAY_NUMBER="${NOVA_ANDROID_LAUNCHER_DISPLAY:-0}"
 DISPLAY_VALUE=":$DISPLAY_NUMBER"
 HARDWARE_ACCEL="${NOVA_ANDROID_LAUNCHER_HARDWARE_ACCEL:-0}"
 VULKAN_ICD="${NOVA_ANDROID_LAUNCHER_VULKAN_ICD:-/opt/nova-kgsl-driver/freedreno-kgsl.icd.json}"
+CEF_DISABLE_GPU="${NOVA_ANDROID_LAUNCHER_CEF_DISABLE_GPU:-}"
 AUDIO_BRIDGE="${NOVA_ANDROID_LAUNCHER_AUDIO_BRIDGE:-0}"
 AUDIO_BRIDGE_PORT="${NOVA_ANDROID_LAUNCHER_AUDIO_BRIDGE_PORT:-29100}"
 X11_SOCKET="$ROOT/tmp/.X11-unix/X$DISPLAY_NUMBER"
@@ -29,6 +30,20 @@ case "$HARDWARE_ACCEL" in
         ;;
     *)
         echo "invalid NOVA_ANDROID_LAUNCHER_HARDWARE_ACCEL: $HARDWARE_ACCEL" >&2
+        exit 2
+        ;;
+esac
+if [ -z "$CEF_DISABLE_GPU" ]; then
+    case "$HARDWARE_ACCEL" in
+        0) CEF_DISABLE_GPU=1 ;;
+        1) CEF_DISABLE_GPU=0 ;;
+    esac
+fi
+case "$CEF_DISABLE_GPU" in
+    0|1)
+        ;;
+    *)
+        echo "invalid NOVA_ANDROID_LAUNCHER_CEF_DISABLE_GPU: $CEF_DISABLE_GPU" >&2
         exit 2
         ;;
 esac
@@ -221,6 +236,7 @@ printf '%s\n' "1" >"$STATE/client-active"
 printf '%s\n' "$session" >"$STATE/session"
 log "nova_launcher_hardware_accel=$HARDWARE_ACCEL"
 log "nova_launcher_vulkan_icd=$VULKAN_ICD"
+log "nova_launcher_cef_disable_gpu=$CEF_DISABLE_GPU"
 log "nova_launcher_audio_bridge=$AUDIO_BRIDGE"
 log "nova_launcher_audio_bridge_port=$AUDIO_BRIDGE_PORT"
 
@@ -312,6 +328,7 @@ fi
     NOVA_TERMUX_X11_STEAM_FULLDESKTOPRES=1 \
     NOVA_TERMUX_X11_STEAM_HARDWARE_ACCEL="$HARDWARE_ACCEL" \
     NOVA_TERMUX_X11_STEAM_VULKAN_ICD="$VULKAN_ICD" \
+    NOVA_TERMUX_X11_STEAM_CEF_DISABLE_GPU="$CEF_DISABLE_GPU" \
     NOVA_TERMUX_X11_STEAM_AUDIO_BRIDGE="$AUDIO_BRIDGE" \
     NOVA_TERMUX_X11_STEAM_AUDIO_BRIDGE_PORT="$AUDIO_BRIDGE_PORT" \
     NOVA_X11_ALLOW_INPUT_EVENTS="$allow_input_events" \

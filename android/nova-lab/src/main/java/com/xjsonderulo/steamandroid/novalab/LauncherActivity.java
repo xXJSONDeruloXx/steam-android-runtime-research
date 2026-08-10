@@ -35,6 +35,8 @@ public final class LauncherActivity extends Activity {
             "run_audio_bridge_steam";
     private static final String EXTRA_HARDWARE_ACCEL =
             LauncherService.EXTRA_HARDWARE_ACCEL;
+    private static final String EXTRA_CEF_DISABLE_GPU =
+            LauncherService.EXTRA_CEF_DISABLE_GPU;
     private static final int REQUEST_POST_NOTIFICATIONS = 42;
     private static final String[] REQUIRED_ASSETS = {
             "nova-one-click-root-launcher.sh",
@@ -200,8 +202,11 @@ public final class LauncherActivity extends Activity {
             service.putExtra(LauncherService.EXTRA_AUDIO_BRIDGE_PORT,
                     AudioPcmBridge.DEFAULT_PORT);
         }
-        service.putExtra(LauncherService.EXTRA_HARDWARE_ACCEL,
-                getIntent().getBooleanExtra(EXTRA_HARDWARE_ACCEL, false));
+        boolean hardwareAccel = getIntent().getBooleanExtra(EXTRA_HARDWARE_ACCEL, false);
+        boolean cefDisableGpu = getIntent().hasExtra(EXTRA_CEF_DISABLE_GPU)
+                ? getIntent().getBooleanExtra(EXTRA_CEF_DISABLE_GPU, false) : !hardwareAccel;
+        service.putExtra(LauncherService.EXTRA_HARDWARE_ACCEL, hardwareAccel);
+        service.putExtra(LauncherService.EXTRA_CEF_DISABLE_GPU, cefDisableGpu);
         if (Build.VERSION.SDK_INT >= 26) {
             startForegroundService(service);
         } else {
