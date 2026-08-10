@@ -90,6 +90,10 @@ runtime_process_snapshot() {
     if [ -z "$snapshot_targets" ]; then
         return 0
     fi
+    # Android toybox awk rejects a multiline value passed through `-v`. The
+    # PID list is intentionally numeric, so normalize its separators before
+    # handing it to awk while preserving the same membership test.
+    snapshot_targets=$(printf '%s\n' "$snapshot_targets" | tr '\n' ' ')
     echo "nova_runtime_cleanup_${snapshot_label}_snapshot_begin"
     /system/bin/ps -A -o PID,PPID,ARGS 2>/dev/null | \
         /system/bin/awk -v targets="$snapshot_targets" '
