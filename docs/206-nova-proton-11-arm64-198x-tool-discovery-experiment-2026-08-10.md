@@ -65,6 +65,34 @@ Success means the fresh client registers the ARM64 Proton package with an
 explicit usable tool name. A stable installation without a fresh registration
 is a tool-catalog lifecycle boundary, not a game-launch result.
 
+## Discarded harness attempts
+
+The first launch attempt was discarded before interpreting any Steam result.
+The preflight left the prior `/data/local/tmp/nova-android-launcher/ready`
+marker in place, so a one-second readiness poll observed stale state before
+the new launcher had written its session. The actual new session was
+`20260810T015120Z-25822`; it was captured only as a control artifact and then
+terminated through the exact helpers. No compatibility registration or game
+result from that attempt is used here.
+
+The following start was also discarded: the APK Activity had not been
+force-stopped after that teardown, so Android reported that the intent was
+delivered to the already-running top-most Activity and no new runtime was
+created. The retry below therefore force-stops the APK after every discarded
+session and requires both a missing old marker before launch and a new session
+ID after launch.
+
+## Phase 1 retry predeclared run
+
+Run ID: `proton-arm64-20260810T015323Z-tool-discovery-retry`
+
+The retry keeps the original profile and source commit. It adds an explicit
+APK force-stop, removes only the prior launcher state markers (`ready`,
+`client-active`, `server-token`, `client-token`, and `session`), records the
+pre-launch compatibility-log line count, and accepts readiness only after the
+session ID and launcher log belong to this retry. It will not launch 198X or
+change `CompatToolMapping`.
+
 ## Decision boundary
 
 The next run may change only the 198X compatibility mapping after this phase
