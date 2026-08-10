@@ -326,6 +326,7 @@ the gamescope frames on its own surface.
 - [Nova Proton 11 ARM64 Peggle Deluxe experiment](docs/208-nova-proton-11-arm64-peggle-deluxe-experiment-2026-08-10.md)
 - [Nova Termux:X11 Steam hardware-acceleration UI experiment](docs/209-nova-termux-x11-steam-hardware-accel-ui-experiment-2026-08-10.md)
 - [Nova one-click hardware profile mount-master retry](docs/210-nova-one-click-hardware-profile-mount-master-retry-2026-08-10.md)
+- [Nova one-click hardware profile clean rerun](docs/211-nova-one-click-hardware-profile-clean-rerun-2026-08-10.md)
 - [Retroid Pocket Nova flashing kit](tools/retroid-pocket-nova/README.md)
 
 ## Evidence standard

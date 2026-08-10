@@ -56,3 +56,29 @@ Before launch and after capture, use the exact Nova/X11 and rootfs cleanup
 helpers. Verify no matching Steam, Wine, FEX, Gamescope, Termux:X11, relay,
 mount, socket, or temporary run state remains. Commit and push this
 declaration and the source fix before starting the device session.
+
+## Discarded retry — device session `20260810T043633Z-28688`
+
+The rebuilt APK (`3cf09db54b4aa45518326ddcc874b32ae5bd9d55b67b412fd928c1ae9e5462a5`)
+was launched through `LauncherActivity` with `hardware_accel=true`. The
+mount-master change worked far enough for the fresh server PID `28776` to
+load `com.termux.x11.CmdEntryPoint`, initialize the current X11 Activity, and
+reach XCB/EGL. It then reported:
+
+```text
+LorieNative: Cannot establish any listening sockets - Make sure an X server isn't already running
+LorieNative: Server stopped (1)
+nova_launcher_start=fail reason=x11_socket_not_ready
+```
+
+This retry is discarded as a valid hardware result because the earlier manual
+classpath probe was still alive as the exact known process
+`termux-x11-probe` PID `26617` (with child `26649`) and owned the X server
+socket. The fresh server collided with that leftover diagnostic process before
+Steam could launch. The stale probe has since been terminated explicitly and
+the rootfs/X11 cleanup helpers have returned `pass`. Fresh artifacts are under
+`/tmp/gpu-20260810T044000Z-x11-steam-hardware-mount-master/`.
+
+The mount-master fix is therefore supported by the class-loading comparison,
+but this retry provides no hardware Steam UI or rendering evidence. A new
+clean run with no manual X11 process must be predeclared before repeating.
