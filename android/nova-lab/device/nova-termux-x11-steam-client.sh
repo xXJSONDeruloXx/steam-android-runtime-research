@@ -487,6 +487,20 @@ if ! /usr/bin/chown "$STEAM_UID:$STEAM_GID" "$RUNTIME_DIR" ||
 fi
 log "client_runtime_owner_status=pass"
 
+# The ARM64 seed can leave the conventional per-user Steam control directory
+# root-owned. Steam needs to create/update steam.token there during normal
+# bootstrap and login. Repair only the directory boundary in place; never
+# read, copy, or back up authentication material.
+STEAM_DOT_DIR="$STEAM_HOME/.steam"
+if ! /bin/mkdir -p "$STEAM_DOT_DIR" ||
+    ! /usr/bin/chown "$STEAM_UID:$STEAM_GID" "$STEAM_DOT_DIR" ||
+    ! /usr/bin/chmod 700 "$STEAM_DOT_DIR"; then
+    log "client_steam_dot_dir_owner_status=fail"
+    exit 1
+fi
+log "client_steam_dot_dir_owner_status=pass"
+log "client_steam_dot_dir=$STEAM_DOT_DIR"
+
 # The seeded rootfs may carry a root-owned HOME cache even though Steam runs
 # under the stable non-root uid below.  CEF/Mesa disables its shader cache when
 # this directory is inaccessible; repair only this disposable cache boundary

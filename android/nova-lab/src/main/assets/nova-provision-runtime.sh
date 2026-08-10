@@ -497,6 +497,9 @@ done
 /system/bin/chown "$steam_home_uid:$steam_home_gid" "$steam_home" \
     "$steam_home/.local" "$steam_home/.local/share"
 /system/bin/chmod 755 "$steam_home" "$steam_home/.local" "$steam_home/.local/share"
+/system/bin/mkdir -p "$steam_home/.steam"
+/system/bin/chown "$steam_uid:$steam_gid" "$steam_home/.steam"
+/system/bin/chmod 700 "$steam_home/.steam"
 
 legacy_steam="$LEGACY_ROOT/opt/nova-steam/home/.local/share/Steam"
 if [ -d "$legacy_steam" ]; then
