@@ -317,6 +317,7 @@ the gamescope frames on its own surface.
 - [Nova one-click APK v0.3 acceptance boundary](docs/199-nova-one-click-apk-v03-acceptance-boundary-2026-08-09.md)
 - [Nova Termux:X11 hardware-acceleration capability probe](docs/200-nova-termux-x11-hardware-accel-probe-2026-08-09.md)
 - [Nova Steam-to-Android AudioTrack PCM bridge experiment](docs/201-nova-steam-audiotrack-pcm-bridge-experiment-2026-08-09.md)
+- [Nova Termux:X11 aspect-ratio visual check](docs/202-nova-termux-x11-aspect-ratio-visual-check-2026-08-09.md)
 - [Retroid Pocket Nova flashing kit](tools/retroid-pocket-nova/README.md)
 
 ## Evidence standard
