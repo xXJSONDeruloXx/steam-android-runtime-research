@@ -70,3 +70,11 @@ option: it returned status `1` with the program's usage text immediately after
 `mount_private=pass` and `x11_namespace_input=pass`. No Vulkan instance or
 device was created, and no game or prefix state changed. The same run will
 retry with the supported default text invocation (`/usr/bin/vulkaninfo`).
+
+The first bounded game invocation then reached Proton but stopped before Wine
+created a game process: the declared per-run `PROTON_LOG_DIR` did not yet
+exist, so Proton returned `FileNotFoundError` while opening
+`steam-8400.log`. The run had already passed `mount_private` and
+`x11_namespace_input`; no game, Wine process, prefix file, or Vulkan state was
+changed. The exact run directory will be created before repeating the same
+launch.
