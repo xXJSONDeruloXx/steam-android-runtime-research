@@ -251,6 +251,57 @@ no partial-frame warning and a matching stream-close/send record. If the
 client still closes mid-write, retain the byte count and treat that as the
 Steam audio lifecycle boundary rather than masking it in the Android service.
 
+## Instrumented handoff result — `audio-20260810T001100Z-bridge-instrumented`
+
+The instrumented APK was built from commit `e5d5aa8` and reran with the same
+software, fullscreen, signed-in Steam profile. It did not sample physical or
+synthetic input. The Android listener and real Steam client again reached the
+same 48 kHz stereo `AudioTrack` path before teardown.
+
+The root-side event log made the earlier partial-frame tails attributable:
+
+```text
+event=pcm_open                         count=1
+event=connected                        count=3
+event=header_sent                      count=3
+event=pcm_frames_attempted             count=1833
+event=pcm_frames_sent                  count=1831
+event=pcm_send_failed_bytes            value=3051 errno=11
+event=pcm_send_failed_bytes            value=4217 errno=11
+event=pcm_close                       count=1
+```
+
+`errno=11` is `EAGAIN`; the two byte counts are respectively 3 and 1 modulo
+the 4-byte stereo S16 frame size. The Android receiver reported the matching
+`partial_pcm_frame bytes=3` and `partial_pcm_frame bytes=1` errors. The
+receiver is therefore observing the prefix that the preload sent before its
+one-second `SO_SNDTIMEO` expired, not inventing misalignment while reading a
+complete PCM write. Successful sends continued across three connections, and
+the service closed with `frames=3753752 bytes=15015008`.
+
+This closes the current diagnosis: the bridge needs sender-side backpressure
+handling (or a deliberately blocking send policy) before it can be called a
+clean continuous stream. The next source change should address the timeout
+behavior, then repeat this same run. The product default remains disabled.
+
+Run artifacts:
+
+- APK SHA-256:
+  `d5b7a5dfff21e577a134ab544dfec88b0acf967ae009eade353bf1d62fd9e155`;
+- instrumented ARM64 preload SHA-256:
+  `1a76ef1888242f7e76ac3b07777c66b1fa12538b49777fdaae93c0a031a4e65a`;
+- instrumented preload source SHA-256:
+  `0877eee7b4496fddc997fcaf19da10a461f7bcee9364f59c410dfabb76e86946`;
+- bridge event-log SHA-256:
+  `6547815e3e197ecaa3979da09f6b79723574bf16a550f71d64540880dd505c8a`;
+- final Android logcat SHA-256:
+  `6e4f6d0eacaaad54c10cbcdbe1ba115330505285c74d7663195523d83cddd1df`.
+
+The exact Nova cleanup marker was pass with an empty `remaining=` field, the
+X11 cleanup marker was pass with absent server/client/parent/socket state, and
+the post-stop check found no matching runtime process or run-scoped bridge
+files.
+
 ## Acceptance gates
 
 The bounded device run must establish, in order:
