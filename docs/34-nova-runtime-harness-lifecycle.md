@@ -44,6 +44,8 @@ other rootfs experiments, and the host shell are outside this test's authority.
   rootfs path are included;
 - sends TERM, waits, sends KILL to any exact-scope remainder, and verifies the
   final process set;
+- normalizes newline-separated PID snapshots before passing them to Android's
+  toybox `awk`, so a successful cleanup does not hide a formatting warning;
 - is idempotent and emits a machine-readable `nova_runtime_cleanup=pass`
   marker.
 
