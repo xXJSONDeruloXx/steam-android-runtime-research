@@ -625,6 +625,54 @@ and clean the session, restore the three prefix registry files byte-for-byte,
 restore `proton_hotfix`, remove the wrapper and staging directory, and verify
 that no matching process, mount, or rootfs temporary socket remains.
 
+## Phase 8 result
+
+The retry created the fresh launcher session `20260810T031113Z-11061`; launcher
+readiness passed at `1280x960`. The exact wrapper selected Proton 11 ARM64 for
+AppID `1086010`. Wine's `reg.exe` could not create the absent `Hardware`
+subtree, so the same hypothesis was applied by appending only the native Wine
+registry section for the empty key
+`HKLM\\Hardware\\Description\\System\\CentralProcessor\\0`. A correctly
+escaped `reg query` then returned `rc=0` while no CPU-feature values were
+invented.
+
+The direct Proton command returned `240`. Unlike Phase 7, the fresh Proton
+log contains no `Couldn't detect CPU features` diagnostic or early FEX abort at
+that lookup. It loaded both the native 198X executable and
+`libarm64ecfex.dll`, then reported:
+
+```text
+D 24 Host CPU doesn't support atomics. Expect bad performance
+err:vulkan:init_physical_devices Failed to enumerate physical devices, res -3
+fixme:d3d:wined3d_guess_card ... GL_RENDERER "llvmpipe (LLVM 21.1.5, 128 bits)"
+D 24 Exception: Code: C000001D Address: 75101B5024
+```
+
+The empty key therefore removed the specific Windows-registry discovery
+blocker, but it did not provide usable CPU-feature registers. The process
+reached Unity startup and loaded `UnityCrashHandler64.exe`; the later illegal
+instruction came from an unknown module after that progress, so it is not
+attributed to the original FEX detection site. Vulkan still failed to enumerate
+physical devices because this direct command did not pass the launcher's
+Freedreno ICD environment, and Wine fell back to llvmpipe. No 198X frame was
+produced: all 41 same-run screen captures were the identical hash
+`a6cd24facd494927725366dd47338eaf2e6bb5ea81eadc4416d0d6f52a4f9815`.
+
+This proves that registry-key presence moves 198X past the first ARM64EC FEX
+startup blocker, but it does not yet prove game startup or rendering. The next
+experiments should keep this result separate from a Vulkan-ICD experiment and
+from supplying accurate `CP 40xx` registry values.
+
+Artifacts are retained under
+`/tmp/proton-arm64-20260810T030852Z-arm64ec-registry-key-retry/`. The exact
+X11/runtime cleanup helpers passed. `system.reg`, `user.reg`, and
+`userdef.reg` were restored byte-for-byte; the original Steam config hash
+`25c66f417c7f439498d795357e9c8fa308e8f5dc2ed5291ac778b001b993188c` and its
+`proton_hotfix` mapping were restored; and the transient wrapper, staging,
+run-specific log directories, app state, relay script, and stale Steam
+singleton/shmem paths were removed. Final process, mount, and rootfs
+temporary-socket checks were empty.
+
 ## Cleanup contract
 
 The exact Nova/X11 cleanup helper and rootfs runtime cleanup helper must run
