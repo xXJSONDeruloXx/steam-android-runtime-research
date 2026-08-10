@@ -28,6 +28,13 @@ runtime_pids() {
                 if (index(args, "awk") || index(args, "nova-runtime-cleanup")) {
                     next
                 }
+                # The one-click stop command itself carries ROOT and would
+                # otherwise be indistinguishable from a launch wrapper when
+                # invoked through adb shell/su. Preserve this exact caller;
+                # its separate start wrapper remains in the cleanup set.
+                if (index(args, "nova-one-click-root-launcher.sh stop")) {
+                    next
+                }
                 # Magisk may expose an in-flight `su -c` as a content-provider
                 # policy-log wrapper. Its --command argument can contain ROOT,
                 # but it is not part of the Nova runtime to terminate.
@@ -75,6 +82,9 @@ descendant_pids() {
                     next
                 }
                 if (index($0, "awk") || index($0, "nova-runtime-cleanup")) {
+                    next
+                }
+                if (index($0, "nova-one-click-root-launcher.sh stop")) {
                     next
                 }
                 if (wanted[parent]) {
@@ -128,7 +138,8 @@ runtime_process_snapshot() {
                 }
             }
             NR == 1 { next }
-            wanted[$1] && !protected[$1] { print }
+            wanted[$1] && !protected[$1] &&
+                !index($0, "nova-one-click-root-launcher.sh stop") { print }
         '
     echo "nova_runtime_cleanup_${snapshot_label}_snapshot_end"
 }
