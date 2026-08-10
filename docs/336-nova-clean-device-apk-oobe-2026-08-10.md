@@ -74,3 +74,30 @@ baseline before relaunching.
 Local ignored evidence captures and logcat are under
 `android/nova-lab/build/`, including the provisioning log, update screenshots,
 and the post-update screen. They contain no exported Steam credentials.
+
+## OOBE network-transition result
+
+After the updated client was relaunched, the language picker appeared with
+English selected. Advancing through the visible OOBE pages to the network
+selection produced the Steam error screen:
+
+> Unable to download the required update. Please check your network connection
+> and try again. (2)
+
+The live device logs distinguish this from a general network outage:
+
+- `connection_log.txt`: IPv4 connectivity test to `23.215.0.9:80` was `OK` and
+  the overall result was `Connected`;
+- the IPv6 HTTP and UDP probes timed out;
+- `client_networkmanager.txt`: NetworkManager client creation succeeded;
+- `steamui_steamos.txt`: `SteamOSManager: daemon not present`, followed by
+  `jupiter-initial-firmware-update check returned: 127` and
+  `failed to run steamos-mandatory-update check`;
+- `steamui_update.txt`: the Steam UI update controller initialized.
+
+The active run has the optional `steamos-update` compatibility helper disabled
+and no Steam UI/OOBE views were patched. This currently classifies the error as
+the SteamOS-host-service/mandatory-update boundary being absent inside the
+Holo container, with IPv6 timeout as a separate diagnostic condition. The
+session remains on the error screen for the next explicitly documented
+experiment; no auth data has been exported.
