@@ -61,3 +61,12 @@ immediately before the device run. Use a fresh run identity, exact preflight
 cleanup, fresh one-click APK/session provenance, complete layer/ICD/Proton
 hashes, native probe output, game output, screenshots, and exact teardown.
 Commit and push the result before any further rendering variant.
+
+## Harness correction before execution
+
+The first probe invocation used `/usr/bin/vulkaninfo --full`, copied from a
+desktop-oriented command shape. The Nova rootfs build does not implement that
+option: it returned status `1` with the program's usage text immediately after
+`mount_private=pass` and `x11_namespace_input=pass`. No Vulkan instance or
+device was created, and no game or prefix state changed. The same run will
+retry with the supported default text invocation (`/usr/bin/vulkaninfo`).
