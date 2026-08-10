@@ -87,3 +87,33 @@ Read [the Nova lifecycle contract](34-nova-runtime-harness-lifecycle.md)
 immediately before the device run. Assign a fresh timestamped run ID, capture
 APK/ICD/Gamescope/WSI hashes, preserve prefix metadata, and commit the result
 before starting another rendering experiment.
+
+## First device probe and explicit-layer boundary
+
+The ARM64 glibc build completed from the declared source revision. The build
+used the Nova rootfs library set for Vulkan/XCB/X11 and a build-only opaque
+`AHardwareBuffer` declaration because the NDK header carries Bionic-only
+annotations that GCC cannot parse in this glibc environment. The resulting
+library is a native AArch64 ELF and its manifest advertises the expected X11
+surface and swapchain entry points.
+
+Run `nova-android-wsi-layer-x11-20260810T114402Z` loaded that library with
+`VK_LAYER_PATH` and `VK_INSTANCE_LAYERS`. The loader found and inserted the
+layer, and the native `vulkaninfo` layer-specific inventory reported
+`VK_KHR_xcb_surface`, `VK_KHR_xlib_surface`, `VK_KHR_surface`, and device-side
+`VK_KHR_swapchain` above Turnip. This is a bridge-level pass; the ICD itself
+still reports no swapchain.
+
+The first Geometry Wars launch then reached Proton 11 ARM64, DXVK, and the
+Turnip Adreno 740, but DXVK still reported:
+
+    Skipping: Device does not support required feature 'khrSwapchain'
+
+The explicit layer's per-layer extension inventory was therefore not enough
+for this WineVulkan/DXVK path. This is not a game failure or evidence against
+the WSI implementation: the upstream installation instructions place the
+layer in Vulkan's implicit-layer directory, and the source comments account
+for loader aggregation of implicit-layer extensions. The next controlled
+variant keeps the same build, game, ICD, and display but exposes the staged
+manifest through `VK_IMPLICIT_LAYER_PATH`, with FROG disabled, before repeating
+one native inventory and one bounded Geometry Wars launch.
