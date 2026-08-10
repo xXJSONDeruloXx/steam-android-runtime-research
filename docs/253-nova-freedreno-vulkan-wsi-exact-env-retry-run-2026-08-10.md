@@ -55,3 +55,14 @@ creation, or WSI extension set differs from the earlier probe.
 After capture, stop the one-click session, run exact cleanup, remove only the
 run-scoped temporary state, and verify no matching process, mount, or socket
 remains. This declaration is committed and pushed before the retry probe.
+
+## Harness correction before execution
+
+The first host launch on 2026-08-10T08:34Z reached fresh
+`nova_launcher_ready=pass`, but the capture loop passed `su -c` as separate
+`adb shell` arguments. Its remote `cat` therefore raced/flattened the state
+read and the host script stopped before writing either Vulkan probe command.
+No probe ran. The live session was stopped afterward; both exact cleanup
+helpers returned `pass`, no matching process remained, and only the two
+baseline udev sockets remained. The corrected retry uses one quoted remote
+`su -c 'cat ...'` command for each state read and a new run identity.
