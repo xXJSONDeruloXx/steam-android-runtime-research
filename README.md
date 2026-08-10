@@ -322,6 +322,7 @@ the gamescope frames on its own surface.
 - [Nova x86-64 compatibility-runtime inventory](docs/204-nova-x86-runtime-inventory-experiment-2026-08-10.md)
 - [Nova Proton 11 ARM64 Steam-download experiment](docs/205-nova-proton-11-arm64-steam-download-experiment-2026-08-10.md)
 - [Nova Proton 11 ARM64 198X tool-discovery experiment](docs/206-nova-proton-11-arm64-198x-tool-discovery-experiment-2026-08-10.md)
+- [Nova Proton 11 ARM64 Geometry Wars experiment](docs/207-nova-proton-11-arm64-geometry-wars-experiment-2026-08-10.md)
 - [Retroid Pocket Nova flashing kit](tools/retroid-pocket-nova/README.md)
 
 ## Evidence standard
