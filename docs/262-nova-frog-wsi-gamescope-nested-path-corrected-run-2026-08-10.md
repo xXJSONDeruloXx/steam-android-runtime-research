@@ -45,3 +45,14 @@ After capture, stop Gamescope and the Steam/X11 session with the exact cleanup
 helpers. Verify no matching Gamescope, Xwayland, Steam, Wine/Proton, libei, or
 uinput process remains. This declaration is committed and pushed before the
 device run.
+
+## Host wrapper failure before device invocation
+
+The first host invocation after this declaration did not reach the device.
+The zsh wrapper stored `adb -s 675a2365` in a scalar and expanded it as one
+command name, producing `command not found: adb -s 675a2365`. Consequently the
+one-click Activity was not launched, no nested Gamescope process was created,
+and no WSI or child Vulkan evidence exists for that attempt. The generated
+`am-start.txt`, readiness timeout, and empty nested probe outputs are retained
+under the run directory as harness-failure artifacts. The next attempt uses a
+zsh command array and a new run identity.
