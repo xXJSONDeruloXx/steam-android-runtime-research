@@ -101,9 +101,10 @@ The display boundary still passed. Fresh server output loaded Android Adreno
 EGL (`libEGL_adreno.so`, driver `0676.53`, EGL 1.5), completed XCB setup, and
 sent and received 1280x1024 and 1280x960 shared buffers. The Steam client then
 exited with status `139` before producing a usable Steam frame. Fresh stderr
-reported CrashID `bp-fad92c66-dc36-414e-a837-ce0e72260809`; no device minidump
-was retained after cleanup. The captured screenshot is only the Nova launcher
-showing `Nova launcher exited with status 143`, not Steam UI.
+reported CrashID `bp-fad92c66-dc36-414e-a837-ce0e72260809`. The matching
+device minidump was pulled before cleanup and retained with the run artifacts.
+The captured screenshot is only the Nova launcher showing
+`Nova launcher exited with status 143`, not Steam UI.
 
 The client log also records successful network-compatibility, D-Bus, and
 installation probes. This run did not exercise Proton or a game because the
@@ -122,6 +123,8 @@ Fresh artifacts were retained at
 | `client-stdout.log` | `e7a3de096b981f2fadf271a67881392867aa0bcceffb3e9f701aecbcf8c376fa` |
 | `screen-00.png` | `294c8ea1524e5ba28b65293df3a0a8f6979d9e3ebb2615368c9d8bfa3f2979f5` |
 | `logcat.txt` | `f3938fcd44d13d140a81f6b9e118720ec2adbfdb3dfacaeb8d93460811106dcc` |
+| `device-crash_20260810050824_3.dmp` | `6bce26971f79040f092ca5d691f402535f6f0c0881638c41d30b9abe20e479bd` |
+| `device-steam_log.txt` | `dcb46b9a6f7b8dc6325464bd72e911b6bbca938b785104157b09bfebb7dd0c76` |
 
 The exact X11 cleanup helper and rootfs cleanup helper both returned `pass`,
 and the post-cleanup process, socket, and mount checks were clear. The next
