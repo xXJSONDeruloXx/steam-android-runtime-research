@@ -47,3 +47,9 @@ After capture, stop Gamescope and the Steam/X11 session with the exact cleanup
 helpers. Verify no matching Gamescope, Xwayland, Steam, Wine/Proton, libei, or
 uinput process remains. This declaration is committed and pushed before the
 device run.
+
+The first runtime-corrected invocation set XDG_RUNTIME_DIR and successfully
+created the `gamescope-0` Wayland compositor, but its inherited PATH was
+empty. Gamescope could not resolve the installed /usr/bin/gamescopereaper
+and shut down before launching the Vulkan child. Exact cleanup returned pass;
+the next fresh run must set `PATH=/usr/bin:/bin` in the outer environment.
