@@ -740,6 +740,10 @@ run_preflight_gate() {
     fi
 
     for attempt in 1 2; do
+        # Evaluate each cleanup/diagnostic attempt independently. A transient
+        # first-attempt failure must not poison a fully successful retry;
+        # force_stop_status remains checked separately below.
+        gate_status=0
         echo "preflight_cleanup_attempt=$attempt" >>"$PREFLIGHT"
 
         if cleanup_output=$(cleanup_runtime 2>&1); then
