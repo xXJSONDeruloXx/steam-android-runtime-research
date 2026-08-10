@@ -22,6 +22,7 @@ AUDIO_BRIDGE="${NOVA_ANDROID_LAUNCHER_AUDIO_BRIDGE:-0}"
 AUDIO_BRIDGE_PORT="${NOVA_ANDROID_LAUNCHER_AUDIO_BRIDGE_PORT:-29100}"
 X11_STRETCH="${NOVA_ANDROID_LAUNCHER_X11_STRETCH:-1}"
 X11_STRETCH_RESOLUTION="${NOVA_ANDROID_LAUNCHER_X11_STRETCH_RESOLUTION:-1280x800}"
+X11_HIDE_EXTRA_KEYBAR="${NOVA_ANDROID_LAUNCHER_X11_HIDE_EXTRA_KEYBAR:-1}"
 X11_SOCKET="$ROOT/tmp/.X11-unix/X$DISPLAY_NUMBER"
 PRIVATE_HELPER="$APP_DIR/nova-x11-private-namespace.sh"
 CLEANUP_HELPER="$APP_DIR/nova-termux-x11-cleanup.sh"
@@ -153,6 +154,18 @@ case "$X11_STRETCH_RESOLUTION" in
         exit 2
         ;;
 esac
+case "$X11_HIDE_EXTRA_KEYBAR" in
+    0|1)
+        ;;
+    *)
+        echo "invalid NOVA_ANDROID_LAUNCHER_X11_HIDE_EXTRA_KEYBAR: $X11_HIDE_EXTRA_KEYBAR" >&2
+        exit 2
+        ;;
+esac
+X11_EXTRA_KBD_VALUE=true
+if [ "$X11_HIDE_EXTRA_KEYBAR" -eq 1 ]; then
+    X11_EXTRA_KBD_VALUE=false
+fi
 
 if [ ! -x "$MOUNT_PRIVATE" ]; then
     if [ -x /data/local/tmp/nova-mount-private ]; then
@@ -228,6 +241,8 @@ apply_x11_stretch() {
         -e "s#<string name=\"displayResolutionExact\">[^<]*</string>#<string name=\"displayResolutionExact\">$X11_STRETCH_RESOLUTION</string>#" \
         -e "s#<string name=\"displayResolutionCustom\">[^<]*</string>#<string name=\"displayResolutionCustom\">$X11_STRETCH_RESOLUTION</string>#" \
         -e 's#<boolean name="displayStretch" value="[^"]*" />#<boolean name="displayStretch" value="true" />#' \
+        -e "s#<boolean name=\"showAdditionalKbd\" value=\"[^\"]*\" />#<boolean name=\"showAdditionalKbd\" value=\"$X11_EXTRA_KBD_VALUE\" />#" \
+        -e "s#<boolean name=\"additionalKbdVisible\" value=\"[^\"]*\" />#<boolean name=\"additionalKbdVisible\" value=\"$X11_EXTRA_KBD_VALUE\" />#" \
         "$TERMUX_PREFS_TEMP" || {
         log "nova_launcher_x11_stretch=fail reason=rewrite"
         restore_x11_preferences
@@ -237,6 +252,8 @@ apply_x11_stretch() {
         ! /system/bin/grep -q "name=\"displayResolutionExact\">$X11_STRETCH_RESOLUTION" "$TERMUX_PREFS_TEMP" ||
         ! /system/bin/grep -q "name=\"displayResolutionCustom\">$X11_STRETCH_RESOLUTION" "$TERMUX_PREFS_TEMP" ||
         ! /system/bin/grep -q 'name="displayStretch" value="true"' "$TERMUX_PREFS_TEMP" ||
+        ! /system/bin/grep -q "name=\"showAdditionalKbd\" value=\"$X11_EXTRA_KBD_VALUE\"" "$TERMUX_PREFS_TEMP" ||
+        ! /system/bin/grep -q "name=\"additionalKbdVisible\" value=\"$X11_EXTRA_KBD_VALUE\"" "$TERMUX_PREFS_TEMP" ||
         ! /system/bin/cp "$TERMUX_PREFS_TEMP" "$TERMUX_PREFS"; then
         log "nova_launcher_x11_stretch=fail reason=verify"
         restore_x11_preferences
@@ -436,6 +453,7 @@ log "nova_launcher_steam_force_software_gl=$STEAM_FORCE_SOFTWARE_GL"
 log "nova_launcher_steam_cef_env_split=$STEAM_CEF_ENV_SPLIT"
 log "nova_launcher_audio_bridge=$AUDIO_BRIDGE"
 log "nova_launcher_audio_bridge_port=$AUDIO_BRIDGE_PORT"
+log "nova_launcher_x11_hide_extra_keybar=$X11_HIDE_EXTRA_KEYBAR"
 
 if [ -x "$RELAY_BINARY" ]; then
     allow_input_events=
