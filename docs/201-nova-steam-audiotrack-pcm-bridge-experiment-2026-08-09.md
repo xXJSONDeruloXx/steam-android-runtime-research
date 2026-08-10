@@ -1,7 +1,8 @@
 # Nova Steam-to-Android AudioTrack PCM bridge — 2026-08-09
 
-Status: isolated bridge acceptance passed; combined Steam-session run remains
-pending. The product default is still disabled.
+Status: isolated and combined Steam-session transport passed, with connection
+rollover warnings still requiring hardening. The product default is still
+disabled and no audible-listener claim is made.
 
 ## Question
 
@@ -145,6 +146,95 @@ the useful pass is a Steam-owned bridge connection with nonzero PCM frames,
 the existing UI readiness boundary, and exact cleanup. A Steam crash, no
 connection, or `AudioTrack` error will be recorded without changing the
 default profile.
+
+## Combined Steam-session result — `audio-20260809T235800Z-steam-session`
+
+This run used the APK built from commit `605c9ee` at
+`android/nova-lab/build/nova-lab-debug.apk`, with the known software profile:
+`HARDWARE_ACCEL=0`, `-cef-disable-gpu`, fullscreen, and
+`-fulldesktopres`. It did not use Gamescope/AHardwareBuffer. No physical or
+synthetic input was sampled; the normal launcher initialized its relay but no
+button or touch event was exercised.
+
+The one-click service started the bridge before the root-side client and
+reported:
+
+```text
+nova_launcher_audio_bridge=1
+nova_launcher_audio_bridge_port=29100
+nova_launcher_ready=pass display=:0 geometry=1280x960
+```
+
+The fresh client log then recorded the same opt-in mode and preload chain:
+
+```text
+client_audio_bridge=1
+client_audio_bridge_port=29100
+client_preload=/opt/nova-kgsl-driver/libnova-alsa-audiotrack-bridge.so:/opt/nova-kgsl-driver/libsysv-sem-shim.so
+client_started=pass
+```
+
+Android logcat showed the real Steam session connect to the loopback listener
+and negotiate the expected stream:
+
+```text
+NovaAudioBridge: audio_bridge_listener=ready host=127.0.0.1 port=29100
+NovaAudioBridge: audio_bridge_client=connected
+NovaAudioBridge: audio_bridge_stream=ready rate=48000 channels=2 format=S16_LE
+```
+
+The client remained alive through Steam UI initialization. Current-run
+timestamps in `steamui_html.txt` showed webhelper `29933` starting at
+`00:00:42`, `CreateMainWindow` at `00:00:58`, and the current-run
+`webhelper_js.txt` section reached `SteamApp Init - After Login` at
+`00:00:59`. The CEF audio service logged its ALSA fallback at `00:00:45`; the
+current-run CEF section contained no `Failed to write to pcm device: Invalid
+argument` line, unlike the earlier direct-ALSA run.
+
+The stream was productive: across the session the Android service accepted
+`frames=4128536 bytes=16514144` through `AudioTrack`. AudioFlinger recorded
+three app-owned 48 kHz stereo tracks for UID/PID `28995`, with writes observed
+at the connection turnovers. This establishes that the actual Steam-side
+audio path reached Android and was written to an Android `AudioTrack`; it does
+not establish that a person heard sound.
+
+One reliability boundary remains. Two Steam-side connection turnovers ended
+with a non-frame-aligned tail before the bridge accepted the next connection:
+
+```text
+NovaAudioBridge: audio_bridge_client=fail error=java.io.EOFException: partial_pcm_frame bytes=3
+NovaAudioBridge: audio_bridge_client=connected
+NovaAudioBridge: audio_bridge_client=fail error=java.io.EOFException: partial_pcm_frame bytes=1
+NovaAudioBridge: audio_bridge_client=connected
+NovaAudioBridge: audio_bridge_stream=closed frames=4128536 bytes=16514144
+```
+
+The total accepted byte count is frame-aligned, so the current result is a
+transport pass with a connection/framing warning, not a clean continuous
+stream acceptance. The next audio experiment should instrument or harden this
+handoff before enabling the bridge in the product default.
+
+Run artifacts:
+
+- APK SHA-256:
+  `eb34e5e0103467efe48b5475033a43ab461744203fd1b626478fc6ba06e4bce1`;
+- ARM64 preload SHA-256:
+  `07a3d64f07a85e0696eca0420599c95b871af05f5963d84a7dd229944681a330`;
+- bridge source SHA-256:
+  `ceb3996df898314d5f91a9b0547d63799edad36e1de042d8c1881fc53b29bdd2`;
+- runtime cleanup helper SHA-256:
+  `12332bc7e8d9401dfbe9ce72c5aba8feb910c1574a0e28602817bf92da34fb97`;
+- X11 namespace helper SHA-256:
+  `d870910b03678bb56001e424d5bcd9f1ae8ef4e6c39817e3488ded250aabc937`;
+- X11 cleanup helper SHA-256:
+  `3e9358bc5f600ca4d2f860730dc43b7eb39411efd02dc1b24a09aaf39cd79528`.
+
+Teardown force-stopped the APK and Termux:X11, then the exact helper returned
+`nova_runtime_cleanup=pass` with `remaining=`. The X11 helper returned
+`nova_x11_cleanup=pass` with absent server, client, parent, and socket state.
+The post-stop process inventory contained no matching Nova runtime; the
+run-scoped rootfs preload, launcher state, relay stage, probe files, and APK
+asset staging directory were removed after evidence capture.
 
 ## Acceptance gates
 
