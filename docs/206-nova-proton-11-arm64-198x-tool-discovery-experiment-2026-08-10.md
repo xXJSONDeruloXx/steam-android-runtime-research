@@ -171,6 +171,27 @@ transient alias unless the result is promoted into the one-click launcher.
 No game success will be claimed from the Steam UI alone: a game process and a
 frame from the same run are required.
 
+### Discarded phase 2 startup
+
+The first phase 2 `am start` returned `LaunchState: COLD`, but the launcher
+rejected the request with `nova_launcher_start=fail
+reason=existing_nova_runtime` before creating a new session marker. A
+post-failure process filter was empty and the rootfs temporary socket count
+was zero. The attempt therefore produced no Steam, compatibility, or game
+result and is retained only as a harness-discard artifact under
+`/tmp/proton-arm64-20260810T020843Z-198x-alias/`.
+
+## Phase 2 retry predeclared run
+
+Run ID: `proton-arm64-20260810T021453Z-198x-alias-retry`
+
+The retry uses the same alias and mapped configuration, but gives the
+launcher a fresh state directory baseline, force-stops the APK, runs both
+exact cleanup helpers, verifies the filtered process set and rootfs socket
+count immediately before `am start`, and clears the old launcher log. It
+accepts evidence only from a new session ID and new launcher log. The retry
+will be cleaned through the same helpers even if Steam fails before readiness.
+
 ## Cleanup contract
 
 The exact Nova/X11 cleanup helper and rootfs runtime cleanup helper must run
