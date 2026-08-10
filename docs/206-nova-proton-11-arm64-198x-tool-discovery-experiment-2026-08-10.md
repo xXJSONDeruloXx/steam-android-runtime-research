@@ -459,6 +459,50 @@ wrapper, and Nova session will be removed/rolled back through the exact
 cleanup contract afterward; the existing `compatdata/1086010` state will be
 preserved rather than reset.
 
+## Phase 6 result
+
+The fresh launcher session was `20260810T024816Z-24668`; readiness passed at
+1280x960. Steam registered the alias and created compat session
+`fdb10568c9e0ad03` for 198X at `02:49:14`. The 250 ms process snapshots
+captured the following live chain at `process-05.txt`:
+
+```text
+pw-audio-namespace -- .../reaper SteamLaunch AppId=1086010 -- .../proton-11-arm64/proton waitforexitandrun .../198X.exe
+reaper SteamLaunch AppId=1086010 -- .../proton-11-arm64/proton waitforexitandrun .../198X.exe
+python3 .../proton-11-arm64/proton waitforexitandrun .../198X.exe
+wine c:\windows\system32\steam.exe .../198X.exe
+wineserver
+C:\windows\system32\wineboot.exe --init
+C:\windows\system32\services.exe
+C:\windows\system32\winedevice.exe
+C:\windows\system32\plugplay.exe
+C:\windows\system32\svchost.exe -k LocalServiceNetworkRestricted
+```
+
+This is the first direct live-process proof that Proton 11 ARM64 and Wine
+are executing on the Nova. It also narrows the remaining blocker: no process
+whose command line is the 198X executable appeared, and no game frame was
+produced. The Wine bootstrap tree disappeared by the next few samples;
+`gameprocess_log.txt` records the wrapper returning `0` and all child PIDs
+returning `-1` at `02:49:17`. Steam marked the action `Completed` without a
+game window. `screen-04.png` shows Steam's delaying-launch/controller-layout
+interstitial, while `screen-08.png` is back on the 198X library page; neither
+is game-frame evidence. No Proton log file was emitted by the Steam launch.
+
+The next useful distinction is therefore whether 198X can start when Proton
+is asked to run its executable directly, bypassing the Windows Steam relay,
+or whether the failure is in the installed game's own startup. That should
+be a new bounded run with a fresh process capture and no game-file changes.
+
+Artifacts are retained under
+`/tmp/proton-arm64-20260810T024718Z-subsecond-process-capture/`, including all
+250 ms process tables, timestamps, live screenshots, fresh Steam logs, and
+mapping evidence. The exact X11 and runtime cleanup helpers passed. The
+original `proton_hotfix` mapping was restored, the wrapper/staging files were
+removed, and the two stale Steam singleton/shmem sockets left by Steam were
+removed by exact path. Final process, mount, and rootfs temporary-socket
+checks were empty; the existing compatdata state was preserved.
+
 ## Cleanup contract
 
 The exact Nova/X11 cleanup helper and rootfs runtime cleanup helper must run
