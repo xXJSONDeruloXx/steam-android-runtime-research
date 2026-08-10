@@ -35,24 +35,22 @@ wine_server="$wine_root/bin/wineserver"
 sysvshm="$imagefs/usr/lib/libandroid-sysvshm.so"
 redirect="$imagefs/usr/lib/libredirect-bionic.so"
 x11_source="$root/tmp/.X11-unix"
+tmp_source="$root/tmp"
 
-for path in "$linker" "$wine_bin" "$wine_server" "$sysvshm" "$redirect" "$evshim" "$icd" "$wsi_dir/VkLayer_window_system_integration.json" "$wsi_dir/libVkLayer_window_system_integration.so" "$x11_source/."; do
+for path in "$linker" "$wine_bin" "$wine_server" "$sysvshm" "$redirect" "$evshim" "$icd" "$wsi_dir/VkLayer_window_system_integration.json" "$wsi_dir/libVkLayer_window_system_integration.so" "$x11_source/." "$tmp_source/."; do
     if [ ! -e "$path" ]; then
         echo "gamenative_bionic=fail reason=missing_path path=$path" >&2
         exit 1
     fi
 done
 
-if [ ! -d /tmp/.X11-unix ]; then
-    /system/bin/mkdir -p /tmp/.X11-unix
-fi
-if ! /system/bin/mount -o bind "$x11_source" /tmp/.X11-unix; then
+if ! /system/bin/mount -o bind "$tmp_source" /tmp; then
     echo "gamenative_bionic=fail reason=bind_x11" >&2
     exit 1
 fi
 
 cleanup() {
-    /system/bin/umount -l /tmp/.X11-unix >/dev/null 2>&1 || true
+    /system/bin/umount -l /tmp >/dev/null 2>&1 || true
 }
 trap cleanup EXIT INT TERM
 
