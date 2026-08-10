@@ -3,6 +3,7 @@
 #include <dlfcn.h>
 #include <endian.h>
 #include <errno.h>
+#include <fcntl.h>
 #include <netinet/in.h>
 #include <pthread.h>
 #include <stdint.h>
@@ -52,7 +53,9 @@ struct nova_pcm_state {
 };
 
 static pthread_mutex_t state_mutex = PTHREAD_MUTEX_INITIALIZER;
+static pthread_mutex_t bridge_log_mutex = PTHREAD_MUTEX_INITIALIZER;
 static struct nova_pcm_state *states;
+static int bridge_log_fd = -2;
 
 static snd_pcm_open_fn real_snd_pcm_open;
 static snd_pcm_set_params_fn real_snd_pcm_set_params;
@@ -93,6 +96,20 @@ static void bridge_log(const char *event, long value)
             length = (int)sizeof(line) - 1;
         }
         (void)write(STDERR_FILENO, line, (size_t)length);
+        pthread_mutex_lock(&bridge_log_mutex);
+        if (bridge_log_fd == -2) {
+            const char *path = getenv("NOVA_TERMUX_X11_STEAM_AUDIO_BRIDGE_LOG");
+            if (path != NULL && path[0] != '\0') {
+                bridge_log_fd = open(path, O_WRONLY | O_CREAT | O_APPEND | O_CLOEXEC,
+                                     0644);
+            } else {
+                bridge_log_fd = -1;
+            }
+        }
+        if (bridge_log_fd >= 0) {
+            (void)write(bridge_log_fd, line, (size_t)length);
+        }
+        pthread_mutex_unlock(&bridge_log_mutex);
     }
 }
 
@@ -125,20 +142,29 @@ static struct nova_pcm_state *find_state_locked(snd_pcm_t *handle)
     return NULL;
 }
 
-static int send_all(int fd, const void *payload, size_t length)
+static int send_all(int fd, const void *payload, size_t length, size_t *sent_out)
 {
     const unsigned char *bytes = (const unsigned char *)payload;
     size_t sent = 0;
 
+    if (sent_out != NULL) {
+        *sent_out = 0;
+    }
     while (sent < length) {
         ssize_t result = send(fd, bytes + sent, length - sent, MSG_NOSIGNAL);
         if (result < 0 && errno == EINTR) {
             continue;
         }
         if (result <= 0) {
+            if (sent_out != NULL) {
+                *sent_out = sent;
+            }
             return -1;
         }
         sent += (size_t)result;
+    }
+    if (sent_out != NULL) {
+        *sent_out = sent;
     }
     return 0;
 }
@@ -185,7 +211,7 @@ static int send_header(struct nova_pcm_state *state)
     memcpy(header + 8, &rate, sizeof(rate));
     memcpy(header + 12, &channels, sizeof(channels));
     memcpy(header + 14, &format, sizeof(format));
-    if (send_all(state->socket_fd, header, sizeof(header)) < 0) {
+    if (send_all(state->socket_fd, header, sizeof(header), NULL) < 0) {
         return -1;
     }
     state->header_sent = 1;
@@ -269,6 +295,7 @@ snd_pcm_sframes_t snd_pcm_writei(snd_pcm_t *handle, const void *buffer,
     struct nova_pcm_state *state;
     snd_pcm_sframes_t result;
     size_t bytes;
+    size_t sent_bytes = 0;
 
     resolve_functions();
     if (real_snd_pcm_writei == NULL) {
@@ -304,8 +331,9 @@ snd_pcm_sframes_t snd_pcm_writei(snd_pcm_t *handle, const void *buffer,
         return -EOVERFLOW;
     }
     bytes = (size_t)frames * NOVA_AUDIO_CHANNELS * sizeof(int16_t);
-    if (send_all(state->socket_fd, buffer, bytes) < 0) {
-        bridge_log("pcm_send_failed", -1);
+    bridge_log("pcm_frames_attempted", (long)frames);
+    if (send_all(state->socket_fd, buffer, bytes, &sent_bytes) < 0) {
+        bridge_log("pcm_send_failed_bytes", (long)sent_bytes);
         close_bridge_socket(state);
         return -EPIPE;
     }
@@ -339,6 +367,7 @@ int snd_pcm_close(snd_pcm_t *handle)
     pthread_mutex_unlock(&state_mutex);
     if (state != NULL) {
         close_bridge_socket(state);
+        bridge_log("pcm_close", 0);
         free(state);
     }
     result = real_snd_pcm_close(handle);

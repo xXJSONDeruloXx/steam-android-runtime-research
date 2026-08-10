@@ -24,6 +24,7 @@ STEAM_HARDWARE_ACCEL=${NOVA_TERMUX_X11_STEAM_HARDWARE_ACCEL:-0}
 STEAM_VULKAN_ICD=${NOVA_TERMUX_X11_STEAM_VULKAN_ICD:-/opt/nova-kgsl-driver/freedreno-kgsl.icd.json}
 AUDIO_BRIDGE=${NOVA_TERMUX_X11_STEAM_AUDIO_BRIDGE:-0}
 AUDIO_BRIDGE_PORT=${NOVA_TERMUX_X11_STEAM_AUDIO_BRIDGE_PORT:-29100}
+AUDIO_BRIDGE_LOG=${NOVA_TERMUX_X11_STEAM_AUDIO_BRIDGE_LOG:-/tmp/nova-alsa-audiotrack-bridge.log}
 DBUS_SESSION_MODE=${NOVA_TERMUX_X11_DBUS_SESSION:-0}
 DBUS_SESSION_USER=${NOVA_TERMUX_X11_DBUS_SESSION_USER:-steam}
 DBUS_SESSION_UID_RECORD=${NOVA_TERMUX_X11_DBUS_SESSION_UID_RECORD:-0}
@@ -297,6 +298,7 @@ log "client_hardware_accel=$STEAM_HARDWARE_ACCEL"
 log "client_vulkan_icd=$STEAM_VULKAN_ICD"
 log "client_audio_bridge=$AUDIO_BRIDGE"
 log "client_audio_bridge_port=$AUDIO_BRIDGE_PORT"
+log "client_audio_bridge_log=$AUDIO_BRIDGE_LOG"
 log "client_uid=$STEAM_UID"
 log "client_gid=$STEAM_GID"
 log "client_audio_gid=$STEAM_AUDIO_GID"
@@ -394,6 +396,9 @@ if [ "$AUDIO_BRIDGE" -eq 1 ]; then
         exit 1
     fi
     preload_paths=/opt/nova-kgsl-driver/libnova-alsa-audiotrack-bridge.so
+    export NOVA_TERMUX_X11_STEAM_AUDIO_BRIDGE_LOG="$AUDIO_BRIDGE_LOG"
+else
+    unset NOVA_TERMUX_X11_STEAM_AUDIO_BRIDGE_LOG
 fi
 if [ -f /opt/nova-kgsl-driver/libsysv-sem-shim.so ]; then
     if [ -n "$preload_paths" ]; then

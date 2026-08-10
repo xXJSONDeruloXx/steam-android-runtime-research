@@ -236,6 +236,21 @@ The post-stop process inventory contained no matching Nova runtime; the
 run-scoped rootfs preload, launcher state, relay stage, probe files, and APK
 asset staging directory were removed after evidence capture.
 
+## Next hardening run contract
+
+The next bounded audio run will keep the same software Steam profile and
+opt-in-only launcher flag, but the preload will also write a run-scoped event
+log inside the rootfs. It records each intercepted write attempt, successful
+PCM send, close, and the exact number of bytes accepted before a socket send
+failure. This is intended to distinguish a peer-close during `send()` from a
+receiver-side alignment bug; it does not change the PCM protocol or the
+product default.
+
+The run will again avoid physical and synthetic input. A clean result requires
+no partial-frame warning and a matching stream-close/send record. If the
+client still closes mid-write, retain the byte count and treat that as the
+Steam audio lifecycle boundary rather than masking it in the Android service.
+
 ## Acceptance gates
 
 The bounded device run must establish, in order:
