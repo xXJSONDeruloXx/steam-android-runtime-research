@@ -324,6 +324,7 @@ the gamescope frames on its own surface.
 - [Nova Proton 11 ARM64 198X tool-discovery experiment](docs/206-nova-proton-11-arm64-198x-tool-discovery-experiment-2026-08-10.md)
 - [Nova Proton 11 ARM64 Geometry Wars experiment](docs/207-nova-proton-11-arm64-geometry-wars-experiment-2026-08-10.md)
 - [Nova Proton 11 ARM64 Peggle Deluxe experiment](docs/208-nova-proton-11-arm64-peggle-deluxe-experiment-2026-08-10.md)
+- [Nova Termux:X11 Steam hardware-acceleration UI experiment](docs/209-nova-termux-x11-steam-hardware-accel-ui-experiment-2026-08-10.md)
 - [Retroid Pocket Nova flashing kit](tools/retroid-pocket-nova/README.md)
 
 ## Evidence standard
