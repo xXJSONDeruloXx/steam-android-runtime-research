@@ -1,18 +1,18 @@
 # Nova Proton 11 ARM64 Steam-download experiment — 2026-08-10
 
-Status: predeclared; device result pending.
+Status: phase 1 complete with an AppID correction; phase 2 predeclared.
 
 ## Question
 
-The Nova is running Valve's native ARM64 Steam client, and the local Steam
-compatibility catalog registers an official `proton_11` tool as AppID
-`4628710`. The installed library currently contains Proton 10.0 and Proton
-Hotfix, but no Proton 11 directory. The official Proton 11 ARM64 tool also
-declares Steam Linux Runtime 4.0 - Arm64, AppID `4185400`, as its required
-tool runtime.
+The Nova is running Valve's native ARM64 Steam client. The local Steam
+compatibility catalog registers `proton_11` as AppID `4628710`, while the
+separate Steam catalog entry for Proton 11.0 (ARM64) is AppID `4628740`. The
+installed library currently contains Proton 10.0 and Proton Hotfix, but no
+Proton 11 directory. The official Proton 11 ARM64 tool also declares Steam
+Linux Runtime 4.0 - Arm64, AppID `4185400`, as its required tool runtime.
 
-This experiment will ask the signed-in Steam client to install Proton 11.0
-(ARM64) through Steam's own `steam://install/4628710` route. If Steam leaves
+The second phase will ask the signed-in Steam client to install Proton 11.0
+(ARM64) through Steam's own `steam://install/4628740` route. If Steam leaves
 the dependency unresolved, the same run may request the declared ARM64
 Steam Linux Runtime dependency through `steam://install/4185400`; that
 dependency request is still a Steam download, not a copied or manually
@@ -24,7 +24,7 @@ compatibility tool, alter controller/input mappings, or remove Steam account,
 game, shader-cache, or prefix data. It may add the two official tool
 installations and their app manifests to the existing Steam library.
 
-## Predeclared run
+## Phase 1 predeclared run
 
 Run ID: `proton-arm64-20260810T011039Z-steam-download`
 
@@ -70,6 +70,42 @@ The local Steam app cache also contains the strings `Proton 11.0 (ARM64)` and
 only Proton 10.0, Proton Hotfix, Steam Linux Runtime 3.0, and Steam Linux
 Runtime 4.0. The official Proton 11 ARM64 tool manifest is the provenance
 reference for the expected `require_tool_appid 4185400` field.
+
+## Phase 1 result and AppID correction
+
+Run ID: `proton-arm64-20260810T011039Z-steam-download`
+
+The first request used `steam://install/4628710` because that was the
+`proton_11` entry visible in the client's compatibility log. The rootfs-aware
+Steam invocation returned the normal forwarding response:
+
+```text
+Steam is already running, exiting (command line was forwarded.)
+```
+
+Steam's `console_log.txt` recorded both `ExecCommandLine` and
+`ExecuteSteamURL` for `steam://install/4628710` at `2026-08-10 01:14:20`, but
+the request produced no `appmanifest_4628710.acf`,
+`appmanifest_4185400.acf`, new compatibility-tool directory, download queue
+entry, or matching content-log line during the 30-second observation window.
+The existing client continued running and was then stopped through the exact
+launcher cleanup path.
+
+This was a valid forwarding/control result, not an ARM64 Proton download. The
+catalog distinction is now corrected: `4628710` is Proton 11.0, while
+`4628740` is Proton 11.0 (ARM64). The SteamDB catalog records that ARM64
+entry at [AppID 4628740](https://steamdb.info/app/4628740/info/). The next
+phase uses only the corrected ARM64 AppID.
+
+## Phase 2 predeclared run
+
+Run ID: `proton-arm64-20260810T011620Z-steam-download`
+
+Profile and cleanup contract are unchanged from phase 1. The source commit
+for this predeclaration is `a4d6604`. The device request will be
+`steam://install/4628740`; the optional dependency request is
+`steam://install/4185400`. The run will begin with a new exact cleanup and
+will not reuse the phase 1 Steam process, URI result, or readiness state.
 
 ## Cleanup contract
 
