@@ -1,6 +1,7 @@
 # Nova Proton 11 ARM64 198X tool-discovery experiment — 2026-08-10
 
-Status: phase 1 predeclared.
+Status: phase 1 complete; ARM64 package installed but not exposed by the
+fresh Steam compatibility-tool catalog.
 
 ## Question
 
@@ -27,10 +28,10 @@ name Steam registers for the newly installed AppID. The name must come from
 the current client/tool manifests or Steam's own selection state; it will not
 be guessed from the directory name or manually invented.
 
-This phase does not launch 198X or modify the selected compatibility tool. It
-only restarts the normal one-click Steam session and establishes a fresh
-registration baseline. The next phase will set AppID `1086010` to the verified
-ARM64 Proton tool through Steam's compatibility mapping path, restart Steam
+This phase did not launch 198X or modify the selected compatibility tool. It
+restarted the normal one-click Steam session and established a fresh
+registration baseline. The next phase will set AppID `1086010` to the ARM64
+Proton tool through a reversible compatibility mapping change, restart Steam
 again, and then attempt the game launch.
 
 ## Predeclared run
@@ -86,20 +87,56 @@ ID after launch.
 
 Run ID: `proton-arm64-20260810T015323Z-tool-discovery-retry`
 
-The retry keeps the original profile and source commit. It adds an explicit
+The retry kept the original profile and source commit. It added an explicit
 APK force-stop, removes only the prior launcher state markers (`ready`,
 `client-active`, `server-token`, `client-token`, and `session`), records the
 pre-launch compatibility-log line count, and accepts readiness only after the
 session ID and launcher log belong to this retry. It will not launch 198X or
 change `CompatToolMapping`.
 
+## Phase 1 result
+
+The retry created the fresh launcher session
+`20260810T015442Z-30824`. Its launcher log reported the expected direct
+Termux:X11 profile: software CEF, `DISPLAY=:0`, 1280x960 fullscreen,
+gamepad relay `event9`, and `nova_launcher_ready=pass`. The Steam UI was
+visible and signed in in `steam-after-45s.png`; this is display evidence only,
+not a Gamescope or game-frame result.
+
+The fresh compatibility log began at `2026-08-10 01:55:03` and registered the
+ordinary tools (`proton_11` AppID `4628710`, `steamlinuxruntime_4` AppID
+`4183110`, and the other existing entries), but it contained no registration
+for Proton 11.0 (ARM64) AppID `4628740`, Steam Linux Runtime 4.0 - Arm64
+AppID `4185400`, or an ARM64-specific tool name. The installed ARM64
+`toolmanifest.vdf` is present and names `require_tool_appid` `4185400`; the
+package itself contains native `files/bin-arm64/wine` and `wineserver`, FEX
+ARM64EC/WOW64 files, and its ARM64 FEX configuration. Thus the package is
+installed, but the current client did not add it to its active compatibility
+catalog after restart.
+
+The run did not change the 198X mapping: AppID `1086010` remained
+`proton_hotfix`. Ancillary synthetic UI captures were taken after the fresh
+Steam evidence to inspect the existing game-selection path; they are not
+used as physical-controller or game-launch evidence.
+
+Run artifacts are retained under the host evidence directory
+`/tmp/proton-arm64-20260810T015323Z-tool-discovery-retry/`, including
+`launcher.log`, `compat_log.txt`, `steam-after-45s.png`, the fresh-state
+checks, and the teardown captures. The exact cleanup helpers then reported
+`nova_x11_cleanup=pass` and `nova_runtime_cleanup=pass`; a final process
+filter was empty and the rootfs temporary socket count was zero. Steam
+account, game, prefix, shader-cache, and installed-tool data were preserved.
+
 ## Decision boundary
 
-The next run may change only the 198X compatibility mapping after this phase
-records the exact tool name. It must preserve the current mapping as a
-rollback artifact, use a fresh Steam process, and capture the resulting
-`StartSession`, Proton/Wine/FEX/pressure-vessel process tree, Proton logs,
-game lifetime, and a frame correlated to the same run ID.
+The next run may change only the 198X compatibility mapping after first
+recording the exact mapping key/path used for the installed ARM64 package. It
+must preserve the current `proton_hotfix` mapping as a rollback artifact, use
+a fresh Steam process, and capture the resulting `StartSession`,
+Proton/Wine/FEX/pressure-vessel process tree, Proton logs, game lifetime, and
+a frame correlated to the same run ID. If Steam rejects the mapping or still
+does not expose the ARM64 tool, that is a documented catalog boundary and the
+run must be cleaned before any alternate installation alias is considered.
 
 ## Cleanup contract
 
