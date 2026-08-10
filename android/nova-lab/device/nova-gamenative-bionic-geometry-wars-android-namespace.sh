@@ -154,6 +154,12 @@ if ! /system/bin/mount -o bind /proc "$root/proc"; then
 fi
 mounted_proc=1
 
+if ! /system/bin/chroot "$root" /usr/bin/ls -l \
+    /system/bin/linker64 /apex/com.android.runtime/bin/linker64; then
+    echo "gamenative_bionic_adapter=fail reason=linker_namespace_paths" >&2
+    exit 1
+fi
+
 imagefs_rel="/tmp/$run_id/imagefs"
 wine_root_rel="/tmp/$run_id/gamenative-proton"
 compat_data_rel="/tmp/$run_id/compatdata/8400"
