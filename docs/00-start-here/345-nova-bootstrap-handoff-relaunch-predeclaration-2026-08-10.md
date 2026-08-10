@@ -36,7 +36,7 @@ apply a SteamOS image update.
 
 - Device: Retroid Pocket Nova, serial `675a2365`
 - Planned run: `fresh-apk-bootstrap-relaunch-20260810T224245Z`
-- APK SHA-256: `1ae53c5580e87dc390912e6dbf69a768dab67072542c0bf3baa41c853ee51f4a`
+- APK SHA-256: `31566c6a3ed0f4a3a0ef7ccca33a0da1d6c7c8973b517fd0845fdeac472f942f`
 - APK size: `3361472` bytes, version `0.3`, version code `3`
 - Required purge: exact Nova scrub, APK uninstall, runtime/data removal,
   Termux:X11 preserved
