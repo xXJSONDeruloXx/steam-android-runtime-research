@@ -357,6 +357,7 @@ their full Linux/DRM/KMS assumptions from this repo's Android/rootfs path.
 - [Nova libei-enabled Gamescope artifact rebuild](docs/225-nova-libei-gamescope-artifact-rebuild-2026-08-10.md)
 - [Nova libei-enabled Gamescope artifact rebuild result](docs/226-nova-libei-gamescope-artifact-rebuild-result-2026-08-10.md)
 - [Nova libei-enabled Gamescope touch/fullscreen run](docs/227-nova-libei-gamescope-touch-fullscreen-run-2026-08-10.md)
+- [steamclienttermux comparison and Nova integration guidance](docs/333-steamclienttermux-comparison-2026-08-10.md)
 - [Retroid Pocket Nova flashing kit](tools/retroid-pocket-nova/README.md)
 
 ## Evidence standard
