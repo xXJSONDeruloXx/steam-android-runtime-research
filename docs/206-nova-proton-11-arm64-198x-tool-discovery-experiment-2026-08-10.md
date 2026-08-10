@@ -518,6 +518,47 @@ or frame appears. Proton may update the existing prefix's normal startup
 metadata; no game files, installed Steam packages, or account data will be
 removed. The wrapper and X11/runtime session will be cleaned afterward.
 
+## Phase 7 result
+
+The fresh launcher session was `20260810T025223Z-28667`; readiness passed at
+1280x960. With the fixed wrapper visible inside the chroot, the direct command
+returned `29` and its live process capture showed:
+
+```text
+python3 .../proton-11-arm64/proton runinprefix .../198X.exe
+wine .../steamapps/common/198X/198X.exe
+wineserver
+C:\windows\system32\wineboot.exe --init
+C:\windows\system32\winedevice.exe
+```
+
+The Proton log identifies the game-level failure precisely. Proton 11 loaded
+the native x86-64 Windows binary and FEX's ARM64EC thunk library:
+
+```text
+Loaded L"S:\\common\\198X\\198X.exe" ...: native
+Loaded L"C:\\windows\\system32\\libarm64ecfex.dll" ...: builtin
+A 24 Couldn't detect CPU features
+... code=c000001d (EXCEPTION_ILLEGAL_INSTRUCTION)
+... L"libarm64ecfex.dll" + 0x175f50
+err:seh:NtRaiseException Unhandled exception code c000001d
+```
+
+Thus 198X itself reaches FEX translation, but aborts before creating a game
+window. This is no longer a Steam compatibility-tool, Windows Steam relay,
+X11, or surface-rendering blocker. The host CPU inventory reports the Nova's
+Kalama ARM64 cores and normal ARM feature flags, so the next investigation
+should focus on why this Proton/FEX build cannot detect or safely expose the
+required CPU feature set in this Android rootfs, rather than changing the
+Gamescope/AHB path.
+
+The Proton log and all direct-run artifacts are retained under
+`/tmp/proton-arm64-20260810T025147Z-direct-198x-entrypoint/`. The exact X11 and
+runtime cleanup helpers passed. The transient wrapper, staging files, and
+run-specific Proton log directory were removed; the existing 198X compatdata
+prefix and installed game/package data were preserved. Final process, mount,
+and rootfs temporary-socket checks were empty.
+
 ## Cleanup contract
 
 The exact Nova/X11 cleanup helper and rootfs runtime cleanup helper must run
