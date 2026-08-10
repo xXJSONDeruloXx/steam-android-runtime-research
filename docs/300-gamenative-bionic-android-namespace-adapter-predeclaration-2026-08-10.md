@@ -82,8 +82,24 @@ helper has dropped privileges:
 /system/bin/chroot <rootfs> \
   /usr/bin/setpriv --reuid=2000 --regid=2000 --groups=2000 \
   /usr/bin/env -i <GameNative Bionic environment> \
-  /system/bin/linker64 <WCP>/bin/wine ...
+/system/bin/linker64 <WCP>/bin/wine ...
 ```
+
+## Harness correction before the smoke gate
+
+The first staged smoke invocation entered the adapter namespace and reached its
+declared environment, but returned status `127` because the chroot did not
+contain the target of Android's `/system/bin/linker64` symlink. A namespace
+inspection showed that `/system/bin/linker64` resolves to
+`/apex/com.android.runtime/bin/linker64`; a plain bind of `/apex` does not
+carry Android's separately mounted nested APEX filesystems into the chroot.
+
+The adapter was corrected to bind `/apex/com.android.runtime` explicitly after
+binding `/apex`. An isolated check of that mount shape then executed
+`/system/bin/linker64 --help` successfully inside the chroot. This changes only
+the namespace plumbing; Proton, the imagefs, WSI layer, ICD, prefix copy, and
+game remain fixed for the declared control. The failed smoke output is retained
+as `bionic-adapter-smoke-pre-apex.txt` in the run evidence.
 
 The Bionic environment will use `/system/lib64`, the extracted imagefs and
 WCP libraries, the explicit X11 socket at `/tmp/.X11-unix/X0`,
@@ -110,4 +126,3 @@ Classify the outcome as one of:
 - **adapter reached DXVK but failed in Vulkan/WSI**; or
 - **adapter failed before Bionic Wine**, with the first failing mount, linker,
   or privilege boundary.
-

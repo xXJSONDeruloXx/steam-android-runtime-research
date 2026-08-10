@@ -58,6 +58,7 @@ done
 mounted_system=0
 mounted_vendor=0
 mounted_apex=0
+mounted_apex_runtime=0
 mounted_product=0
 mounted_odm=0
 mounted_linkerconfig=0
@@ -84,6 +85,10 @@ cleanup_mounts() {
     if [ "$mounted_product" -eq 1 ]; then
         /system/bin/umount -l "$root/product" >/dev/null 2>&1 || true
         mounted_product=0
+    fi
+    if [ "$mounted_apex_runtime" -eq 1 ]; then
+        /system/bin/umount -l "$root/apex/com.android.runtime" >/dev/null 2>&1 || true
+        mounted_apex_runtime=0
     fi
     if [ "$mounted_apex" -eq 1 ]; then
         /system/bin/umount -l "$root/apex" >/dev/null 2>&1 || true
@@ -115,6 +120,14 @@ if ! /system/bin/mount -o bind /apex "$root/apex"; then
     exit 1
 fi
 mounted_apex=1
+if [ -d /apex/com.android.runtime ]; then
+    /system/bin/mkdir -p "$root/apex/com.android.runtime"
+    if ! /system/bin/mount -o bind /apex/com.android.runtime "$root/apex/com.android.runtime"; then
+        echo "gamenative_bionic_adapter=fail reason=bind_apex_runtime" >&2
+        exit 1
+    fi
+    mounted_apex_runtime=1
+fi
 if ! /system/bin/mount -o bind /product "$root/product"; then
     echo "gamenative_bionic_adapter=fail reason=bind_product" >&2
     exit 1
