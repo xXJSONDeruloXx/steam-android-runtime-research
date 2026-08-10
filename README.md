@@ -319,6 +319,7 @@ the gamescope frames on its own surface.
 - [Nova Steam-to-Android AudioTrack PCM bridge experiment](docs/201-nova-steam-audiotrack-pcm-bridge-experiment-2026-08-09.md)
 - [Nova Termux:X11 aspect-ratio visual check](docs/202-nova-termux-x11-aspect-ratio-visual-check-2026-08-09.md)
 - [Termux:X11 198X command-line launch experiment](docs/203-termux-x11-198x-cli-launch-experiment-2026-08-09.md)
+- [Nova x86-64 compatibility-runtime inventory](docs/204-nova-x86-runtime-inventory-experiment-2026-08-10.md)
 - [Retroid Pocket Nova flashing kit](tools/retroid-pocket-nova/README.md)
 
 ## Evidence standard
