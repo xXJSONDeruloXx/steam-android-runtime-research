@@ -66,8 +66,12 @@ removed by exact path after teardown.
 ## Decision
 
 Do not spend another small-game run on the current Proton/DXVK path yet.
-Geometry Wars and Peggle already reproduce the shared pre-frame failure, and
-the FROG layer is now proven active without supplying a usable WSI surface.
+The fresh Steam manifest inventory contains only three installed game titles:
+198X (AppID `1086010`), Peggle Deluxe (AppID `3480`), and Geometry Wars:
+Retro Evolved (AppID `8400`); the other manifests are Proton or Steam
+runtime packages. 198X was covered by the earlier Proton 11 run, and the
+Geometry Wars/Peggle runs reproduce the shared pre-frame failure. The FROG
+layer is now proven active without supplying a usable WSI surface.
 The next rendering implementation must either repair the WineVulkan/WSI
 bridge or use a different forwarding path that gives the Windows client a
 real surface. A future game run becomes useful after that boundary changes.
