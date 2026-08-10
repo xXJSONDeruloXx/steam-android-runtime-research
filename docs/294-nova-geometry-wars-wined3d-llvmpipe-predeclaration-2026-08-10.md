@@ -57,3 +57,11 @@ recorded before the next experiment.
 Read [the Nova lifecycle contract](34-nova-runtime-harness-lifecycle.md)
 immediately before the device run. Commit and push this predeclaration before
 launching it.
+
+## Harness correction before game launch
+
+The root-created device staging directory initially had mode `0755` and was
+not writable by the adb shell user, so the first `adb push` of the direct
+wrapper returned `Permission denied`. The exact prefix backups had already
+completed, and no game, Wine, or prefix state changed. The run will retry the
+push after changing only this run directory's mode to `0777`.
