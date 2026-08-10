@@ -34,7 +34,10 @@ inventory() {
         echo "--- top-level nova paths ---"
         $ADB shell su -mm 0 -c "/system/bin/find /data/local/tmp -maxdepth 1 -mindepth 1 -name 'nova*' -print 2>/dev/null | /system/bin/sort"
         echo "--- listed non-nova project paths ---"
-        $ADB shell su -mm 0 -c "/system/bin/sh -c 'for p in /data/local/tmp/audio-20260809T230053Z-steam-alsa-group /data/local/tmp/launcher-20260809T223146Z-x11-custom-1280x960-termux-x11-preferences.xml; do if [ -e \"\$p\" ]; then echo \"\$p\"; fi; done'"
+        $ADB shell su -mm 0 -c "/system/bin/test -e /data/local/tmp/audio-20260809T230053Z-steam-alsa-group" >/dev/null 2>&1 && \
+            echo "/data/local/tmp/audio-20260809T230053Z-steam-alsa-group"
+        $ADB shell su -mm 0 -c "/system/bin/test -e /data/local/tmp/launcher-20260809T223146Z-x11-custom-1280x960-termux-x11-preferences.xml" >/dev/null 2>&1 && \
+            echo "/data/local/tmp/launcher-20260809T223146Z-x11-custom-1280x960-termux-x11-preferences.xml"
         echo "--- storage ---"
         $ADB shell su -mm 0 -c "/system/bin/df -Pk /data/local/tmp; /system/bin/df -Pi /data/local/tmp"
     } >"$output"
