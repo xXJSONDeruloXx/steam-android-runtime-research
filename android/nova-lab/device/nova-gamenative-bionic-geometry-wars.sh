@@ -2,10 +2,9 @@
 
 set -u
 
-if [ "${1:-}" != "--child" ]; then
-    exec /system/bin/unshare -m /system/bin/sh "$0" --child "$@"
+if [ "${1:-}" = "--child" ]; then
+    shift
 fi
-shift
 
 mode="${1:-}"
 run_id="${2:-}"
@@ -17,6 +16,7 @@ prefix="${7:-}"
 icd="${8:-}"
 wsi_dir="${9:-}"
 evshim="${10:-}"
+compat_data="${prefix%/pfx}"
 
 if [ "$mode" != "smoke" ] && [ "$mode" != "game" ]; then
     echo "gamenative_bionic=fail reason=invalid_mode" >&2
@@ -61,7 +61,7 @@ export REDIRECT_EXEC__PROC_SELF_EXE="$wine_bin"
 export WINE_X11FORCEGLX=1
 export WINE_NEW_NDIS=1
 export STEAM_COMPAT_CLIENT_INSTALL_PATH="$root/opt/nova-steam/home/.local/share/Steam"
-export STEAM_COMPAT_DATA_PATH="$root/opt/nova-steam/home/.local/share/Steam/steamapps/compatdata/8400"
+export STEAM_COMPAT_DATA_PATH="$compat_data"
 export SteamAppId=8400
 export SteamGameId=8400
 export VK_ICD_FILENAMES="$icd"
