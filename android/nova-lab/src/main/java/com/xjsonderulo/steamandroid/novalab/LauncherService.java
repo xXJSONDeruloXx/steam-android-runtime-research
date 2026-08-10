@@ -28,6 +28,7 @@ public final class LauncherService extends Service {
     public static final String EXTRA_TERMUX_APK = "termux_apk";
     public static final String EXTRA_AUDIO_BRIDGE = "audio_bridge";
     public static final String EXTRA_AUDIO_BRIDGE_PORT = "audio_bridge_port";
+    public static final String EXTRA_HARDWARE_ACCEL = "hardware_accel";
     private static final String TAG = "NovaLauncher";
     private static final String CHANNEL_ID = "nova-steam-session";
     private static final int NOTIFICATION_ID = 17;
@@ -42,6 +43,7 @@ public final class LauncherService extends Service {
     private AudioPcmBridge audioBridge;
     private boolean audioBridgeEnabled;
     private int audioBridgePort = AudioPcmBridge.DEFAULT_PORT;
+    private boolean hardwareAccel;
     private boolean audioOnly;
 
     public static String getStatus() {
@@ -102,6 +104,7 @@ public final class LauncherService extends Service {
             audioOnly = false;
             audioBridgeEnabled = intent.getBooleanExtra(EXTRA_AUDIO_BRIDGE, false);
             audioBridgePort = requestedAudioPort(intent);
+            hardwareAccel = intent.getBooleanExtra(EXTRA_HARDWARE_ACCEL, false);
             startForeground(NOTIFICATION_ID, buildNotification("Starting Steam"));
             if (!startAudioBridgeLocked()) {
                 stopForeground(STOP_FOREGROUND_REMOVE);
@@ -140,7 +143,9 @@ public final class LauncherService extends Service {
 
     private void runLauncher() {
         File script = new File(assetDirectory, "nova-one-click-root-launcher.sh");
-        String command = "NOVA_ANDROID_LAUNCHER_AUDIO_BRIDGE="
+        String command = "NOVA_ANDROID_LAUNCHER_HARDWARE_ACCEL="
+                + shellQuote(hardwareAccel ? "1" : "0")
+                + " NOVA_ANDROID_LAUNCHER_AUDIO_BRIDGE="
                 + shellQuote(audioBridgeEnabled ? "1" : "0")
                 + " NOVA_ANDROID_LAUNCHER_AUDIO_BRIDGE_PORT="
                 + shellQuote(Integer.toString(audioBridgePort))

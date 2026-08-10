@@ -13,9 +13,10 @@ buffer. This isolates the next controlled change to the app-launched root
 process's mount namespace.
 
 The APK launcher service is therefore changed to invoke both start and stop
-commands as `su -mm 0 -c`, preserving the mount-master view of `/data/app`
-while retaining the existing exact rootfs/X11 cleanup scope. No graphics,
-Steam, account, game, input, or audio defaults are changed by this fix.
+commands as `su -mm 0 -c`, preserving the mount-master view of `/data/app`,
+and to pass an explicit `hardware_accel` intent extra through to the root
+launcher. No graphics, Steam, account, game, input, or audio defaults are
+changed: the extra is false unless explicitly requested.
 
 ## Run identity
 
@@ -35,11 +36,12 @@ Profile:
 
 ## Controlled implementation
 
-The only code change in this retry is the root command invocation in
-`LauncherService`: `su -c` becomes `su -mm 0 -c` for start and stop. The
-profile still sets `NOVA_ANDROID_LAUNCHER_HARDWARE_ACCEL=1`, unsets the
-software Mesa variables, selects the explicit ICD, and omits
-`-cef-disable-gpu`. The known-good software default remains unchanged.
+The source changes in this retry are limited to the root command invocation
+and profile plumbing: `su -c` becomes `su -mm 0 -c` for start and stop, and
+the `hardware_accel` intent extra reaches `NOVA_ANDROID_LAUNCHER_HARDWARE_ACCEL`.
+The profile still sets the flag to `1`, unsets the software Mesa variables,
+selects the explicit ICD, and omits `-cef-disable-gpu`. The known-good
+software default remains unchanged.
 
 ## Acceptance and cleanup
 
