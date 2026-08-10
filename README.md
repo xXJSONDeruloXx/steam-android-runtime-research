@@ -114,6 +114,20 @@ with hardware `steamwebhelper` rendering and controller input, on one known Snap
 The first Android-app acceptance test adds: the Android app starts/stops that Linux session and presents
 the gamescope frames on its own surface.
 
+## Blocker research rule
+
+When a technical blocker appears, perform a current internet search before
+treating it as a hard boundary. Prefer primary project documentation and
+source, record the relevant URLs, revisions, and search date in the experiment
+record, and compare more than one implementation path when practical.
+
+Keep [Armada](https://github.com/armada-os/armada), [PockNix](https://github.com/shuuri-labs/pocknix-os),
+and their [ROCKNIX](https://github.com/ROCKNIX/distribution) foundation as
+standing prior-art references for SteamOS-like ARM64 Steam sessions, gamescope,
+Xwayland, Proton/FEX, input, audio, display, boot, and lifecycle details. Use
+those projects to extract implementation ideas while explicitly separating
+their full Linux/DRM/KMS assumptions from this repo's Android/rootfs path.
+
 ## Documents
 
 - [Prior work evidence](docs/01-prior-work-evidence.md)
