@@ -117,3 +117,20 @@ for loader aggregation of implicit-layer extensions. The next controlled
 variant keeps the same build, game, ICD, and display but exposes the staged
 manifest through `VK_IMPLICIT_LAYER_PATH`, with FROG disabled, before repeating
 one native inventory and one bounded Geometry Wars launch.
+
+The implicit-loader variant in the same session loaded the layer but failed at
+`vkCreateDevice` inside `add_device_extensions_required_by_layer`. The X11
+backend requires `VK_ANDROID_external_memory_android_hardware_buffer`; the
+fresh Turnip device inventory contains `VK_EXT_external_memory_dma_buf` and
+the KHR external-memory-fd extensions, but does not contain the Android
+AHardwareBuffer Vulkan extension. No second game launch was accepted from this
+variant. The explicit-layer game result and this implicit-layer load boundary
+are retained as separate evidence rather than being collapsed into a generic
+"WSI failed" result.
+
+The next implementation branch is therefore the same upstream X11 WSI layer
+adapted to export the linear Vulkan image memory through the device's supported
+DMA-BUF external-memory path and pass that fd to X11 DRI3/Present. It keeps the
+same public swapchain and surface contract while removing the unavailable
+Android Vulkan import requirement. That adaptation is predeclared separately
+in [doc 292](292-nova-android-wsi-layer-dmabuf-predeclaration-2026-08-10.md).
