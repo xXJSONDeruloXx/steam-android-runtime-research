@@ -7,7 +7,7 @@ run_id="${2:-}"
 game="${3:-/opt/nova-steam/home/.local/share/Steam/steamapps/common/Geometry Wars/GeometryWars.exe}"
 
 case "$mode" in
-    wined3d)
+    wined3d|wined3d-noaudio)
         ;;
     *)
         echo "nova_glibc_proton=fail reason=invalid_mode mode=$mode" >&2
@@ -28,6 +28,13 @@ run_root="/tmp/$run_id"
 compat_data="$run_root/compatdata/8400"
 proton_log_dir="$run_root/proton-log"
 dxvk_log_dir="$run_root/dxvk-log"
+audio_mode=enabled
+if [ "$mode" = "wined3d-noaudio" ]; then
+    audio_mode=disabled
+    export WINEDLLOVERRIDES='winepulse.drv=d;winealsa.drv=d'
+else
+    unset WINEDLLOVERRIDES
+fi
 
 for path in "$proton" "$game" "$compat_data/pfx"; do
     if [ ! -e "$path" ]; then
@@ -73,6 +80,8 @@ echo "nova_glibc_proton_compat_data=$compat_data" >&2
 echo "nova_glibc_proton_setup=proton_run" >&2
 echo "nova_glibc_proton_wined3d=$PROTON_USE_WINED3D" >&2
 echo "nova_glibc_proton_software_gl=$MESA_LOADER_DRIVER_OVERRIDE/$GALLIUM_DRIVER" >&2
+echo "nova_glibc_proton_audio=$audio_mode" >&2
+echo "nova_glibc_proton_winedlloverrides=${WINEDLLOVERRIDES:-unset}" >&2
 echo "nova_glibc_proton_vk_icd=unset" >&2
 echo "nova_glibc_proton_ld_library_path=$LD_LIBRARY_PATH" >&2
 echo "nova_glibc_proton_ld_preload=$LD_PRELOAD" >&2
