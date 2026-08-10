@@ -59,8 +59,16 @@ so repeating the same `PROTON_USE_WINED3D=0` environment change is not useful.
 The next controlled experiment should force the prefix's D3D9/DXGI DLL
 selection explicitly—using the installed ARM64 DXVK files and a fresh prefix
 DLL snapshot—while preserving the successful Turnip ICD and one-click Steam
-surface. If that still loads WineD3D, the shared blocker is in Proton/FEX's
-32-bit DLL dispatch rather than Gamescope-to-Android presentation.
+surface. The Proton source captured during follow-up inspection explains why:
+`runinprefix` calls `init_session(False)`, so it does not run `setup_prefix()`;
+that setup is where Proton installs the native DXVK files and adds its `n`
+DLL overrides. The prefix already contains the same DXVK hashes for `d3d9`,
+`d3d11`, `d3d10core`, and `dxgi`, but the direct `runinprefix` command did not
+explicitly request those native overrides. The next run will therefore add
+the exact `WINEDLLOVERRIDES` entries and `SteamGameId=8400` so Proton both
+selects the native files and writes its run-scoped log. If that still loads
+WineD3D, the shared blocker is in Proton/FEX's 32-bit DLL dispatch rather than
+Gamescope-to-Android presentation.
 
 The complete reproducible artifacts are under:
 `android/nova-lab/build/runs/nova-game-geometry-dxvk-corrected-20260810T081025Z`
