@@ -60,3 +60,17 @@ run-scoped logs and stale sockets, and verify clean process/mount/socket state.
 
 This declaration is committed and pushed before changing the device
 environment or launching the diagnostic run.
+
+## Execution note: discarded argv attempt
+
+The first invocation under run ID `nova-game-geometry-freedreno-20260810T074337Z`
+used an unquoted executable path. Wine consequently received
+`.../steamapps/common/Geometry` instead of
+`.../steamapps/common/Geometry Wars/GeometryWars.exe` and returned status
+`53`. No Geometry Wars process or Proton log was created. The session was
+cleaned with both exact helpers, the AppID-8400 prefix registry files were
+restored byte-for-byte, and only the two baseline udev sockets remained.
+
+This was a harness/argv failure, not a Vulkan or game result. A corrected
+fresh run with a new identity is required; the failed-run artifacts remain in
+the run directory for provenance.
