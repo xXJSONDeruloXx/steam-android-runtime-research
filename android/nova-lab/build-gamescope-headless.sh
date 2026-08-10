@@ -42,16 +42,25 @@ if [ ! -e "$WORKTREE/.git" ]; then
 fi
 
 git -C "$WORKTREE" submodule update --init
-for PATCH_FILE in "${PATCH_FILES[@]}"; do
-    if git -C "$WORKTREE" apply --unidiff-zero --reverse --check "$PATCH_FILE" 2>/dev/null; then
-        continue
-    elif git -C "$WORKTREE" apply --unidiff-zero --check "$PATCH_FILE" 2>/dev/null; then
-        git -C "$WORKTREE" apply --unidiff-zero "$PATCH_FILE"
-    else
-        echo "gamescope source is not compatible with $PATCH_FILE" >&2
-        exit 1
-    fi
-done
+PATCH_FINGERPRINT=$(
+    for PATCH_FILE in "${PATCH_FILES[@]}"; do
+        shasum -a 256 "$PATCH_FILE"
+    done | shasum -a 256 | awk '{print $1}'
+)
+PATCH_STAMP="$WORKTREE/.nova-patches-applied-$PATCH_FINGERPRINT"
+if [ ! -e "$PATCH_STAMP" ]; then
+    for PATCH_FILE in "${PATCH_FILES[@]}"; do
+        if git -C "$WORKTREE" apply --unidiff-zero --reverse --check "$PATCH_FILE" 2>/dev/null; then
+            continue
+        elif git -C "$WORKTREE" apply --unidiff-zero --check "$PATCH_FILE" 2>/dev/null; then
+            git -C "$WORKTREE" apply --unidiff-zero "$PATCH_FILE"
+        else
+            echo "gamescope source is not compatible with $PATCH_FILE" >&2
+            exit 1
+        fi
+    done
+    printf '%s\n' "$PATCH_FINGERPRINT" >"$PATCH_STAMP"
+fi
 
 mkdir -p "$OUT_DIR"
 docker run --rm --platform linux/arm64 \
