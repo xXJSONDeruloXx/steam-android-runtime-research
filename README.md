@@ -337,6 +337,7 @@ the gamescope frames on its own surface.
 - [Nova Termux:X11 hardware display/software-GL isolation experiment](docs/219-nova-termux-x11-hardware-display-software-gl-isolation-experiment-2026-08-10.md)
 - [Nova Geometry Wars Steam-applaunch experiment](docs/220-nova-geometry-wars-steam-applaunch-experiment-2026-08-10.md)
 - [Nova Peggle Deluxe Steam-applaunch experiment](docs/221-nova-peggle-steam-applaunch-experiment-2026-08-10.md)
+- [Nova 198X Steam-applaunch Proton 11 ARM64 experiment](docs/222-nova-198x-steam-applaunch-proton11-experiment-2026-08-10.md)
 - [Retroid Pocket Nova flashing kit](tools/retroid-pocket-nova/README.md)
 
 ## Evidence standard
