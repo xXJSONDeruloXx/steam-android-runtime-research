@@ -55,6 +55,14 @@ session reaches the Android-facing display. A pass requires the nested child
 to create a Vulkan instance with a usable surface path; a Turnip
 `VK_ERROR_EXTENSION_NOT_PRESENT` result is a valid negative boundary.
 
+The first host invocation of this run omitted `/usr/bin/env` between the
+private chroot helper's rootfs argument and the Gamescope environment
+assignments. The helper therefore returned exit status 127 before launching
+Gamescope (`chroot: exec GAMESCOPE_SCRIPT_PATH=...: No such file or
+directory`). No WSI evidence was collected from that attempt; exact cleanup
+returned pass. The corrected retry must pass the assignments through
+`/usr/bin/env` and use a new run identity.
+
 ## Lifecycle and acceptance
 
 Read the Nova runtime lifecycle contract immediately before launch. Force-stop
