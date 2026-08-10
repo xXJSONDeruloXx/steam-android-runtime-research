@@ -1,6 +1,7 @@
 # Nova Proton 11 ARM64 Geometry Wars Freedreno-ICD experiment — 2026-08-10
 
-Status: two setup/runtime attempts recorded; clean-log retry predeclared below.
+Status: completed; no Geometry Wars frame, and the ICD was not exercised by
+this WineD3D/OpenGL path.
 
 ## Question
 
@@ -154,3 +155,60 @@ SEH trace loop from consuming storage and allowing a bounded natural startup
 observation. It will use a new exact cleanup baseline, a new launcher session,
 and a new artifact directory. The result will still distinguish a real game
 frame from a live process or wrapper return code.
+
+## Clean-log retry result
+
+The clean-log run created fresh launcher session
+`20260810T045923Z-16419`. The default software profile passed
+`nova_launcher_ready=pass` at `1280x960`, and the gamepad relay was ready on
+`event9`. The direct namespace reported `mount_private=pass` and
+`x11_namespace_input=pass`. The direct command ran from
+`2026-08-10T04:59:52Z` to `2026-08-10T04:59:55Z` and returned:
+
+```text
+direct_game=GeometryWars.exe
+direct_vk_icd=/opt/nova-kgsl-driver/freedreno-kgsl.icd.json
+direct_rc=5
+```
+
+The bounded 67,392-byte Proton log has SHA-256
+`3c3a70eea7c335a9168ff275d91aecee2abd29e304d513e4199cb07458427554` and
+records both `System WINEDEBUG: -all` and `Effective WINEDEBUG: -all`.
+Proton loaded the actual Geometry Wars executable, `d3d9.dll`,
+`wined3d.dll`, `opengl32.dll`, native `d3dx9_32.dll`, and `XINPUT1_3.dll`.
+There is no Vulkan physical-device, Turnip, or llvmpipe selection in the
+fresh log. The requested Vulkan ICD was exported to the process, but this
+Direct3D 9 configuration used WineD3D/OpenGL and therefore did not exercise
+that ICD. The log also repeats the known FEX message
+`Host CPU doesn't support atomics. Expect bad performance` and includes the
+existing Mesa shader-cache permission warning.
+
+No Geometry Wars window or frame appeared. The late 1280x960 screenshot shows
+the Steam Geometry Wars library page, not the game; its SHA-256 is
+`908f4f9437f371ef8741f35d2a9c1bdb7946253a54b07c8b229e47176245140b`. The
+direct command's captured output SHA-256 is
+`d66fe3feccc1c34f8f52f5e287681c7da950660268445c5e2ad1499de3375c67`.
+
+This is a real game-process/startup result, but not a game-rendering result:
+the previous run's immediate trace-loop condition was bounded, the game still
+returned `5`, and the current display evidence remained Steam UI. Combined
+with the earlier no-ICD Geometry Wars run and the Peggle control, this lowers
+the value of trying more small 32-bit games without first addressing the
+shared Proton 11 ARM64/FEX/WineD3D boundary. The next useful game experiment
+would need to explicitly test a D3D9 Vulkan/DXVK path or the FEX/atomic
+failure, rather than merely exporting a Vulkan ICD to WineD3D.
+
+## Final cleanup and persistent state
+
+The exact X11 cleanup and rootfs cleanup both initially reported
+`nova_x11_cleanup=pass` and `nova_runtime_cleanup=pass`. Two orphaned
+run-specific Wine helper PIDs (`17888` and `17916`) remained after the natural
+game exit and were removed by exact PID after their command lines were
+verified; the final process, mount, socket, launcher-state, and temporary-log
+checks were empty. The retained Geometry Wars install, AppID-8400 compatdata,
+Proton 11 ARM64 wrapper, Steam account state, and rootfs are intact.
+
+Run artifacts are retained under
+`/tmp/proton-arm64-20260810T045759Z-geometry-wars-freedreno-icd-clean-log/`.
+The device's 67,392-byte run log and helper script were removed after capture;
+the host copy, bounded excerpts, screenshots, and direct-run record remain.
