@@ -57,3 +57,13 @@ APK and Termux:X11, run both exact cleanup helpers, and verify no matching
 Gamescope, gamescopereaper, Xwayland, Steam, Wine/Proton, libei, or uinput
 process remains. Retain only the two baseline rootfs udev sockets. This
 declaration is committed and pushed before the device run.
+
+## Preflight correction before device invocation
+
+The first preflight attempt did not launch the Activity or Gamescope. Its
+backup command initially addressed the AppID-8400 registry files at
+`compatdata/8400/{system.reg,user.reg,userdef.reg}`; the live prefix stores
+them under `compatdata/8400/pfx/`. The copy commands therefore reported
+`No such file or directory`, and the attempt was stopped before any device
+session started. The temporary backup and staged probe were removed. A fresh
+run identity uses the corrected `pfx` paths and will not reuse this attempt.
