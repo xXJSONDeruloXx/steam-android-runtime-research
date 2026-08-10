@@ -334,6 +334,7 @@ the gamescope frames on its own surface.
 - [Nova Termux:X11 hardware Steam preload-isolation experiment](docs/216-nova-termux-x11-hardware-steam-preload-isolation-experiment-2026-08-10.md)
 - [Nova Termux:X11 hardware Steam system-D-Bus isolation experiment](docs/217-nova-termux-x11-hardware-steam-system-dbus-isolation-experiment-2026-08-10.md)
 - [Nova Termux:X11 hardware Holo Mesa library-order experiment](docs/218-nova-termux-x11-hardware-holo-mesa-library-order-experiment-2026-08-10.md)
+- [Nova Termux:X11 hardware display/software-GL isolation experiment](docs/219-nova-termux-x11-hardware-display-software-gl-isolation-experiment-2026-08-10.md)
 - [Retroid Pocket Nova flashing kit](tools/retroid-pocket-nova/README.md)
 
 ## Evidence standard

@@ -26,6 +26,7 @@ CEF_DISABLE_GPU=${NOVA_TERMUX_X11_STEAM_CEF_DISABLE_GPU:-}
 STEAM_UI_MODE=${NOVA_TERMUX_X11_STEAM_UI_MODE:-gamepadui}
 STEAM_DISABLE_PRELOAD=${NOVA_TERMUX_X11_STEAM_DISABLE_PRELOAD:-0}
 STEAM_HOLO_MESA_FIRST=${NOVA_TERMUX_X11_STEAM_HOLO_MESA_FIRST:-0}
+STEAM_FORCE_SOFTWARE_GL=${NOVA_TERMUX_X11_STEAM_FORCE_SOFTWARE_GL:-0}
 AUDIO_BRIDGE=${NOVA_TERMUX_X11_STEAM_AUDIO_BRIDGE:-0}
 AUDIO_BRIDGE_PORT=${NOVA_TERMUX_X11_STEAM_AUDIO_BRIDGE_PORT:-29100}
 AUDIO_BRIDGE_LOG=${NOVA_TERMUX_X11_STEAM_AUDIO_BRIDGE_LOG:-/tmp/nova-alsa-audiotrack-bridge.log}
@@ -132,6 +133,14 @@ case "$STEAM_HOLO_MESA_FIRST" in
         ;;
     *)
         echo "invalid NOVA_TERMUX_X11_STEAM_HOLO_MESA_FIRST: $STEAM_HOLO_MESA_FIRST" >&2
+        exit 2
+        ;;
+esac
+case "$STEAM_FORCE_SOFTWARE_GL" in
+    0|1)
+        ;;
+    *)
+        echo "invalid NOVA_TERMUX_X11_STEAM_FORCE_SOFTWARE_GL: $STEAM_FORCE_SOFTWARE_GL" >&2
         exit 2
         ;;
 esac
@@ -346,6 +355,7 @@ log "client_cef_disable_gpu=$CEF_DISABLE_GPU"
 log "client_steam_ui_mode=$STEAM_UI_MODE"
 log "client_disable_preload=$STEAM_DISABLE_PRELOAD"
 log "client_holo_mesa_first=$STEAM_HOLO_MESA_FIRST"
+log "client_force_software_gl=$STEAM_FORCE_SOFTWARE_GL"
 log "client_audio_bridge=$AUDIO_BRIDGE"
 log "client_audio_bridge_port=$AUDIO_BRIDGE_PORT"
 log "client_audio_bridge_log=$AUDIO_BRIDGE_LOG"
@@ -439,15 +449,27 @@ if [ "$STEAM_HARDWARE_ACCEL" -eq 1 ]; then
     unset GALLIUM_DRIVER
     unset LIBGL_ALWAYS_SOFTWARE
     export VK_ICD_FILENAMES="$STEAM_VULKAN_ICD"
-    log "client_mesa_driver=unset"
-    log "client_gallium_driver=unset"
-    log "client_libgl_always_software=unset"
+    if [ "$STEAM_FORCE_SOFTWARE_GL" -eq 1 ]; then
+        export MESA_LOADER_DRIVER_OVERRIDE=swrast
+        export GALLIUM_DRIVER=softpipe
+        export LIBGL_ALWAYS_SOFTWARE=1
+        log "client_gl_mode=software"
+        log "client_mesa_driver=$MESA_LOADER_DRIVER_OVERRIDE"
+        log "client_gallium_driver=$GALLIUM_DRIVER"
+        log "client_libgl_always_software=1"
+    else
+        log "client_gl_mode=hardware"
+        log "client_mesa_driver=unset"
+        log "client_gallium_driver=unset"
+        log "client_libgl_always_software=unset"
+    fi
     log "client_vk_icd=$VK_ICD_FILENAMES"
 else
     unset VK_ICD_FILENAMES
     export MESA_LOADER_DRIVER_OVERRIDE=swrast
     export GALLIUM_DRIVER=softpipe
     export LIBGL_ALWAYS_SOFTWARE=1
+    log "client_gl_mode=software"
     log "client_mesa_driver=$MESA_LOADER_DRIVER_OVERRIDE"
     log "client_gallium_driver=$GALLIUM_DRIVER"
     log "client_libgl_always_software=1"
