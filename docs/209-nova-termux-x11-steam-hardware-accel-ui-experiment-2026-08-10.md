@@ -1,6 +1,8 @@
 # Nova Termux:X11 Steam hardware-acceleration UI experiment — 2026-08-10
 
-Status: predeclared; no device session has been launched under this run yet.
+Status: incomplete; the first attempt stopped at the Termux:X11 startup gate
+before Steam launched. The result is recorded below; a repeat requires a
+separate fresh run identity after the startup cause is addressed.
 
 ## Question
 
@@ -62,3 +64,34 @@ Nova/X11 and rootfs cleanup helpers. Verify no matching Steam, Wine, FEX,
 Gamescope, Termux:X11, relay, mount, socket, or run-state artifact remains.
 
 This document is committed and pushed before starting the device session.
+
+## First attempt result — device session `20260810T042959Z-24334`
+
+The declared root launcher was invoked with
+`NOVA_ANDROID_LAUNCHER_HARDWARE_ACCEL=1`. It recorded the explicit Turnip ICD
+and a ready virtual gamepad (`event9`), then started Termux:X11 Activity PID
+`24417` and server PID `24414`. No Steam client was launched:
+
+```text
+nova_launcher_hardware_accel=1
+nova_launcher_vulkan_icd=/opt/nova-kgsl-driver/freedreno-kgsl.icd.json
+nova_launcher_gamepad=pass
+nova_launcher_input_allow=event9
+nova_launcher_start=fail reason=x11_socket_not_ready
+```
+
+The fresh launcher `server.log` was empty and the Activity log only recorded
+the Activity start. Device logcat identified the first failed layer as the
+Termux:X11 command entry point: `app_process` aborted with
+`java.lang.ClassNotFoundException: com.termux.x11.CmdEntryPoint`. The current
+Termux:X11 base APK was captured and independently contains that class in
+`classes.dex`, so this is an invocation/classpath-context failure rather than
+evidence against the Turnip ICD or Steam rendering. Android did create the
+1280x960 X11 surface before the command process crashed, then cleanup
+force-stopped the Activity.
+
+The exact X11 cleanup returned `nova_x11_cleanup=pass` and the rootfs cleanup
+returned `nova_runtime_cleanup=pass`; no Steam, X11, Gamescope, relay, mount,
+or temporary socket remained. Fresh host artifacts are under
+`/tmp/gpu-20260810T042803Z-x11-steam-hardware-rerun/`. This attempt is not a
+hardware-rendering result and does not alter the known-good software profile.
