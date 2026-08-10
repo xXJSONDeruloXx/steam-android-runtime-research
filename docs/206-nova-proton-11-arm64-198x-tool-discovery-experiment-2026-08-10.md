@@ -326,6 +326,23 @@ sockets were removed by their exact paths after Steam exited; the final
 process, mount, and rootfs temporary-socket checks were empty. Steam account,
 game, prefix, shader-cache, and installed-tool data were preserved.
 
+## Phase 4 predeclared run
+
+Run ID: `proton-arm64-20260810T023604Z-direct-entrypoint`
+
+The next bounded diagnostic will leave AppID `1086010` on its restored
+`proton_hotfix` mapping and will not ask Steam to launch the game. It will
+start a fresh direct Termux:X11 client namespace, recreate only the transient
+dependency-neutralized Proton 11 ARM64 wrapper, and invoke that wrapper
+directly with the Steam compatibility environment for 198X:
+`STEAM_COMPAT_DATA_PATH`, `STEAM_COMPAT_CLIENT_INSTALL_PATH`,
+`STEAM_COMPAT_INSTALL_PATH`, `STEAM_COMPAT_LIBRARY_PATHS`, `SteamAppId`, and
+`SteamGameId`. `PROTON_LOG=1` and an explicit temporary log directory will
+capture Proton's own early-exit path. The run will collect the direct command
+status, stderr/Proton log, child-process tree, and any Wine/FEX evidence, then
+remove only the wrapper and execute the exact X11/runtime cleanup helpers.
+It will not modify the 198X files, compatdata, prefix, or Steam account state.
+
 ## Cleanup contract
 
 The exact Nova/X11 cleanup helper and rootfs runtime cleanup helper must run
