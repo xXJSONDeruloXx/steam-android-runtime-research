@@ -1,7 +1,6 @@
 # Nova Proton 11 ARM64 Geometry Wars Freedreno-ICD experiment — 2026-08-10
 
-Status: first setup attempt discarded before Proton startup; retry predeclared
-below.
+Status: two setup/runtime attempts recorded; clean-log retry predeclared below.
 
 ## Question
 
@@ -105,3 +104,53 @@ repeat the direct Geometry Wars launch with the explicit Freedreno ICD. The
 retry must produce a new launcher session token before any readiness or game
 claim is accepted. Its artifacts will be retained under
 `/tmp/proton-arm64-20260810T045216Z-geometry-wars-freedreno-icd-retry/`.
+
+## Retry result
+
+The retry created fresh launcher session `20260810T045317Z-11185`. The
+software profile reached `nova_launcher_ready=pass` at `1280x960`, with the
+gamepad relay ready on `event9`. The direct namespace reported
+`mount_private=pass` and `x11_namespace_input=pass`. Proton then created a real
+`GeometryWars.exe` process (PID `12754`) under Proton PID `12753`, with Wine's
+server/device helpers and `winedbg` also present.
+
+The direct Proton header recorded the requested AppID and explicit ICD
+environment, and loaded the real PE32 executable, `d3d9.dll`, `wined3d.dll`,
+native `d3dx9_32.dll`, and `XINPUT1_3.dll`. However, it also recorded:
+
+```text
+Effective WINEDEBUG: +timestamp,+pid,+tid,+seh,+unwind,+threadname,+debugstr,+loaddll,+mscoree
+D 24 Host CPU doesn't support atomics. Expect bad performance
+```
+
+This path remained in WineD3D/OpenGL; no Vulkan physical-device or Freedreno
+renderer selection appeared in the captured Proton excerpts. Setting
+`VK_ICD_FILENAMES` therefore did not yet test a Vulkan game renderer for this
+title. The game stayed in a repeated access-violation/exception loop instead
+of presenting a window. The generated `steam-8400.log` reached
+`12,656,505,994` bytes before the exact run-specific Wine/FEX processes were
+stopped to prevent further storage growth. Bounded head/tail excerpts and the
+process/screenshot captures remain under
+`/tmp/proton-arm64-20260810T045216Z-geometry-wars-freedreno-icd-retry/`; the
+explosive full log was removed as disposable run output.
+
+No Geometry Wars frame appeared. The same-run screenshots remained on the
+Steam splash/library UI; the late screenshot SHA-256 is
+`652388491a4f390753efd039f32bf4408fd5d8ef8992a2e4928d4363190d1cce`.
+The direct command was intentionally terminated with status 143 after the
+bounded capture, so this is not a natural game-exit result and does not prove
+that the executable would eventually render. It does prove the run passed the
+prior immediate process-creation failure and reached a persistent 32-bit
+Geometry Wars/Wine boundary.
+
+## Clean-log retry predeclared
+
+Run ID: `proton-arm64-20260810T045759Z-geometry-wars-freedreno-icd-clean-log`
+
+The next run keeps the same game, prefix, software Steam/X11 surface, and
+explicit Freedreno ICD. It changes only Proton logging: the direct helper will
+set `WINEDEBUG=-all` while retaining `PROTON_LOG=1`, preventing the observed
+SEH trace loop from consuming storage and allowing a bounded natural startup
+observation. It will use a new exact cleanup baseline, a new launcher session,
+and a new artifact directory. The result will still distinguish a real game
+frame from a live process or wrapper return code.
