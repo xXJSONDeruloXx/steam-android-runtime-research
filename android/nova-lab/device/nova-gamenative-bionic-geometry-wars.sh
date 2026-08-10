@@ -35,30 +35,19 @@ wine_server="$wine_root/bin/wineserver"
 sysvshm="$imagefs/usr/lib/libandroid-sysvshm.so"
 redirect="$imagefs/usr/lib/libredirect-bionic.so"
 x11_source="$root/tmp/.X11-unix"
-tmp_source="$root/tmp"
 
-for path in "$linker" "$wine_bin" "$wine_server" "$sysvshm" "$redirect" "$evshim" "$icd" "$wsi_dir/VkLayer_window_system_integration.json" "$wsi_dir/libVkLayer_window_system_integration.so" "$x11_source/." "$tmp_source/."; do
+for path in "$linker" "$wine_bin" "$wine_server" "$sysvshm" "$redirect" "$evshim" "$icd" "$wsi_dir/VkLayer_window_system_integration.json" "$wsi_dir/libVkLayer_window_system_integration.so" "$x11_source/."; do
     if [ ! -e "$path" ]; then
         echo "gamenative_bionic=fail reason=missing_path path=$path" >&2
         exit 1
     fi
 done
 
-if ! /system/bin/mount -o bind "$tmp_source" /tmp; then
-    echo "gamenative_bionic=fail reason=bind_x11" >&2
-    exit 1
-fi
-
-cleanup() {
-    /system/bin/umount -l /tmp >/dev/null 2>&1 || true
-}
-trap cleanup EXIT INT TERM
-
 export PATH="$wine_root/bin:$imagefs/usr/bin:/system/bin:/product/bin"
 export HOME="$imagefs/home/xuser"
 export USER=xuser
 export LOGNAME=xuser
-export DISPLAY=:0
+export DISPLAY="unix:$root/tmp:0"
 export XDG_RUNTIME_DIR="$imagefs/tmp"
 export TMPDIR="$imagefs/tmp"
 export LANG=C
