@@ -1,8 +1,7 @@
 # Nova Steam restart supervisor and state persistence — 2026-08-10
 
-Status: the bounded in-session restart passed; the restarted client still
-returned to Stage 1 OOBE. A separate seeded-home ownership defect was found
-and predeclared for the next run.
+Status: passed. The bounded in-session restart and seeded-home ownership repair
+reached the real Steam QR login page without retaining authentication material.
 
 ## Run identity and provenance
 
@@ -85,3 +84,33 @@ Acceptance for the next fresh run:
 If Stage 1 still repeats after the ownership repair, investigate the native
 Steam client-setting persistence and SteamOSManager contract as separate
 experiments. Do not reintroduce an OOBE bundle rewrite into this run.
+
+## Result of the predeclared run
+
+The next fresh run used the same profile and launcher session
+`20260810T212817Z-11248`. The provisioner and client both reported the repaired
+ownership boundary, and the device showed:
+
+```text
+drwx------ 2 501 20 /opt/nova-steam/home/.steam
+client_steam_dot_dir_owner_status=pass
+```
+
+The first Steam attempt again returned status `42` with fresh restart evidence;
+the wrapper performed exactly one in-session relaunch. On the second attempt,
+Steam recorded:
+
+```text
+SteamUI: WARNING: OOBE Stage 2: completed
+SteamUI: WARNING: No restart requested
+SteamUI: INFO: Login: OnLoginStateChange  1 1 0 0
+```
+
+The Android capture visibly matched Steam's sign-in page with the live QR
+login control. The capture was inspected and immediately deleted because it
+contained a live authentication challenge; no QR image, token, or Steam
+authentication data was exported or backed up. Both attempts were free of the
+earlier `.steam/steam.token` permission error.
+
+The session is intentionally still running at the QR page for the operator to
+scan. Cleanup is deferred until the operator finishes the login check.
