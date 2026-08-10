@@ -264,10 +264,67 @@ match.
 
 Run ID: `proton-arm64-20260810T022711Z-198x-dependency-neutralized-retry`
 
-The retry will require a differing wrapper-manifest hash and a direct
-no-`4185400` verification before `am start`. If that preflight passes, it
-will repeat the mapped 198X launch and capture the same runtime/frame gates;
-otherwise it will be cleaned without interpreting the result.
+The retry required a differing wrapper-manifest hash and a direct
+no-`4185400` verification before `am start`. With that preflight passing, it
+repeated the mapped 198X launch and captured the same runtime/frame gates.
+
+## Phase 3 result
+
+The fresh launcher session was `20260810T022841Z-9162`. Readiness passed for
+the direct Termux:X11 profile at 1280x960, with the normal Steam UI visible.
+The wrapper preflight preserved the original installed Proton package hash
+(`872df60e3900b6f3f195faefa0cdbbf12c0f7dc388362aa9a4d5838be1c366bf`) and
+produced a distinct wrapper-manifest hash
+(`ca2f1ec4ef6cf41cd11ab1899d13d1cc1d3278b406fbe13341c6052f75f8a9cb`). The
+wrapper dependency scan contained neither `require_tool_appid` nor `4185400`.
+The compatibility-tool manifest hash was
+`9eed42bb7ac471fb33197f98cf397e0b8bed92fa6f9c310db97d8697d6310d4d`.
+
+After the fresh restart, the compatibility log registered the alias and
+loaded the dependency-neutralized wrapper:
+
+```text
+Registering tool proton11_arm64, AppID 0
+Mapping AppID 1086010 to tool "proton11_arm64" with priority 250
+Loaded manifest for tool proton11_arm64.
+Command prefix for tool 0 "Proton 11.0 (ARM64)" set to:
+  "'/opt/nova-steam/home/.local/share/Steam/compatibilitytools.d/proton-11-arm64'/proton run "
+```
+
+The 198X launch began at `2026-08-10 02:31:53` with compat session
+`2c8e8577960c8b92`. Steam reached the game command and selected the wrapper:
+
+```text
+AppID 1086010 adding PID 11554 as a tracked process
+  .../compatibilitytools.d/proton-11-arm64/proton waitforexitandrun
+  .../steamapps/common/198X/198X.exe
+```
+
+This clears the earlier missing-runtime catalog failure, but it is not yet a
+working game launch. The tracked wrapper exited with code `0` almost
+immediately, its only tracked child exited with `-1`, and no Proton, Wine,
+Wineserver, FEX, pressure-vessel, or game process was present in the 12-second
+capture. Steam consequently marked the action `Completed`/`WaitingGameWindow`
+without a game window. `steam-after-applaunch-12s.png` shows the 198X library
+page, not a game frame.
+
+The evidence now points at the wrapper's early execution environment or Proton
+entry-point behavior, rather than the Steam compatibility dependency resolver.
+The wrapper has not been promoted into the one-click APK. The next bounded
+experiment should execute the same wrapper directly inside the client mount
+namespace with the Steam launch environment and capture its stderr plus the
+first child-process decision, changing no game files or prefixes.
+
+Run artifacts are retained under
+`/tmp/proton-arm64-20260810T022711Z-198x-dependency-neutralized-retry/`,
+including the wrapper hashes, fresh compatibility registration, launch
+command, process captures, compatibility/game-process logs, launcher log, and
+1280x960 screenshots. The exact X11 and runtime cleanup helpers both passed.
+The cleanup then restored AppID `1086010` to `proton_hotfix` and removed only
+the transient wrapper and staging files. Two stale Steam singleton/shmem
+sockets were removed by their exact paths after Steam exited; the final
+process, mount, and rootfs temporary-socket checks were empty. Steam account,
+game, prefix, shader-cache, and installed-tool data were preserved.
 
 ## Cleanup contract
 
