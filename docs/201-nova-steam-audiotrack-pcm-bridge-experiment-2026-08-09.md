@@ -1,8 +1,8 @@
 # Nova Steam-to-Android AudioTrack PCM bridge — 2026-08-09
 
-Status: isolated and combined Steam-session transport passed, with connection
-rollover warnings still requiring hardening. The product default is still
-disabled and no audible-listener claim is made.
+Status: isolated and combined Steam-session transport passed; the sender
+backpressure fix also passed a clean bounded verification. The product default
+is still disabled and no audible-listener claim is made.
 
 ## Question
 
@@ -308,6 +308,58 @@ one-second `SO_SNDTIMEO`, enlarges the loopback send buffer, and retries
 symbol inspection, shell syntax checks, Java compilation, APK signing, and
 APK build all pass for that change. The next device run must use the newly
 built APK and library hashes, not the prior instrumented artifact.
+
+## Backpressure-fix verification — `audio-20260810T001700Z-backpressure-fix`
+
+The sender fix was built from commit `f798a35` and reran the same signed-in,
+fullscreen software Steam profile without physical or synthetic input. The
+one-click launcher again started the loopback listener before Steam, and fresh
+Steam UI initialization reached `CreateMainWindow` for the current run.
+
+The event log contained one connection and no send failure:
+
+```text
+event=pcm_open              count=1
+event=connected             count=1
+event=header_sent           count=1
+event=pcm_frames_attempted  count=890
+event=pcm_frames_sent       count=890
+event=pcm_close             count=1
+```
+
+Android reported a valid stream and a clean close:
+
+```text
+NovaAudioBridge: audio_bridge_listener=ready host=127.0.0.1 port=29100
+NovaAudioBridge: audio_bridge_client=connected
+NovaAudioBridge: audio_bridge_stream=ready rate=48000 channels=2 format=S16_LE
+NovaAudioBridge: audio_bridge_stream=closed frames=1824768 bytes=7299072
+```
+
+There were no `pcm_send_failed_bytes` or `partial_pcm_frame` records. The
+sender-side `SO_SNDTIMEO` failure is therefore resolved for this bounded
+session, and the rootfs-to-Android PCM transport is now a clean opt-in pass.
+This still does not prove audible output to a human listener, and the product
+default remains disabled pending a longer soak and that confirmation.
+
+Run artifacts:
+
+- APK SHA-256:
+  `d10db07be9e62d2468ad3b92530e4db6a2efd8c7265720c5be513256592287ec`;
+- fixed ARM64 preload SHA-256:
+  `741943aead509f6179811633d018d8ad8246bedd27d3641dab9b576435358143`;
+- fixed preload source SHA-256:
+  `08b0c188c1bb571ee64aa4af2154064d928de6bd69a1f924e2ab5960fa8b6818`;
+- client launcher source SHA-256:
+  `e463c71a55e2716fe25329906a50272f0817e57f67c4c970b8a9ebe4f200beff`;
+- bridge event-log SHA-256:
+  `87cd2653c4787eedc73db4d5a3930d33704ac2a46b28fedf90e883463bb3de3b`;
+- final Android logcat SHA-256:
+  `a47ab7b6a52f160f4db30e69cc74a45e7737fceff12a74c35eb6b8d49c4b1f5e`.
+
+Teardown returned exact `nova_runtime_cleanup=pass` and
+`nova_x11_cleanup=pass` markers. The post-stop inventory had no matching Nova
+runtime, and the state, preload, bridge log, and relay stage were removed.
 
 ## Acceptance gates
 
