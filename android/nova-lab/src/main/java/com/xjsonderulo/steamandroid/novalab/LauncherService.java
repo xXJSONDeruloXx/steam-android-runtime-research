@@ -151,7 +151,11 @@ public final class LauncherService extends Service {
                 + " " + shellQuote(assetDirectory);
         setStatus("Starting rooted Steam session");
         try {
-            Process process = new ProcessBuilder("su", "-c", command)
+            // Keep the app-launched root process in Magisk's mount-master
+            // namespace. The Termux:X11 base APK lives under /data/app and
+            // app_process must see that same package mount as the foreground
+            // Activity; plain su -c can place this child in an isolated view.
+            Process process = new ProcessBuilder("su", "-mm", "0", "-c", command)
                     .redirectErrorStream(true)
                     .start();
             synchronized (processLock) {
@@ -214,7 +218,7 @@ public final class LauncherService extends Service {
                         + " " + shellQuote(currentTermuxApk)
                         + " " + shellQuote(currentAssets);
                 try {
-                    Process stop = new ProcessBuilder("su", "-c", command)
+                    Process stop = new ProcessBuilder("su", "-mm", "0", "-c", command)
                             .redirectErrorStream(true)
                             .start();
                     try (BufferedReader reader = new BufferedReader(
