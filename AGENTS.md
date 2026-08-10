@@ -1,7 +1,17 @@
 # Steam Android runtime research guardrails
 
+## Agent documentation discovery
+
+For project orientation, start with the
+[`docs/README.md`](docs/README.md) documentation map, then read the
+[`current roadmap`](docs/00-start-here/06-android-linux-gamescope-roadmap.md)
+before choosing work. Use the folder README files to narrow historical
+evidence; current direction and acceptance boundaries belong in
+`docs/00-start-here/`, while the numbered records in the other folders are
+append-only experiment history.
+
 Before any Nova device run, read
-[`docs/34-nova-runtime-harness-lifecycle.md`](docs/34-nova-runtime-harness-lifecycle.md).
+[`docs/00-start-here/34-nova-runtime-harness-lifecycle.md`](docs/00-start-here/34-nova-runtime-harness-lifecycle.md).
 It records the cleanup incident and the required regression contract.
 
 ## Run identity and cleanup
