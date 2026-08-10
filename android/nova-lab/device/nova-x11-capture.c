@@ -1,3 +1,5 @@
+#define _POSIX_C_SOURCE 200809L
+
 #include <X11/Xlib.h>
 #include <X11/Xutil.h>
 
@@ -7,6 +9,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 
 struct window_capture {
     Window window;
@@ -28,8 +31,78 @@ print_usage(const char *program)
 {
     fprintf(stderr,
             "usage: %s [--tree] [--root-ppm PATH] "
-            "[--window-ppm WINDOW_ID PATH]...\n",
+            "[--window-ppm WINDOW_ID PATH]... "
+            "[--pointer-probe SECONDS]\n",
             program);
+}
+
+static int
+parse_pointer_probe_seconds(const char *value, unsigned int *seconds)
+{
+    char *end = NULL;
+    errno = 0;
+    unsigned long parsed = strtoul(value, &end, 10);
+    if (errno != 0 || end == value || *end != '\0' || parsed == 0 ||
+        parsed > 300UL) {
+        return 0;
+    }
+    *seconds = (unsigned int)parsed;
+    return 1;
+}
+
+static long long
+monotonic_milliseconds(void)
+{
+    struct timespec timestamp;
+    if (clock_gettime(CLOCK_MONOTONIC, &timestamp) != 0) {
+        return -1;
+    }
+    return (long long)timestamp.tv_sec * 1000LL +
+           (long long)timestamp.tv_nsec / 1000000LL;
+}
+
+static int
+probe_pointer(Display *display, Window root, unsigned int seconds)
+{
+    const unsigned int interval_milliseconds = 50;
+    const unsigned int sample_count =
+        (seconds * 1000U) / interval_milliseconds;
+    unsigned int observed_samples = 0;
+    long long start_milliseconds = monotonic_milliseconds();
+    for (unsigned int index = 0; index < sample_count; ++index) {
+        Window root_return = None;
+        Window child_return = None;
+        int root_x = 0;
+        int root_y = 0;
+        int window_x = 0;
+        int window_y = 0;
+        unsigned int mask = 0;
+        Bool same_screen = XQueryPointer(
+            display, root, &root_return, &child_return, &root_x, &root_y,
+            &window_x, &window_y, &mask);
+        long long elapsed_milliseconds = monotonic_milliseconds();
+        if (elapsed_milliseconds >= 0 && start_milliseconds >= 0) {
+            elapsed_milliseconds -= start_milliseconds;
+        }
+        printf("nova_x11_pointer_sample index=%u elapsed_ms=%lld "
+               "same_screen=%d root_x=%d root_y=%d window_x=%d window_y=%d "
+               "mask=0x%x child=0x%lx\n",
+               index, elapsed_milliseconds, same_screen ? 1 : 0, root_x,
+               root_y, window_x, window_y, mask,
+               (unsigned long)child_return);
+        fflush(stdout);
+        ++observed_samples;
+
+        struct timespec delay = {
+            .tv_sec = 0,
+            .tv_nsec = (long)interval_milliseconds * 1000000L,
+        };
+        while (nanosleep(&delay, &delay) != 0 && errno == EINTR) {
+        }
+    }
+    printf("nova_x11_pointer_probe=pass seconds=%u samples=%u\n", seconds,
+           observed_samples);
+    return observed_samples == sample_count;
 }
 
 static int
@@ -272,6 +345,7 @@ main(int argc, char **argv)
 {
     int print_tree = 0;
     const char *root_path = NULL;
+    unsigned int pointer_probe_seconds = 0;
     struct window_capture captures[32];
     size_t capture_count = 0;
 
@@ -294,6 +368,15 @@ main(int argc, char **argv)
                 .path = argv[index + 2],
             };
             index += 2;
+        } else if (strcmp(argv[index], "--pointer-probe") == 0 &&
+                   index + 1 < argc && pointer_probe_seconds == 0) {
+            if (!parse_pointer_probe_seconds(argv[index + 1],
+                                             &pointer_probe_seconds)) {
+                fprintf(stderr, "invalid pointer probe seconds: %s\n",
+                        argv[index + 1]);
+                return 2;
+            }
+            ++index;
         } else if (strcmp(argv[index], "--help") == 0) {
             print_usage(argv[0]);
             return 0;
@@ -303,7 +386,8 @@ main(int argc, char **argv)
         }
     }
 
-    if (!print_tree && root_path == NULL && capture_count == 0) {
+    if (!print_tree && root_path == NULL && capture_count == 0 &&
+        pointer_probe_seconds == 0) {
         print_usage(argv[0]);
         return 2;
     }
@@ -331,6 +415,10 @@ main(int argc, char **argv)
                        captures[index].path)) {
             success = 0;
         }
+    }
+    if (pointer_probe_seconds != 0 &&
+        !probe_pointer(display, root, pointer_probe_seconds)) {
+        success = 0;
     }
     XCloseDisplay(display);
     return success ? 0 : 1;
