@@ -246,7 +246,7 @@ final class AudioPcmBridge {
         if (minBuffer <= 0) {
             throw new IOException("invalid_min_buffer=" + minBuffer);
         }
-        int bufferBytes = Math.max(minBuffer * 2, 16384);
+        int bufferBytes = minBuffer;
         AudioTrack current = new AudioTrack.Builder()
                 .setAudioAttributes(new AudioAttributes.Builder()
                         .setUsage(AudioAttributes.USAGE_GAME)
