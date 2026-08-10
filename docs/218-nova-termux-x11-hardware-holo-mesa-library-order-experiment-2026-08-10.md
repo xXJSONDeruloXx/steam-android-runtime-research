@@ -163,3 +163,35 @@ now points below the display transport and these launcher-level variables;
 the next useful work should be a separate Steam binary/runtime investigation
 or productizing the already-working software UI route, not another compositor
 patch or game launch from a non-rendering hardware run.
+
+## Post-run minidump analysis
+
+LLDB can read the retained ARM64 Breakpad minidumps directly. The crashing
+thread in both the system-D-Bus-off control and this Holo-first run has the
+same native shape:
+
+```text
+frame 0  0x0                              SIGSEGV
+frames 1-8  libgallium-25.2.7-arch1.1.so
+frames 9-10 libGLX_mesa.so.0.0.0
+frames 11-13 libGLX.so.0.0.0
+frames 14-17 steam
+```
+
+Both dumps also retain worker threads in `libgallium-25.2.7-arch1.1.so` and
+`libvulkan_freedreno.so`. The matching LLDB outputs are retained as
+`lldb-backtrace.txt` in each run directory:
+
+| Run | LLDB backtrace SHA-256 |
+| --- | --- |
+| `steam-20260810T055632Z-hardware-system-dbus-off` | `54be37973dacc77f10e0ee63fa73b7edb76998163ad94c8b75aa343d169968fa` |
+| `steam-20260810T060113Z-hardware-holo-mesa-first` | `bf11e7ebf0eac3750f23c514eb293e2f1a3c1b06f461714a6ad800d32ce1c1f6` |
+
+This turns the earlier library-order hypothesis into a narrower GLX/Mesa
+failure boundary: Holo-first ordering alone does not prevent the same Mesa
+callback from reaching address zero. The next diagnostic should force
+software GL only in the Steam client while leaving the Termux:X11 Android
+surface hardware-backed and retaining the explicit Vulkan ICD. A successful
+Steam frame there would separate the client GLX path from the Android display
+transport; it would be diagnostic evidence, not yet a hardware-rendered game
+claim.
