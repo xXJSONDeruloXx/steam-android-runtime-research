@@ -41,6 +41,8 @@ public final class LauncherActivity extends Activity {
             LauncherService.EXTRA_STEAM_UI_MODE;
     private static final String EXTRA_STEAM_DISABLE_PRELOAD =
             LauncherService.EXTRA_STEAM_DISABLE_PRELOAD;
+    private static final String EXTRA_STEAM_DISABLE_SYSTEM_DBUS =
+            LauncherService.EXTRA_STEAM_DISABLE_SYSTEM_DBUS;
     private static final int REQUEST_POST_NOTIFICATIONS = 42;
     private static final String[] REQUIRED_ASSETS = {
             "nova-one-click-root-launcher.sh",
@@ -212,10 +214,13 @@ public final class LauncherActivity extends Activity {
         String steamUiMode = "minimal".equals(getIntent().getStringExtra(EXTRA_STEAM_UI_MODE))
                 ? "minimal" : "gamepadui";
         boolean steamDisablePreload = getIntent().getBooleanExtra(EXTRA_STEAM_DISABLE_PRELOAD, false);
+        boolean steamDisableSystemDbus = getIntent().getBooleanExtra(
+                EXTRA_STEAM_DISABLE_SYSTEM_DBUS, false);
         service.putExtra(LauncherService.EXTRA_HARDWARE_ACCEL, hardwareAccel);
         service.putExtra(LauncherService.EXTRA_CEF_DISABLE_GPU, cefDisableGpu);
         service.putExtra(LauncherService.EXTRA_STEAM_UI_MODE, steamUiMode);
         service.putExtra(LauncherService.EXTRA_STEAM_DISABLE_PRELOAD, steamDisablePreload);
+        service.putExtra(LauncherService.EXTRA_STEAM_DISABLE_SYSTEM_DBUS, steamDisableSystemDbus);
         if (Build.VERSION.SDK_INT >= 26) {
             startForegroundService(service);
         } else {

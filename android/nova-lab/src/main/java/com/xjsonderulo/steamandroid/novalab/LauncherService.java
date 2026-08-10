@@ -32,6 +32,7 @@ public final class LauncherService extends Service {
     public static final String EXTRA_CEF_DISABLE_GPU = "cef_disable_gpu";
     public static final String EXTRA_STEAM_UI_MODE = "steam_ui_mode";
     public static final String EXTRA_STEAM_DISABLE_PRELOAD = "steam_disable_preload";
+    public static final String EXTRA_STEAM_DISABLE_SYSTEM_DBUS = "steam_disable_system_dbus";
     private static final String TAG = "NovaLauncher";
     private static final String CHANNEL_ID = "nova-steam-session";
     private static final int NOTIFICATION_ID = 17;
@@ -50,6 +51,7 @@ public final class LauncherService extends Service {
     private boolean cefDisableGpu;
     private String steamUiMode = "gamepadui";
     private boolean steamDisablePreload;
+    private boolean steamDisableSystemDbus;
     private boolean audioOnly;
 
     public static String getStatus() {
@@ -115,6 +117,7 @@ public final class LauncherService extends Service {
                     ? intent.getBooleanExtra(EXTRA_CEF_DISABLE_GPU, false) : !hardwareAccel;
             steamUiMode = requestedSteamUiMode(intent);
             steamDisablePreload = intent.getBooleanExtra(EXTRA_STEAM_DISABLE_PRELOAD, false);
+            steamDisableSystemDbus = intent.getBooleanExtra(EXTRA_STEAM_DISABLE_SYSTEM_DBUS, false);
             startForeground(NOTIFICATION_ID, buildNotification("Starting Steam"));
             if (!startAudioBridgeLocked()) {
                 stopForeground(STOP_FOREGROUND_REMOVE);
@@ -161,6 +164,8 @@ public final class LauncherService extends Service {
                 + shellQuote(steamUiMode)
                 + " NOVA_ANDROID_LAUNCHER_STEAM_DISABLE_PRELOAD="
                 + shellQuote(steamDisablePreload ? "1" : "0")
+                + " NOVA_ANDROID_LAUNCHER_STEAM_DISABLE_SYSTEM_DBUS="
+                + shellQuote(steamDisableSystemDbus ? "1" : "0")
                 + " NOVA_ANDROID_LAUNCHER_AUDIO_BRIDGE="
                 + shellQuote(audioBridgeEnabled ? "1" : "0")
                 + " NOVA_ANDROID_LAUNCHER_AUDIO_BRIDGE_PORT="
