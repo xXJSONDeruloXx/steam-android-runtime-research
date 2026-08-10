@@ -330,6 +330,7 @@ the gamescope frames on its own surface.
 - [Nova Proton 11 ARM64 Geometry Wars Freedreno-ICD experiment](docs/212-nova-proton-11-arm64-geometry-wars-freedreno-icd-experiment-2026-08-10.md)
 - [Nova Termux:X11 hardware Steam cache-ownership rerun](docs/213-nova-termux-x11-hardware-steam-cache-ownership-rerun-2026-08-10.md)
 - [Nova Termux:X11 hardware Steam CEF-disabled rerun](docs/214-nova-termux-x11-hardware-cef-disabled-rerun-2026-08-10.md)
+- [Nova Termux:X11 hardware minimal Steam UI rerun](docs/215-nova-termux-x11-hardware-minimal-steam-ui-rerun-2026-08-10.md)
 - [Retroid Pocket Nova flashing kit](tools/retroid-pocket-nova/README.md)
 
 ## Evidence standard
