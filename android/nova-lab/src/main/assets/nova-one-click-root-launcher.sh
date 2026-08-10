@@ -191,6 +191,22 @@ read_state() {
     fi
 }
 
+clear_stale_dbus_state() {
+    dbus_socket="$ROOT/run/dbus/system_bus_socket"
+    dbus_pid="$ROOT/run/dbus/pid"
+    if [ ! -e "$dbus_socket" ] && [ ! -e "$dbus_pid" ]; then
+        log "nova_launcher_dbus_state=absent"
+        return 0
+    fi
+    if ! /system/bin/rm -f "$dbus_socket" "$dbus_pid" ||
+        [ -e "$dbus_socket" ] || [ -e "$dbus_pid" ]; then
+        log "nova_launcher_dbus_state=fail"
+        return 1
+    fi
+    log "nova_launcher_dbus_state=cleared"
+    return 0
+}
+
 parent_pid() {
     target_pid="$1"
     /system/bin/ps -A -o PID,PPID 2>/dev/null |
@@ -343,9 +359,20 @@ stop_session() {
     append_cleanup_ancestors
     log "nova_launcher_cleanup_exclude_pids=$cleanup_exclude_pids"
     if [ -x "$RUNTIME_CLEANUP" ]; then
+        runtime_cleanup_status=0
         NOVA_RUNTIME_CLEANUP_EXCLUDE_PIDS="$cleanup_exclude_pids" \
             /system/bin/sh "$RUNTIME_CLEANUP" "$ROOT" \
-            >>"$STATE/runtime-cleanup.log" 2>&1 || cleanup_status=$?
+            >>"$STATE/runtime-cleanup.log" 2>&1 || runtime_cleanup_status=$?
+        if [ "$runtime_cleanup_status" -ne 0 ]; then
+            cleanup_status=$runtime_cleanup_status
+        fi
+        if [ "$runtime_cleanup_status" -eq 0 ]; then
+            if ! clear_stale_dbus_state; then
+                cleanup_status=1
+            fi
+        else
+            log "nova_launcher_dbus_state=skipped reason=runtime_cleanup"
+        fi
     fi
 
     for path in \
@@ -400,6 +427,10 @@ if [ -S "$X11_SOCKET" ]; then
 fi
 if runtime_present; then
     log "nova_launcher_start=fail reason=existing_nova_runtime"
+    exit 1
+fi
+if ! clear_stale_dbus_state; then
+    log "nova_launcher_start=fail reason=stale_dbus_state"
     exit 1
 fi
 
