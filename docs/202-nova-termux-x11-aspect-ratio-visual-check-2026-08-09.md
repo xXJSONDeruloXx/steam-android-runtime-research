@@ -1,6 +1,7 @@
 # Nova Termux:X11 aspect-ratio visual check — 2026-08-09
 
-Status: predeclared; device result pending.
+Status: one setup-invalid attempt recorded; corrected retry predeclared and
+device result pending.
 
 ## Question
 
@@ -19,10 +20,9 @@ the completed audio transport work.
 
 ## Predeclared run
 
-Run ID: `display-20260810T00xxxxZ-x11-stretch-1280x800-awake`
+Run ID: `display-20260810T003214Z-x11-stretch-1280x800-awake-v2`
 
-The final UTC timestamp will replace `00xxxx` in the result section after the
-device run begins. The selected profile is:
+The selected profile is:
 
 - Retroid Pocket Nova, Android 13, adb serial `675a2365`;
 - APK `com.xjsonderulo.steamandroid.novalab`, `LauncherActivity` with the
@@ -38,6 +38,35 @@ device run begins. The selected profile is:
 The explicit normal-session extra is launcher plumbing, not a geometry
 variable: without it, an automated run would need to tap the product
 launcher. The audio bridge extra is deliberately not set.
+
+Source commit: `4c36ee1`; APK SHA-256:
+`0ff3b753b113e0a5c9ecadd7b1f88a66113b1891ec7e698fbe5eaa1950fa18f8`.
+
+## Setup-invalid attempt — `display-20260810T002424Z-x11-stretch-1280x800-awake`
+
+The first launch used the same APK and temporary XML values, but the restored
+preference file was accidentally assigned the launcher app's UID `10121`
+instead of Termux:X11's UID `10120`. Termux:X11 logged:
+
+```text
+SharedPreferencesImpl: Attempt to read preferences file
+/data/user/0/com.termux.x11/shared_prefs/com.termux.x11_preferences.xml without permission
+```
+
+Because the app could not read the test preferences, this run is not geometry
+evidence. No screenshot was accepted. The host-captured original preference
+hash was `25530aa4ed8fda450e43638e2c7a00bb95d5cb1ff1c1ab18e717f32a4feb0895`,
+the temporary file hash was
+`0989cb3336c9bf61b06213a01176a81c206b8b80458358be81527c5df20fef50`, and the
+restored target matched the original hash byte-for-byte with owner `10120`,
+group `10120`, and mode `660`.
+
+The first root-side stop invocation also omitted the app asset-directory
+argument and reported `nova_launcher_cleanup=missing_helper`. The exact X11
+cleanup helper was rerun directly and returned `nova_x11_cleanup=pass`; the
+exact runtime cleanup then returned `nova_runtime_cleanup=pass`, with no Nova
+process, X11 socket, or run-scoped stage remaining. This is an invocation
+failure recorded for correction, not a display result.
 
 Before changing preferences, the run will pull and hash the exact
 `com.termux.x11_preferences.xml` file. After the captures, it will restore
