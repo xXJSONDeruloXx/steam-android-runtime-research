@@ -23,6 +23,7 @@ STEAM_HEIGHT=${NOVA_TERMUX_X11_STEAM_HEIGHT:-}
 STEAM_HARDWARE_ACCEL=${NOVA_TERMUX_X11_STEAM_HARDWARE_ACCEL:-0}
 STEAM_VULKAN_ICD=${NOVA_TERMUX_X11_STEAM_VULKAN_ICD:-/opt/nova-kgsl-driver/freedreno-kgsl.icd.json}
 CEF_DISABLE_GPU=${NOVA_TERMUX_X11_STEAM_CEF_DISABLE_GPU:-}
+STEAM_UI_MODE=${NOVA_TERMUX_X11_STEAM_UI_MODE:-gamepadui}
 AUDIO_BRIDGE=${NOVA_TERMUX_X11_STEAM_AUDIO_BRIDGE:-0}
 AUDIO_BRIDGE_PORT=${NOVA_TERMUX_X11_STEAM_AUDIO_BRIDGE_PORT:-29100}
 AUDIO_BRIDGE_LOG=${NOVA_TERMUX_X11_STEAM_AUDIO_BRIDGE_LOG:-/tmp/nova-alsa-audiotrack-bridge.log}
@@ -105,6 +106,14 @@ case "$CEF_DISABLE_GPU" in
         ;;
     *)
         echo "invalid NOVA_TERMUX_X11_STEAM_CEF_DISABLE_GPU: $CEF_DISABLE_GPU" >&2
+        exit 2
+        ;;
+esac
+case "$STEAM_UI_MODE" in
+    gamepadui|minimal)
+        ;;
+    *)
+        echo "invalid NOVA_TERMUX_X11_STEAM_UI_MODE: $STEAM_UI_MODE" >&2
         exit 2
         ;;
 esac
@@ -300,10 +309,14 @@ log "client_display=${DISPLAY:-unset}"
 log "client_home=$STEAM_HOME"
 log "client_root=$STEAM_ROOT"
 log "client_executable=$STEAM_EXECUTABLE"
-if [ "$CEF_DISABLE_GPU" -eq 0 ]; then
+if [ "$STEAM_UI_MODE" = gamepadui ] && [ "$CEF_DISABLE_GPU" -eq 0 ]; then
     log "client_flags_base=-gamepadui -steamos3 -steampal -steamdeck -nobootstrapperupdate -skipinitialbootstrap -no-child-update-ui -no-cef-sandbox"
-else
+elif [ "$STEAM_UI_MODE" = gamepadui ]; then
     log "client_flags_base=-gamepadui -steamos3 -steampal -steamdeck -nobootstrapperupdate -skipinitialbootstrap -no-child-update-ui -no-cef-sandbox -cef-disable-gpu"
+elif [ "$CEF_DISABLE_GPU" -eq 0 ]; then
+    log "client_flags_base=-nobootstrapperupdate -skipinitialbootstrap -no-child-update-ui -no-cef-sandbox"
+else
+    log "client_flags_base=-nobootstrapperupdate -skipinitialbootstrap -no-child-update-ui -no-cef-sandbox -cef-disable-gpu"
 fi
 log "client_fullscreen=$STEAM_FULLSCREEN"
 log "client_fulldesktopres=$STEAM_FULLDESKTOPRES"
@@ -312,6 +325,7 @@ log "client_height=${STEAM_HEIGHT:-unset}"
 log "client_hardware_accel=$STEAM_HARDWARE_ACCEL"
 log "client_vulkan_icd=$STEAM_VULKAN_ICD"
 log "client_cef_disable_gpu=$CEF_DISABLE_GPU"
+log "client_steam_ui_mode=$STEAM_UI_MODE"
 log "client_audio_bridge=$AUDIO_BRIDGE"
 log "client_audio_bridge_port=$AUDIO_BRIDGE_PORT"
 log "client_audio_bridge_log=$AUDIO_BRIDGE_LOG"
@@ -650,8 +664,11 @@ if ! start_dbus_session; then
     exit 1
 fi
 
-set -- "$STEAM_EXECUTABLE" \
-    -gamepadui -steamos3 -steampal -steamdeck \
+set -- "$STEAM_EXECUTABLE"
+if [ "$STEAM_UI_MODE" = gamepadui ]; then
+    set -- "$@" -gamepadui -steamos3 -steampal -steamdeck
+fi
+set -- "$@" \
     -nobootstrapperupdate -skipinitialbootstrap -no-child-update-ui \
     -no-cef-sandbox
 if [ "$CEF_DISABLE_GPU" -eq 1 ]; then

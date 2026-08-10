@@ -12,6 +12,7 @@ DISPLAY_VALUE=":$DISPLAY_NUMBER"
 HARDWARE_ACCEL="${NOVA_ANDROID_LAUNCHER_HARDWARE_ACCEL:-0}"
 VULKAN_ICD="${NOVA_ANDROID_LAUNCHER_VULKAN_ICD:-/opt/nova-kgsl-driver/freedreno-kgsl.icd.json}"
 CEF_DISABLE_GPU="${NOVA_ANDROID_LAUNCHER_CEF_DISABLE_GPU:-}"
+STEAM_UI_MODE="${NOVA_ANDROID_LAUNCHER_STEAM_UI_MODE:-gamepadui}"
 AUDIO_BRIDGE="${NOVA_ANDROID_LAUNCHER_AUDIO_BRIDGE:-0}"
 AUDIO_BRIDGE_PORT="${NOVA_ANDROID_LAUNCHER_AUDIO_BRIDGE_PORT:-29100}"
 X11_SOCKET="$ROOT/tmp/.X11-unix/X$DISPLAY_NUMBER"
@@ -44,6 +45,14 @@ case "$CEF_DISABLE_GPU" in
         ;;
     *)
         echo "invalid NOVA_ANDROID_LAUNCHER_CEF_DISABLE_GPU: $CEF_DISABLE_GPU" >&2
+        exit 2
+        ;;
+esac
+case "$STEAM_UI_MODE" in
+    gamepadui|minimal)
+        ;;
+    *)
+        echo "invalid NOVA_ANDROID_LAUNCHER_STEAM_UI_MODE: $STEAM_UI_MODE" >&2
         exit 2
         ;;
 esac
@@ -237,6 +246,7 @@ printf '%s\n' "$session" >"$STATE/session"
 log "nova_launcher_hardware_accel=$HARDWARE_ACCEL"
 log "nova_launcher_vulkan_icd=$VULKAN_ICD"
 log "nova_launcher_cef_disable_gpu=$CEF_DISABLE_GPU"
+log "nova_launcher_steam_ui_mode=$STEAM_UI_MODE"
 log "nova_launcher_audio_bridge=$AUDIO_BRIDGE"
 log "nova_launcher_audio_bridge_port=$AUDIO_BRIDGE_PORT"
 
@@ -329,6 +339,7 @@ fi
     NOVA_TERMUX_X11_STEAM_HARDWARE_ACCEL="$HARDWARE_ACCEL" \
     NOVA_TERMUX_X11_STEAM_VULKAN_ICD="$VULKAN_ICD" \
     NOVA_TERMUX_X11_STEAM_CEF_DISABLE_GPU="$CEF_DISABLE_GPU" \
+    NOVA_TERMUX_X11_STEAM_UI_MODE="$STEAM_UI_MODE" \
     NOVA_TERMUX_X11_STEAM_AUDIO_BRIDGE="$AUDIO_BRIDGE" \
     NOVA_TERMUX_X11_STEAM_AUDIO_BRIDGE_PORT="$AUDIO_BRIDGE_PORT" \
     NOVA_X11_ALLOW_INPUT_EVENTS="$allow_input_events" \

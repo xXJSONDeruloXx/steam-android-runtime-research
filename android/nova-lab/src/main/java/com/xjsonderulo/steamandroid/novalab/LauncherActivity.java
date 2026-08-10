@@ -37,6 +37,8 @@ public final class LauncherActivity extends Activity {
             LauncherService.EXTRA_HARDWARE_ACCEL;
     private static final String EXTRA_CEF_DISABLE_GPU =
             LauncherService.EXTRA_CEF_DISABLE_GPU;
+    private static final String EXTRA_STEAM_UI_MODE =
+            LauncherService.EXTRA_STEAM_UI_MODE;
     private static final int REQUEST_POST_NOTIFICATIONS = 42;
     private static final String[] REQUIRED_ASSETS = {
             "nova-one-click-root-launcher.sh",
@@ -205,8 +207,11 @@ public final class LauncherActivity extends Activity {
         boolean hardwareAccel = getIntent().getBooleanExtra(EXTRA_HARDWARE_ACCEL, false);
         boolean cefDisableGpu = getIntent().hasExtra(EXTRA_CEF_DISABLE_GPU)
                 ? getIntent().getBooleanExtra(EXTRA_CEF_DISABLE_GPU, false) : !hardwareAccel;
+        String steamUiMode = "minimal".equals(getIntent().getStringExtra(EXTRA_STEAM_UI_MODE))
+                ? "minimal" : "gamepadui";
         service.putExtra(LauncherService.EXTRA_HARDWARE_ACCEL, hardwareAccel);
         service.putExtra(LauncherService.EXTRA_CEF_DISABLE_GPU, cefDisableGpu);
+        service.putExtra(LauncherService.EXTRA_STEAM_UI_MODE, steamUiMode);
         if (Build.VERSION.SDK_INT >= 26) {
             startForegroundService(service);
         } else {
