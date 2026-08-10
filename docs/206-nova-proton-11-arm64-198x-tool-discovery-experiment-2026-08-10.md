@@ -559,6 +559,31 @@ run-specific Proton log directory were removed; the existing 198X compatdata
 prefix and installed game/package data were preserved. Final process, mount,
 and rootfs temporary-socket checks were empty.
 
+## Phase 8 predeclared run
+
+Run ID: `proton-arm64-20260810T030240Z-arm64ec-registry-key`
+
+The direct Proton log identifies the next boundary in the bundled
+`FEX-2604-97-ga04b024` ARM64EC module: its Windows-side CPU feature helper
+opens `HKLM\\Hardware\\Description\\System\\CentralProcessor\\0` and
+terminates with `Couldn't detect CPU features` when that key is absent. The
+Nova prefix currently has no `CentralProcessor` key. This run will test that
+specific missing-key hypothesis, without inventing register values or changing
+the game binary.
+
+After a fresh exact cleanup, the run will recreate the chroot-visible Proton 11
+ARM64 wrapper, map only AppID `1086010` to `proton11_arm64`, and snapshot the
+198X prefix's `system.reg`, `user.reg`, and `userdef.reg` byte hashes. It will
+create only the empty registry key
+`HKLM\\Hardware\\Description\\System\\CentralProcessor\\0`, invoke the
+same direct `proton runinprefix` entry point on the installed
+`steamapps/common/198X/198X.exe`, and retain a fresh Proton log, process
+polling, and screen capture. The three registry files will then be restored
+byte-for-byte from the snapshot after all Wine/FEX processes exit; the
+transient wrapper, mapping, log directory, and prefix modification will not be
+left installed. A passing result first requires the FEX diagnostic to
+disappear; a game frame remains the stronger success gate.
+
 ## Cleanup contract
 
 The exact Nova/X11 cleanup helper and rootfs runtime cleanup helper must run
