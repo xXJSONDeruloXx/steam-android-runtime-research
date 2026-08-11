@@ -10,6 +10,21 @@ evidence; current direction and acceptance boundaries belong in
 `docs/00-start-here/`, while the numbered records in the other folders are
 append-only experiment history.
 
+## SteamclientTermux prior-art handoff
+
+For Runtime 4, Proton 11 ARM64, Pressure Vessel, FEX/DXVK, route visibility,
+PulseAudio, removable-library, or session-log work, also inspect the clean
+sibling checkout at `/Users/kurt/Developer/steamclienttermux`. Verify its
+remote, branch, and current revision with `git -C
+/Users/kurt/Developer/steamclienttermux status --short --branch` and
+`git -C /Users/kurt/Developer/steamclienttermux rev-parse HEAD` before using
+it. Read the pinned comparison in
+[`doc 333`](docs/00-start-here/333-steamclienttermux-comparison-2026-08-10.md),
+then use the sibling checkout's current source for implementation details.
+Borrow narrow contracts and record the source revision; do not vendor its
+Steam/runtime/game payloads, copy authentication data, or silently replace
+Nova's rooted Holo/direct-X11 architecture with its PRoot stack.
+
 Before any Nova device run, read
 [`docs/00-start-here/34-nova-runtime-harness-lifecycle.md`](docs/00-start-here/34-nova-runtime-harness-lifecycle.md).
 It records the cleanup incident and the required regression contract.

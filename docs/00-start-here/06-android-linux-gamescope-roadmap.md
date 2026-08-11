@@ -10,7 +10,9 @@ Autonomous implementation agents should read this file before choosing work,
 then read [doc 333](333-steamclienttermux-comparison-2026-08-10.md) before
 importing SteamclientTermux behavior. Treat the immediate execution queue
 below as the current priority, and read [doc 34](34-nova-runtime-harness-lifecycle.md)
-before any Nova device run.
+before any Nova device run. The canonical local prior-art checkout is the
+separate sibling repository at `/Users/kurt/Developer/steamclienttermux`;
+verify its current clean revision before borrowing implementation details.
 
 ## 1. Product target and boundaries
 
@@ -86,7 +88,8 @@ The first integration to bring over from
 official ARM64 compatibility-tool registration, not its complete PRoot or
 compositor architecture. This gives Nova a controlled Runtime 4 versus
 SteamRT3C comparison while preserving the display and Android lifecycle path
-that already works.
+that already works. Use the sibling checkout's current source for follow-up
+details, and record the exact source revision in each experiment.
 
 ## 3. Immediate execution queue
 

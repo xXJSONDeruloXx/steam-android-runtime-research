@@ -24,8 +24,11 @@ Read these in order when picking up the project:
 13. [Rootless X11 transport R1 result](00-start-here/353-nova-rootless-x11-transport-r1-result-2026-08-10.md)
 
 Before any Nova device run, read the lifecycle contract. Before importing
-SteamclientTermux behavior, read the comparison record; it pins the target
-revision and separates portable runtime contracts from its PRoot architecture.
+SteamclientTermux behavior, read the comparison record and inspect the clean
+local checkout at `/Users/kurt/Developer/steamclienttermux`. The record pins
+the evidence revision and separates portable runtime contracts from its PRoot
+architecture; the sibling checkout supplies the current source revision for
+follow-up work.
 
 ## Evidence bands
 

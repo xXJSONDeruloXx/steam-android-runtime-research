@@ -16,11 +16,31 @@ branch: main
 HEAD: a008a5f0ee8a20dcd3245293482f6234a0aff378
 ```
 
-The clone was clean at inspection time. Its latest commit was `a008a5f`
-(`Allow empty removable mount shadows`), and the checkout contained 79 tracked
-files and was approximately 23 MiB on disk. The repository is a complete
-working tree for comparison only; it was not copied into Nova, added as a
-submodule, or treated as a source of proprietary Steam or game payloads.
+The comparison snapshot below was captured against `a008a5f` (`Allow empty
+removable mount shadows`). The separate checkout is intentionally kept live
+for agent follow-up; it was refreshed after this snapshot and is currently
+clean at `origin/main` commit `8d14c10195b34fe2714ba59df1680df27a852532`
+(`Apply GTA IV signed registry state`). The repository is a complete working
+tree for comparison only; it was not copied into Nova, added as a submodule,
+or treated as a source of proprietary Steam or game payloads.
+
+## Current agent handoff
+
+When a task touches Runtime 4, Proton 11 ARM64, Pressure Vessel, FEX/DXVK,
+route visibility, PulseAudio, removable game storage, or session logging,
+inspect the current sibling checkout before implementing a Nova analogue:
+
+```sh
+git -C /Users/kurt/Developer/steamclienttermux status --short --branch
+git -C /Users/kurt/Developer/steamclienttermux rev-parse HEAD
+```
+
+Read the pinned evidence in this document first, then compare the current
+checkout's `README.md`, `docs/TECHNICAL_LOG.md`, and relevant `bin/`,
+`diagnostics/`, `scripts/`, and `config/` files. Record the source revision in
+the Nova experiment. Borrow narrow contracts; preserve Nova's rooted
+Holo/direct-X11 product boundary and never copy Steam, Proton, runtime, game,
+or authentication payloads into this repository.
 
 The Nova checkout was at:
 
