@@ -45,6 +45,7 @@ Read these in order when picking up the project:
 34. [Rootless R4 source-rootfs readability result](00-start-here/374-nova-rootless-r4-rootfs-readability-result-2026-08-11.md)
 35. [Rootless R5 app-private Holo archive extraction predeclaration](00-start-here/375-nova-rootless-r5-archive-extraction-predeclaration-2026-08-11.md)
 36. [Rootless R5 toybox tar mode boundary](00-start-here/376-nova-rootless-r5-tar-mode-boundary-2026-08-11.md)
+37. [Rootless R5b tar parent normalization predeclaration](00-start-here/377-nova-rootless-r5b-tar-parent-normalization-predeclaration-2026-08-11.md)
 
 Before any Nova device run, read the lifecycle contract. Before importing
 SteamclientTermux behavior, read the comparison record and inspect the clean
