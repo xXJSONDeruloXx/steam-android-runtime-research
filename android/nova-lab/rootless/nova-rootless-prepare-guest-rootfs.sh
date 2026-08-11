@@ -139,8 +139,11 @@ verify_external_manifest
 
 marker="$DEST_ROOTFS/.nova-rootless-guest-rootfs"
 if [ -e "$DEST_ROOTFS" ]; then
-    if [ -f "$marker" ] && [ -e "$DEST_ROOTFS/usr/lib/libgtk-x11-2.0.so.0" ] &&
-        [ -e "$DEST_ROOTFS/usr/lib/libgdk-x11-2.0.so.0" ]; then
+    if [ -f "$marker" ] &&
+        { [ -e "$DEST_ROOTFS/usr/lib/libgtk-x11-2.0.so.0" ] ||
+            [ -L "$DEST_ROOTFS/usr/lib/libgtk-x11-2.0.so.0" ]; } &&
+        { [ -e "$DEST_ROOTFS/usr/lib/libgdk-x11-2.0.so.0" ] ||
+            [ -L "$DEST_ROOTFS/usr/lib/libgdk-x11-2.0.so.0" ]; }; then
         echo "nova_rootless_guest_rootfs=already-staged rootfs=$DEST_ROOTFS"
         exit 0
     fi
