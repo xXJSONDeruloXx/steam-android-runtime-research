@@ -90,7 +90,22 @@ public final class LauncherActivity extends Activity {
             "nova-bsdtar-bootstrap/lib/libxml2.so.16",
             "nova-bsdtar-bootstrap/lib/libz.so.1",
             "nova-bsdtar-bootstrap/lib/libzstd.so.1",
-            "nova-bsdtar-bootstrap/manifest.tsv"
+            "nova-bsdtar-bootstrap/manifest.tsv",
+            "nova-zstd",
+            "nova-rootless-termux-x11.sh",
+            "nova-rootless-proc-net-shadow.sh",
+            "nova-rootless-pulseaudio-tcp.sh",
+            "nova-rootless-session-guard.py",
+            "nova-rootless-prepare-runtime4.sh",
+            "nova-rootless-steam-arm64-compatibilitytools.vdf.in",
+            "nova-rootless-transport-probe.sh",
+            "nova-rootless-proot-supervisor.sh",
+            "nova-rootless-extract-rootfs.sh",
+            "nova-rootless-prepare-guest-rootfs.sh",
+            "nova-rootless-profile.tsv",
+            "nova-rootless-steamui-holo-packages.tsv",
+            "nova-rootless-steamui-external-assets.tsv",
+            "termux.properties"
     };
     private static final String[] OPTIONAL_ASSETS = {
             "nova-mount-private",
