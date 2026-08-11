@@ -39,6 +39,7 @@ Read these in order when picking up the project:
 28. [Rootless R3 `/proc` path boundary](00-start-here/368-nova-rootless-r3-proc-path-boundary-2026-08-11.md)
 29. [Rootless R3 Steam home-layout boundary](00-start-here/369-nova-rootless-r3-steam-home-layout-2026-08-11.md)
 30. [Rootless R3 `/dev` path boundary](00-start-here/370-nova-rootless-r3-dev-path-boundary-2026-08-11.md)
+31. [Rootless R3 Steam bootstrap update result](00-start-here/371-nova-rootless-r3-bootstrap-update-result-2026-08-11.md)
 
 Before any Nova device run, read the lifecycle contract. Before importing
 SteamclientTermux behavior, read the comparison record and inspect the clean
