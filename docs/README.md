@@ -23,6 +23,7 @@ Read these in order when picking up the project:
 12. [Rootless supervisor R0b result](00-start-here/352-nova-rootless-supervisor-r0b-result-2026-08-10.md)
 13. [Rootless X11 transport R1 result](00-start-here/353-nova-rootless-x11-transport-r1-result-2026-08-10.md)
 14. [Rootless Termux/X11 dependency install](00-start-here/354-nova-rootless-termux-base-install-2026-08-10.md)
+15. [Rootless X11 R1b result](00-start-here/355-nova-rootless-x11-r1b-result-2026-08-10.md)
 
 Before any Nova device run, read the lifecycle contract. Before importing
 SteamclientTermux behavior, read the comparison record and inspect the clean
