@@ -83,6 +83,7 @@ Read these in order when picking up the project:
 72. [Rootless R10b no-`/proc/net` retry result](00-start-here/412-nova-rootless-r10b-no-proc-net-result-2026-08-11.md)
 73. [Rootless R11 single CDN payload predeclaration](00-start-here/413-nova-rootless-r11-cdn-single-payload-predeclaration-2026-08-11.md)
 74. [Rootless R11 single CDN payload result](00-start-here/414-nova-rootless-r11-cdn-single-payload-result-2026-08-11.md)
+75. [Rootless R12 app-owned `bsdtar` bootstrap predeclaration](00-start-here/415-nova-rootless-r12-app-bsdtar-bootstrap-predeclaration-2026-08-11.md)
 
 Before any Nova device run, read the lifecycle contract. Before importing
 SteamclientTermux behavior, read the comparison record and inspect the clean
