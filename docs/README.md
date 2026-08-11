@@ -94,6 +94,7 @@ Read these in order when picking up the project:
 83. [Rootless R12e `/usr/lib` bootstrap layout predeclaration](00-start-here/423-nova-rootless-r12e-usr-lib-layout-predeclaration-2026-08-11.md)
 84. [Rootless R12e `/usr/lib` bootstrap layout result](00-start-here/424-nova-rootless-r12e-usr-lib-layout-result-2026-08-11.md)
 85. [Rootless R12f bootstrap asset replacement predeclaration](00-start-here/425-nova-rootless-r12f-bootstrap-asset-replacement-predeclaration-2026-08-11.md)
+86. [Rootless R12f bootstrap asset replacement result](00-start-here/426-nova-rootless-r12f-bootstrap-asset-replacement-result-2026-08-11.md)
 
 Before any Nova device run, read the lifecycle contract. Before importing
 SteamclientTermux behavior, read the comparison record and inspect the clean
