@@ -1,8 +1,8 @@
 # Rootless SteamClientTermux profile contract. Values are intentionally
 # duplicated from the rooted manifest so this profile can be provisioned and
 # audited without ever reusing rooted Steam data.
-profile_version	1
-profile_name	nova-rootless-steamclienttermux-20260810
+profile_version	2
+profile_name	nova-rootless-steamclienttermux-20260810-r2
 architecture	aarch64
 rootless_required	1
 rootless_forbid_su	1
@@ -23,8 +23,10 @@ termux_x11_apk_version	1.03.01-d8013ac-09.08.26
 termux_x11_apk_sha256	6718ed4e5c11c1a718effa3dae14622575da6f87ef935fa12e4595aea761f705
 termux_x11_companion_package	termux-x11-nightly=1.03.01-5
 steam_seed_appid	891390
-steam_seed_package	bins_linuxarm64_linuxarm64.zip.7affd5c9053499769e4f0a46bbb6cbdf0ba0d548
-steam_seed_sha256	b2de13c267e101679750445c9c449fbfb58dbb7c9851729e95ac69637b9df563
+steam_seed_package	bins_linuxarm64_linuxarm64.zip.0f238017c65e844f71581d1fae8fb42f410e1032
+steam_seed_url	https://client-update.steamstatic.com/bins_linuxarm64_linuxarm64.zip.0f238017c65e844f71581d1fae8fb42f410e1032
+steam_seed_size	109767361
+steam_seed_sha256	1c1dd74e63db8d2d64445c7d6156f02e3b2719141e569b52e91b883d39592e82
 steamrt_appid	4185400
 steamrt_snapshot	3c.0.20260714.251839
 steamrt_sha256	f59e9541fb08f36097610f8cab07a0ed8f5f13e4a642b6fead87505aff979ab0
