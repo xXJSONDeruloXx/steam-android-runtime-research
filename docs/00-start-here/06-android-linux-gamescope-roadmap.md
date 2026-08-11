@@ -92,7 +92,8 @@ The next narrow test is the sibling's conventional `.steam` link layout,
 using the same stable client, rootless supervisor, X11 endpoint, and launch
 command. Do not guess a `.so`-to-`.dll` alias or patch SteamUI. Record the
 exact source revision and require fresh SteamUI/webhelper evidence before
-advancing to Runtime 4 or Proton.
+advancing to Runtime 4 or Proton; the exact R18 run is predeclared in [doc
+440](440-nova-rootless-r18-steam-layout-links-predeclaration-2026-08-11.md).
 
 ## 3. Immediate execution queue
 

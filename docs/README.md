@@ -108,6 +108,7 @@ Read these in order when picking up the project:
 97. [Rootless ARM64 client-channel host result](00-start-here/437-nova-rootless-arm64-client-channel-host-result-2026-08-11.md)
 98. [Rootless R17 stable ARM64 client-channel predeclaration](00-start-here/438-nova-rootless-r17-stable-channel-predeclaration-2026-08-11.md)
 99. [Rootless R17 stable ARM64 client-channel result](00-start-here/439-nova-rootless-r17-stable-channel-result-2026-08-11.md)
+100. [Rootless R18 conventional Steam layout links predeclaration](00-start-here/440-nova-rootless-r18-steam-layout-links-predeclaration-2026-08-11.md)
 
 Before any Nova device run, read the lifecycle contract. Before importing
 SteamclientTermux behavior, read the comparison record and inspect the clean
