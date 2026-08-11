@@ -72,6 +72,7 @@ Read these in order when picking up the project:
 61. [Rootless R7f SteamUI Holo closure additions predeclaration](00-start-here/401-nova-rootless-r7f-steamui-closure-additions-predeclaration-2026-08-11.md)
 62. [Rootless R7f package dependency closure result](00-start-here/402-nova-rootless-r7f-package-dependency-result-2026-08-11.md)
 63. [Rootless R7g full SteamUI dependency closure predeclaration](00-start-here/403-nova-rootless-r7g-full-steamui-dependency-closure-predeclaration-2026-08-11.md)
+64. [Rootless R7g full SteamUI dependency closure result](00-start-here/404-nova-rootless-r7g-full-steamui-dependency-closure-result-2026-08-11.md)
 
 Before any Nova device run, read the lifecycle contract. Before importing
 SteamclientTermux behavior, read the comparison record and inspect the clean
