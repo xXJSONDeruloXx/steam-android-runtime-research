@@ -206,6 +206,7 @@ run_guest() {
         if [ -n "$PROC_NET" ] && [ -n "$RUNTIME4_SHADOW" ]; then
             exec "$PROOT_BIN" \
                 --kill-on-exit \
+                --sysvipc \
                 -0 \
                 -r "$ROOTFS" \
                 -b "$APP_HOME:/home/nova" \
@@ -229,6 +230,7 @@ run_guest() {
         elif [ -n "$PROC_NET" ]; then
             exec "$PROOT_BIN" \
                 --kill-on-exit \
+                --sysvipc \
                 -0 \
                 -r "$ROOTFS" \
                 -b "$APP_HOME:/home/nova" \
@@ -251,6 +253,7 @@ run_guest() {
         elif [ -n "$RUNTIME4_SHADOW" ]; then
             exec "$PROOT_BIN" \
                 --kill-on-exit \
+                --sysvipc \
                 -0 \
                 -r "$ROOTFS" \
                 -b "$APP_HOME:/home/nova" \
@@ -273,6 +276,7 @@ run_guest() {
         else
             exec "$PROOT_BIN" \
                 --kill-on-exit \
+                --sysvipc \
                 -0 \
                 -r "$ROOTFS" \
                 -b "$APP_HOME:/home/nova" \
