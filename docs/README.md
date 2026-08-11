@@ -89,6 +89,7 @@ Read these in order when picking up the project:
 78. [Rootless R12b helper asset retry result](00-start-here/418-nova-rootless-r12b-helper-assets-result-2026-08-11.md)
 79. [Rootless R12c complete bootstrap closure predeclaration](00-start-here/419-nova-rootless-r12c-libc-bootstrap-predeclaration-2026-08-11.md)
 80. [Rootless R12c complete bootstrap closure result](00-start-here/420-nova-rootless-r12c-libc-bootstrap-result-2026-08-11.md)
+81. [Rootless R12d explicit guest library path predeclaration](00-start-here/421-nova-rootless-r12d-env-library-path-predeclaration-2026-08-11.md)
 
 Before any Nova device run, read the lifecycle contract. Before importing
 SteamclientTermux behavior, read the comparison record and inspect the clean
