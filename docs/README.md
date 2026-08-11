@@ -164,6 +164,8 @@ Read these in order when picking up the project:
 153. [AYN Thor rootless current-tree Vulkan-loader diagnostic predeclaration](00-start-here/493-ayn-thor-rootless-current-tree-vk-loader-debug-predeclaration-2026-08-11.md)
 154. [AYN Thor rootless current-tree Vulkan-loader fixture gate result](00-start-here/494-ayn-thor-rootless-current-tree-vk-loader-debug-fixture-gate-result-2026-08-11.md)
 155. [AYN Thor rootless current-tree refresh Vulkan-loader diagnostic predeclaration](00-start-here/495-ayn-thor-rootless-current-tree-refresh-vk-loader-debug-predeclaration-2026-08-11.md)
+156. [AYN Thor rootless current-tree Vulkan-loader diagnostic result](00-start-here/496-ayn-thor-rootless-current-tree-vk-loader-debug-result-2026-08-11.md)
+157. [AYN Thor rootless current-tree post-bootstrap Vulkan-loader diagnostic predeclaration](00-start-here/497-ayn-thor-rootless-current-tree-post-bootstrap-vk-loader-debug-predeclaration-2026-08-11.md)
 
 Before any Nova device run, read the lifecycle contract. Before importing
 SteamclientTermux behavior, read the comparison record and inspect the clean
