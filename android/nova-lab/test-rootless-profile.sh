@@ -19,6 +19,7 @@ grep -Fqx $'rootless_required\t1' "$profile"
 grep -Fqx $'auth_secret_policy\tnever-export-or-back-up' "$profile"
 grep -Fqx $'proton_required_runtime_appid\t4185400' "$profile"
 grep -Fq -- '-b "$APP_HOME:/home/nova" \' "$supervisor"
+grep -Fq 'rooted_runtime_socket_not_rootless' "$transport"
 
 if grep -nE '(^|[[:space:]])(su|chroot|mount)([[:space:]]|$)' "$supervisor"; then
     echo "rootless supervisor contains a privileged escape hatch" >&2

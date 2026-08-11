@@ -20,6 +20,15 @@ fail() {
     exit 1
 }
 
+reject_rooted_socket() {
+    candidate="$1"
+    case "$candidate" in
+        /data/local/tmp/nova-runtimes/*|/data/local/tmp/nova-holo-rootfs/*)
+            fail rooted_runtime_socket_not_rootless
+            ;;
+    esac
+}
+
 has_package() {
     package="$1"
     if "$pm_bin" path "$package" >/dev/null 2>&1; then
@@ -67,6 +76,7 @@ if [ -z "$SOCKET" ]; then
     fi
     fail missing_termux_base_and_shared_x11_socket
 fi
+reject_rooted_socket "$SOCKET"
 if ! "$test_bin" -S "$SOCKET"; then
     fail x11_socket_not_socket
 fi
