@@ -49,6 +49,7 @@ Read these in order when picking up the project:
 38. [Rootless R5b tar listing normalization boundary](00-start-here/378-nova-rootless-r5b-tar-listing-boundary-2026-08-11.md)
 39. [Rootless R5c tar symlink normalization predeclaration](00-start-here/379-nova-rootless-r5c-tar-symlink-normalization-predeclaration-2026-08-11.md)
 40. [Rootless R5c tar symlink/listing result](00-start-here/380-nova-rootless-r5c-tar-symlink-result-2026-08-11.md)
+41. [Rootless R6 Holo `bsdtar` bootstrap predeclaration](00-start-here/381-nova-rootless-r6-holo-bsdtar-bootstrap-predeclaration-2026-08-11.md)
 
 Before any Nova device run, read the lifecycle contract. Before importing
 SteamclientTermux behavior, read the comparison record and inspect the clean
