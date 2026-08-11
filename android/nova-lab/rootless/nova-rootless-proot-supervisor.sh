@@ -96,16 +96,16 @@ prepare_state() {
         "$STATE/proot-tmp" \
         "$STATE/tmp" \
         "$STATE/run" \
-        "$STATE/home" \
+        "$APP_HOME" \
         "$STATE/steam-client"
     # These paths are app-owned. Refuse a symlink so a bad configuration cannot
     # redirect Steam writes outside the selected rootless state tree.
     for path in "$STATE" "$STATE/logs" "$STATE/proot-tmp" "$STATE/tmp" \
-        "$STATE/run" "$STATE/home" "$STATE/steam-client"; do
+        "$STATE/run" "$APP_HOME" "$STATE/steam-client"; do
         [ ! -L "$path" ] || fail "symlinked_state_path:$path"
     done
     chmod 700 "$STATE" "$STATE/logs" "$STATE/proot-tmp" "$STATE/tmp" \
-        "$STATE/run" "$STATE/home" "$STATE/steam-client"
+        "$STATE/run" "$APP_HOME" "$STATE/steam-client"
 }
 
 preflight() {
@@ -174,7 +174,7 @@ run_guest() {
         --kill-on-exit \
         -0 \
         -r "$ROOTFS" \
-        -b "$STATE/home:/home/nova" \
+        -b "$APP_HOME:/home/nova" \
         -b "$STATE/steam-client:/opt/nova-steam" \
         -b "$STATE/tmp:/tmp" \
         -b "$STATE/run:/run" \
