@@ -77,6 +77,7 @@ Read these in order when picking up the project:
 66. [Rootless R8 supervisor and Steam version result](00-start-here/406-nova-rootless-r8-supervisor-steam-version-result-2026-08-11.md)
 67. [Rootless R9 Termux:X11 and network handoff predeclaration](00-start-here/407-nova-rootless-r9-x11-network-predeclaration-2026-08-11.md)
 68. [Rootless R9 Termux:X11 and network handoff result](00-start-here/408-nova-rootless-r9-x11-network-result-2026-08-11.md)
+69. [Rootless R10 resolver and short-temp handoff predeclaration](00-start-here/409-nova-rootless-r10-resolver-temp-predeclaration-2026-08-11.md)
 
 Before any Nova device run, read the lifecycle contract. Before importing
 SteamclientTermux behavior, read the comparison record and inspect the clean
