@@ -67,6 +67,7 @@ Read these in order when picking up the project:
 56. [Rootless R7c public seed `steamui.so` mode result](00-start-here/396-nova-rootless-r7c-steamui-mode-result-2026-08-11.md)
 57. [Rootless R7d public Steam seed mode retry predeclaration](00-start-here/397-nova-rootless-r7d-steam-seed-mode-predeclaration-2026-08-11.md)
 58. [Rootless R7d `steamui.so` dependency closure result](00-start-here/398-nova-rootless-r7d-steamui-dependency-result-2026-08-11.md)
+59. [Rootless R7e `steamui.so` dependency diagnostic predeclaration](00-start-here/399-nova-rootless-r7e-steamui-ldd-diagnostic-predeclaration-2026-08-11.md)
 
 Before any Nova device run, read the lifecycle contract. Before importing
 SteamclientTermux behavior, read the comparison record and inspect the clean
