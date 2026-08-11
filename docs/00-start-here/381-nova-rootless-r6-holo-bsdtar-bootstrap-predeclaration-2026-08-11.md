@@ -14,6 +14,12 @@ ARM64 PRoot loader, binding the verified archive and an app-private staging
 directory. `--no-same-owner --no-same-permissions` is required so the helper
 does not attempt to recreate root-owned metadata.
 
+The staged PRoot library directory must preserve the Termux package's
+`libtalloc.so` and `libtalloc.so.2` symlinks to `libtalloc.so.2.4.3`; the
+first setup invocation showed that copying only the versioned file is not a
+usable PRoot closure. This is a staging invariant, not a change to the
+archive extractor.
+
 The existing rooted Holo rootfs is a read-only bootstrap input for this
 experiment only. R6 does not copy it as the guest candidate, modify it, use
 `su`, `chroot`, or `mount`, or treat rooted paths as rootless evidence. The
@@ -57,9 +63,11 @@ The app-private run tree is the only candidate/state scope:
 /data/user/0/com.xjsonderulo.steamandroid.novalab/files/rootless-r6-20260811T053311Z/
   rootfs-archive/system.rootfs.zst
   guest-rootfs/
+  guest-rootfs-closure/
   state/
   proot/
   scripts/
+  steam-client/
   steamui-packages/
 ```
 
@@ -88,9 +96,12 @@ or included in the run tree.
    rootfs. Require `proot_bsdtar_extract` to exit successfully, the required
    glibc/pacman paths, the archive marker, and atomic candidate activation.
 4. If extraction passes, run the existing app-owned SteamUI closure helper
-   against the candidate. Require its package marker, libraries, and clean
-   `ldd steamui.so` result. If either gate fails, stop at that boundary and
-   document it before changing another variable.
+   into `guest-rootfs-closure/`. Require its package marker and libraries.
+   The first closure gate uses an empty app-owned Steam-client directory and
+   therefore does not claim a SteamUI `ldd` result; a later client-seeded gate
+   must provide the client and require clean `ldd steamui.so` output. If either
+   gate fails, stop at that boundary and document it before changing another
+   variable.
 5. Do not start Steam, Termux:X11, or a login session in this extraction
    sub-run. A later bounded sub-run may use the candidate after this result is
    committed and pushed.
@@ -102,4 +113,3 @@ the named R6 remote push tree and app-private tree after documenting the
 result, verify no R6 process or temporary PRoot bind remains, and confirm the
 rooted rollback paths are unchanged. Preserve the exact archive and artifact
 hashes in the result document.
-
