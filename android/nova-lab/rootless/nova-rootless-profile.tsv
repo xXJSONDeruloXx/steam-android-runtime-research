@@ -1,0 +1,36 @@
+# Rootless SteamClientTermux profile contract. Values are intentionally
+# duplicated from the rooted manifest so this profile can be provisioned and
+# audited without ever reusing rooted Steam data.
+profile_version	1
+profile_name	nova-rootless-steamclienttermux-20260810
+architecture	aarch64
+rootless_required	1
+rootless_forbid_su	1
+rootfs_runtime_version	nova-holo-direct-x11-20260810-v4
+rootfs_archive_sha256	7e3fb88454e1ac633b7488abb72d3ca0cc7d2578a38146fdd7d58b50fcbd60bf
+package_closure_sha256	dbcf8284bac5877ff2c168bbaf55ad20d4a41910c7240cecbf70b16379aba515
+proot_package	proot_5.1.107.89_aarch64.deb
+proot_package_sha256	ec9fe38c50cfd49dd31fe360ffbcc3124a945dc1ea16293a8a769303dd724f46
+libandroid_shmem_package	libandroid-shmem_0.7_aarch64.deb
+libandroid_shmem_package_sha256	0da3a24d558b93c92bcf8d611e0826a99ff96e396b148e6cdf33b47c47c57ff6
+libtalloc_package	libtalloc_2.4.3_aarch64.deb
+libtalloc_package_sha256	ac81ad623d74c209718b9f3acb2dd702cc8a88c431e820d212229910b4db29da
+termux_main_packages_url	https://packages.termux.dev/apt/termux-main/pool/main
+steam_seed_appid	891390
+steam_seed_package	bins_linuxarm64_linuxarm64.zip.7affd5c9053499769e4f0a46bbb6cbdf0ba0d548
+steam_seed_sha256	b2de13c267e101679750445c9c449fbfb58dbb7c9851729e95ac69637b9df563
+steamrt_appid	4185400
+steamrt_snapshot	3c.0.20260714.251839
+steamrt_sha256	f59e9541fb08f36097610f8cab07a0ed8f5f13e4a642b6fead87505aff979ab0
+proton_appid	4628740
+proton_depot	4628741
+proton_required_runtime_appid	4185400
+display_transport	termux-x11-user-socket-or-nova-bridge
+audio_transport	loopback-pulseaudio-tcp-or-nova-audiotrack
+network_transport	android-inherited-namespace
+input_transport	user-session-socket-or-android-controller-bridge
+steam_data_policy	fresh-app-owned-home-only
+auth_secret_policy	never-export-or-back-up
+gamescope_policy	optional-not-required
+minimum_free_bytes	8589934592
+minimum_free_inodes	200000
