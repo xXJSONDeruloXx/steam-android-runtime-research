@@ -57,6 +57,15 @@ for provisioning_asset in \
     cp "$SCRIPT_DIR/provisioning/$provisioning_asset" "$APK_ASSET_DIR/$provisioning_asset"
 done
 
+for rootless_asset in \
+    nova-rootless-termux-x11.sh \
+    nova-rootless-transport-probe.sh \
+    nova-rootless-proot-supervisor.sh \
+    nova-rootless-profile.tsv \
+    termux.properties; do
+    cp "$SCRIPT_DIR/rootless/$rootless_asset" "$APK_ASSET_DIR/$rootless_asset"
+done
+
 for required_artifact in \
     "$BUILD_DIR/nova-zstd" \
     "$BUILD_DIR/nova-zip-rebase" \

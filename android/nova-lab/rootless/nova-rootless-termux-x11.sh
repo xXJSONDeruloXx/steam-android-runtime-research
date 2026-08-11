@@ -13,6 +13,7 @@ display_number="${2:-77}"
 state_dir="${NOVA_ROOTLESS_TERMUX_STATE:-$HOME/.nova-rootless}"
 log_file="${3:-$state_dir/termux-x11-$display_number.log}"
 pid_file="$state_dir/termux-x11-$display_number.pid"
+termux_x11_command="${NOVA_ROOTLESS_TERMUX_X11_COMMAND:-$PREFIX/bin/termux-x11}"
 
 fail() {
     echo "nova_rootless_termux_x11=fail reason=$1" >&2
@@ -45,7 +46,7 @@ read_pid() {
 case "$action" in
     start)
         [[ "$(id -u)" != 0 ]] || fail root_uid_detected
-        command -v termux-x11 >/dev/null 2>&1 || fail missing_termux_x11_command
+        [[ -x "$termux_x11_command" ]] || fail missing_termux_x11_command
         mkdir -p "$state_dir"
         chmod 700 "$state_dir"
         if pid="$(read_pid 2>/dev/null)"; then
@@ -58,7 +59,7 @@ case "$action" in
         # an inaccessible MIT-MAGIC-COOKIE during the boundary test. Do not
         # promote this to the product default without a loopback/auth bridge.
         TERMUX_X11_DEBUG=1 TMPDIR="$PREFIX/tmp" \
-            termux-x11 ":$display_number" -listen tcp -ac \
+            "$termux_x11_command" ":$display_number" -listen tcp -ac \
             >"$log_file" 2>&1 &
         pid=$!
         printf '%s\n' "$pid" >"$pid_file"

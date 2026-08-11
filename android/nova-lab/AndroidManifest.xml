@@ -42,5 +42,13 @@
                 android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
                 android:value="rooted Linux Steam session lifecycle" />
         </service>
+        <service
+            android:name=".RootlessLauncherService"
+            android:exported="false"
+            android:foregroundServiceType="specialUse">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="rootless Termux:X11 transport lifecycle" />
+        </service>
     </application>
 </manifest>

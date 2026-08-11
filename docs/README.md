@@ -26,6 +26,7 @@ Read these in order when picking up the project:
 15. [Rootless X11 R1b result](00-start-here/355-nova-rootless-x11-r1b-result-2026-08-10.md)
 16. [Rootless X11 R1c result](00-start-here/356-nova-rootless-x11-r1c-result-2026-08-10.md)
 17. [Rootless X11 R1d package visibility result](00-start-here/357-nova-rootless-x11-r1d-package-visibility-result-2026-08-10.md)
+18. [Rootless APK/Termux bridge implementation](00-start-here/358-nova-rootless-apk-termux-bridge-implementation-2026-08-10.md)
 
 Before any Nova device run, read the lifecycle contract. Before importing
 SteamclientTermux behavior, read the comparison record and inspect the clean

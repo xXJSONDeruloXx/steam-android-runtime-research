@@ -29,6 +29,7 @@ import java.io.InputStream;
 /** One-click product launcher; MainActivity remains the diagnostic lab. */
 public final class LauncherActivity extends Activity {
     private static final String TERMUX_X11_PACKAGE = "com.termux.x11";
+    private static final String TERMUX_PACKAGE = "com.termux";
     private static final String DEFAULT_ROOTFS = "/data/local/tmp/nova-holo-rootfs";
     private static final String ACTIVE_ROOTFS = "/data/local/tmp/nova-active-runtime";
     private static final String LAUNCHER_DIR = "launcher";
@@ -52,6 +53,7 @@ public final class LauncherActivity extends Activity {
     private static final String EXTRA_STEAM_CEF_ENV_SPLIT =
             LauncherService.EXTRA_STEAM_CEF_ENV_SPLIT;
     private static final int REQUEST_POST_NOTIFICATIONS = 42;
+    private static final int REQUEST_ROOTLESS_POST_NOTIFICATIONS = 43;
     private static final String[] REQUIRED_ASSETS = {
             "nova-one-click-root-launcher.sh",
             "nova-x11-private-namespace.sh",
@@ -86,14 +88,19 @@ public final class LauncherActivity extends Activity {
 
     private final Handler handler = new Handler(Looper.getMainLooper());
     private TextView statusView;
+    private TextView rootlessStatusView;
     private TextView provisioningView;
     private ProgressBar provisioningProgressBar;
     private boolean startPendingNotificationPermission;
+    private boolean startPendingRootlessNotificationPermission;
     private final Runnable statusRefresh = new Runnable() {
         @Override
         public void run() {
             if (statusView != null) {
                 statusView.setText(LauncherService.getStatus());
+            }
+            if (rootlessStatusView != null) {
+                rootlessStatusView.setText(RootlessLauncherService.getStatus());
             }
             if (provisioningView != null && provisioningProgressBar != null) {
                 boolean active = LauncherService.isProvisioning();
@@ -178,6 +185,31 @@ public final class LauncherActivity extends Activity {
         });
         page.addView(stop, new LinearLayout.LayoutParams(-1, -2));
 
+        Button rootlessStart = new Button(this);
+        rootlessStart.setText("Start rootless X11 (experimental)");
+        rootlessStart.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                startRootlessTransport();
+            }
+        });
+        page.addView(rootlessStart, new LinearLayout.LayoutParams(-1, -2));
+
+        Button rootlessStop = new Button(this);
+        rootlessStop.setText("Stop rootless X11");
+        rootlessStop.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                stopRootlessTransport();
+            }
+        });
+        page.addView(rootlessStop, new LinearLayout.LayoutParams(-1, -2));
+
+        rootlessStatusView = statusText(RootlessLauncherService.getStatus());
+        rootlessStatusView.setTextSize(13);
+        rootlessStatusView.setPadding(0, dp(8), 0, dp(8));
+        page.addView(rootlessStatusView, new LinearLayout.LayoutParams(-1, -2));
+
         Button lab = new Button(this);
         lab.setText("Open diagnostics lab");
         lab.setOnClickListener(new View.OnClickListener() {
@@ -204,6 +236,8 @@ public final class LauncherActivity extends Activity {
             stopAudioBridgeOnly();
         } else if (getIntent().getBooleanExtra("run_audio_bridge_only", false)) {
             startAudioBridgeOnly();
+        } else if (getIntent().getBooleanExtra("run_rootless_x11", false)) {
+            startRootlessTransport();
         } else if (getIntent().getBooleanExtra(EXTRA_RUN_STEAM_SESSION, false)
                 || getIntent().getBooleanExtra(EXTRA_RUN_AUDIO_BRIDGE_STEAM, false)) {
             startSteamSession();
@@ -309,10 +343,61 @@ public final class LauncherActivity extends Activity {
         }, 1400);
     }
 
+    private void startRootlessTransport() {
+        if (Build.VERSION.SDK_INT >= 33
+                && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS)
+                != PackageManager.PERMISSION_GRANTED) {
+            startPendingRootlessNotificationPermission = true;
+            RootlessLauncherService.setStatus(
+                    "Allow notifications once to keep rootless Stop available");
+            requestPermissions(new String[]{Manifest.permission.POST_NOTIFICATIONS},
+                    REQUEST_ROOTLESS_POST_NOTIFICATIONS);
+            return;
+        }
+        startRootlessTransportAfterPermission();
+    }
+
+    private void startRootlessTransportAfterPermission() {
+        if (!isPackageInstalled(TERMUX_PACKAGE)
+                || !isPackageInstalled(TERMUX_X11_PACKAGE)) {
+            RootlessLauncherService.setStatus(
+                    "Rootless X11 needs Termux and Termux:X11 installed");
+            return;
+        }
+        if (checkSelfPermission("com.termux.permission.RUN_COMMAND")
+                != PackageManager.PERMISSION_GRANTED) {
+            RootlessLauncherService.setStatus(
+                    "Grant Termux RUN_COMMAND permission in Android settings");
+            return;
+        }
+        Intent service = new Intent(this, RootlessLauncherService.class);
+        service.setAction(RootlessLauncherService.ACTION_START);
+        service.putExtra(RootlessLauncherService.EXTRA_DISPLAY, 77);
+        if (Build.VERSION.SDK_INT >= 26) {
+            startForegroundService(service);
+        } else {
+            startService(service);
+        }
+    }
+
     @Override
     public void onRequestPermissionsResult(int requestCode, String[] permissions,
             int[] grantResults) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+        if (requestCode == REQUEST_ROOTLESS_POST_NOTIFICATIONS) {
+            boolean startAfterPermission = startPendingRootlessNotificationPermission;
+            startPendingRootlessNotificationPermission = false;
+            if (grantResults.length > 0
+                    && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                if (startAfterPermission) {
+                    startRootlessTransportAfterPermission();
+                }
+            } else {
+                RootlessLauncherService.setStatus(
+                        "Notifications are required for reliable rootless Stop");
+            }
+            return;
+        }
         if (requestCode != REQUEST_POST_NOTIFICATIONS) {
             return;
         }
@@ -332,6 +417,12 @@ public final class LauncherActivity extends Activity {
     private void stopSteamSession() {
         Intent service = new Intent(this, LauncherService.class);
         service.setAction(LauncherService.ACTION_STOP);
+        startService(service);
+    }
+
+    private void stopRootlessTransport() {
+        Intent service = new Intent(this, RootlessLauncherService.class);
+        service.setAction(RootlessLauncherService.ACTION_STOP);
         startService(service);
     }
 
@@ -406,10 +497,15 @@ public final class LauncherActivity extends Activity {
                 + (notificationPermissionGranted() ? "enabled" : "required before start");
         return "Termux:X11: "
                 + (isPackageInstalled(TERMUX_X11_PACKAGE) ? "installed" : "missing")
+                + "\nTermux base: "
+                + (isPackageInstalled(TERMUX_PACKAGE) ? "installed" : "missing")
                 + "\nActive runtime marker: " + ACTIVE_ROOTFS
                 + "\nRollback rootfs: " + DEFAULT_ROOTFS
                 + "\nFirst run: verified downloads with phase progress"
                 + "\nSteamOS host-update adapter: enabled (no-update status 7)"
+                + "\nRootless RUN_COMMAND: "
+                + (checkSelfPermission("com.termux.permission.RUN_COMMAND")
+                == PackageManager.PERMISSION_GRANTED ? "granted" : "user grant required")
                 + "\n" + notification;
     }
 
