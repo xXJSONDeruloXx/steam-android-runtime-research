@@ -196,6 +196,10 @@ The running implementation agent should work this queue in order:
    app-owned `/dev/shm` and then machine-id/session-bus support as separate
    experiments. Require fresh Vulkan topology, SteamUI/webhelper logs, a
    visible-frame correlation, and no residual process for each run.
+   R29 is predeclared in [doc
+   469](469-nova-rootless-r29-rooted-kgsl-provider-predeclaration-2026-08-11.md)
+   with the exact rooted `libvulkan_freedreno.so` and ICD; it must not add
+   `/dev/shm`, D-Bus, a root helper, or any Steam patch.
 3. **Stage an isolated official-runtime profile.** Register Proton 11 ARM64
    (`AppID 4628740`, depot `4628741`) with its declared Steam Linux Runtime 4
    ARM64 dependency (`AppID 4185400`, depot `4185401`). Preserve the
