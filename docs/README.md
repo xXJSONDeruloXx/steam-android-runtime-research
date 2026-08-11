@@ -31,6 +31,7 @@ Read these in order when picking up the project:
 20. [Rootless runtime/network contracts](00-start-here/360-nova-rootless-runtime-network-contracts-2026-08-10.md)
 21. [Rootless R2 device predeclaration](00-start-here/361-nova-rootless-r2-device-predeclaration-2026-08-10.md)
 22. [Rootless R2 PRoot path failure](00-start-here/362-nova-rootless-r2-proot-path-failure-2026-08-10.md)
+23. [Rootless PulseAudio TCP contract](00-start-here/363-nova-rootless-pulseaudio-contract-2026-08-10.md)
 
 Before any Nova device run, read the lifecycle contract. Before importing
 SteamclientTermux behavior, read the comparison record and inspect the clean

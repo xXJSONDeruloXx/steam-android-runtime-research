@@ -7,6 +7,7 @@ supervisor="$root_dir/rootless/nova-rootless-proot-supervisor.sh"
 transport="$root_dir/rootless/nova-rootless-transport-probe.sh"
 termux_launcher="$root_dir/rootless/nova-rootless-termux-x11.sh"
 proc_net_shadow="$root_dir/rootless/nova-rootless-proc-net-shadow.sh"
+pulseaudio_helper="$root_dir/rootless/nova-rootless-pulseaudio-tcp.sh"
 runtime4_helper="$root_dir/rootless/nova-rootless-prepare-runtime4.sh"
 runtime4_vdf="$root_dir/rootless/nova-rootless-steam-arm64-compatibilitytools.vdf.in"
 termux_properties="$root_dir/rootless/termux.properties"
@@ -18,6 +19,7 @@ bridge="$root_dir/src/main/java/com/xjsonderulo/steamandroid/novalab/RootlessTer
 [[ -x "$transport" ]]
 [[ -x "$termux_launcher" ]]
 [[ -x "$proc_net_shadow" ]]
+[[ -x "$pulseaudio_helper" ]]
 [[ -x "$runtime4_helper" ]]
 [[ -f "$runtime4_vdf" ]]
 [[ -f "$termux_properties" ]]
@@ -29,6 +31,7 @@ bash -n "$supervisor"
 bash -n "$transport"
 bash -n "$termux_launcher"
 bash -n "$proc_net_shadow"
+bash -n "$pulseaudio_helper"
 bash -n "$runtime4_helper"
 
 grep -Fqx $'profile_version\t2' "$profile"
@@ -53,6 +56,8 @@ grep -Fq '"-c", ". /dev/stdin"' "$bridge"
 grep -Fq 'putExtra(EXTRA_BACKGROUND_LOG_LEVEL, 2)' "$bridge"
 grep -Fq 'context.startForegroundService(intent)' "$bridge"
 grep -Fq '00000000' "$proc_net_shadow"
+grep -Fq 'module-native-protocol-tcp' "$pulseaudio_helper"
+grep -Fq '127.0.0.1' "$pulseaudio_helper"
 grep -Fq 'SteamLinuxRuntime_4-arm64' "$runtime4_helper"
 grep -Fq 'require_tool_appid' "$runtime4_vdf"
 grep -Fq '"appid"               "4628740"' "$runtime4_vdf"

@@ -60,6 +60,7 @@ done
 for rootless_asset in \
     nova-rootless-termux-x11.sh \
     nova-rootless-proc-net-shadow.sh \
+    nova-rootless-pulseaudio-tcp.sh \
     nova-rootless-prepare-runtime4.sh \
     nova-rootless-steam-arm64-compatibilitytools.vdf.in \
     nova-rootless-transport-probe.sh \
