@@ -61,6 +61,28 @@ freedreno-kgsl.icd.json size=194 sha256=337c752f464fd36a1c9214e68daa9e3a0133f917
 
 Do not read, copy, back up, or export Steam authentication state.
 
+## Near-term fast-fixture profile
+
+R31 is a fast A/B when the device already has an intact, hash-verified R30/R28
+fixture. Do not repeat the multi-gigabyte client copy, Holo archive
+extraction, or 161-package transaction solely to change the ICD selector.
+Reuse only the immutable sanitized client/rootfs/provider/helper inputs after
+recording their fixture marker and rechecking the pinned hashes. This does
+not authorize reuse of any Steam HOME, config, updater/package state, logs,
+temporary path, screenshot, X11 process, socket, or readiness result.
+
+The R31 run must still create fresh app/device/Termux state, a fresh resolver
+and temporary directory, a fresh Termux:X11 `:77` process/listener, fresh
+Steam/SteamUI/webhelper logs, and a fresh screenshot. Verify the fixture after
+teardown; if any immutable input changed, invalidate it and cold-provision a
+new fixture before another A/B. If the current supervisor cannot demonstrate
+that mutable Steam paths are isolated from the reused client fixture, fall
+back to cold provisioning and record that limitation rather than silently
+reusing a mutable tree.
+
+Fixture reuse is a staging optimization only. It does not relax the one-change
+contract: the only experimental variable remains `VK_DRIVER_FILES`.
+
 ## One changed variable
 
 The effective R31 guest command must add exactly:

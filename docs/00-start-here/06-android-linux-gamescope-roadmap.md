@@ -85,15 +85,29 @@ The current Nova direct Termux:X11 session is the comparison baseline:
 
 R30 is now the current provider control: unsetting
 `VK_ICD_FILENAMES` crossed R29's updater/X11 crash and reached native SteamUI
-and webhelper, but Vulkan still failed at physical-device enumeration and
-webhelper still hit the independent `/dev/shm` and D-Bus prerequisites. The
-result is [doc 472](472-nova-rootless-r30-r29-provider-off-control-result-2026-08-11.md).
+and webhelper in the fresh logs, but did not produce a visible Steam frame;
+Vulkan still failed at physical-device enumeration and webhelper still hit
+the independent `/dev/shm` and D-Bus prerequisites. The result is [doc
+472](472-nova-rootless-r30-r29-provider-off-control-result-2026-08-11.md).
 The next and only predeclared variable is the alternate
 `VK_DRIVER_FILES` selector in [doc
 473](473-nova-rootless-r31-vk-driver-files-provider-selector-predeclaration-2026-08-11.md).
 Keep the rooted direct-Termux:X11 path intact and do not combine that selector
 test with shared memory, D-Bus, Runtime 4, Proton, Gamescope/AHardwareBuffer,
 or packaging changes.
+
+### Near-term iteration mode
+
+Use cold provisioning only for a new device, a changed APK or pinned payload,
+a failed fixture-integrity check, or a milestone acceptance run. For R31 and
+subsequent one-variable rootless A/Bs on the same device, reuse only a
+hash-verified authentication-free Holo/client/provider fixture. Keep every
+run's HOME, Steam mutable state, logs, temporary directories, resolver,
+Termux:X11 process, listener, screenshot, and readiness baseline fresh. Verify
+the fixture before launch and verify it was unchanged after cleanup. This
+preserves experiment identity while avoiding another multi-gigabyte
+reprovisioning cycle for a selector-only change; see the lifecycle contract in
+[doc 34](34-nova-runtime-harness-lifecycle.md).
 
 ### Active decision
 

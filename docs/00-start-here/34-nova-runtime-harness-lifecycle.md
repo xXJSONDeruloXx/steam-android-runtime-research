@@ -35,6 +35,45 @@ Every Nova run must satisfy this sequence:
 The cleanup scope must not become a broad `pkill`: unrelated Android services,
 other rootfs experiments, and the host shell are outside this test's authority.
 
+## Cold provisioning and fast A/B fixture profiles
+
+The harness has two legitimate iteration profiles. A **cold provisioning** run
+is required for a new device, after a payload or APK change, after a fixture
+integrity failure, and for a milestone acceptance test. It may download or
+copy the pinned Holo archive, Steam client, package closure, provider files,
+and helper assets, then extract and activate them atomically.
+
+A **fast A/B** run is allowed for a one-variable experiment on a device that
+already has a verified fixture. It may reuse only immutable, authentication-
+free payloads whose provenance is recorded in the current run log:
+
+- the pinned Holo guest rootfs and installed package-closure marker;
+- the sanitized public Steam client tree and selected client hashes; and
+- pinned provider, PRoot, GTK, and helper artifacts.
+
+Fast reuse must never include a Steam HOME, config, cookies, tokens, QR/session
+state, updater state, logs, screenshots, temporary directories, X11 process,
+socket, or readiness result. Create fresh run-scoped state and a fresh X11
+instance for every A/B. Recheck the fixture marker, selected hashes, device
+identity, free-space floor, and rootless preflight before launch. After the
+run, verify that the immutable fixture did not change; a changed fixture is
+invalid and must be cold-rebuilt before another experiment.
+
+For the current rootless supervisor, `NOVA_ROOTLESS_ROOTFS` and
+`NOVA_ROOTLESS_STEAM_CLIENT` may point at a verified fixture only when the
+launch contract keeps mutable Steam paths isolated or the fixture's
+run-generated paths are explicitly reset and verified. Do not silently call a
+mutable client tree a fixture. If that isolation cannot be demonstrated, use
+the cold path for that run and record the harness limitation. Fast reuse is a
+staging optimization, not permission to reuse a process, log, socket,
+screenshot, authentication state, or display result.
+
+The near-term R31 loop is a fast A/B when its R30/R28 fixture is intact: do not
+re-download or re-extract the large payloads merely to change the Vulkan
+selector. Recreate only the run state, resolver, fresh Termux:X11 process,
+launch evidence, and cleanup scope. Use cold provisioning again for a new
+device such as the Thor, or whenever the fixture integrity check fails.
+
 ## Android foreground consent gate
 
 On a fresh APK install or cleared app state, Android may place an
