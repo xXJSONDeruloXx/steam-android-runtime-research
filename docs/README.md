@@ -64,6 +64,7 @@ Read these in order when picking up the project:
 53. [Rootless R7b absolute PRoot path retry predeclaration](00-start-here/393-nova-rootless-r7b-absolute-proot-predeclaration-2026-08-11.md)
 54. [Rootless R7b PRoot `libtalloc` soname result](00-start-here/394-nova-rootless-r7b-libtalloc-soname-result-2026-08-11.md)
 55. [Rootless R7c PRoot `libtalloc` soname retry predeclaration](00-start-here/395-nova-rootless-r7c-libtalloc-soname-predeclaration-2026-08-11.md)
+56. [Rootless R7c public seed `steamui.so` mode result](00-start-here/396-nova-rootless-r7c-steamui-mode-result-2026-08-11.md)
 
 Before any Nova device run, read the lifecycle contract. Before importing
 SteamclientTermux behavior, read the comparison record and inspect the clean
