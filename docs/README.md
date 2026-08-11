@@ -132,6 +132,7 @@ Read these in order when picking up the project:
 121. [Rootless R25 rooted public-client parity result](00-start-here/461-nova-rootless-r25-rooted-parity-result-2026-08-11.md)
 122. [Rootless rooted-runtime layout audit](00-start-here/462-nova-rootless-rooted-runtime-layout-audit-2026-08-11.md)
 123. [Rootless R26 rooted-device public-tree replay predeclaration](00-start-here/463-nova-rootless-r26-rooted-device-public-tree-predeclaration-2026-08-11.md)
+124. [Rootless R26 rooted-device public-tree replay result](00-start-here/464-nova-rootless-r26-rooted-device-public-tree-result-2026-08-11.md)
 
 Before any Nova device run, read the lifecycle contract. Before importing
 SteamclientTermux behavior, read the comparison record and inspect the clean
