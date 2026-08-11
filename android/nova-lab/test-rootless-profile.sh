@@ -57,10 +57,10 @@ grep -Fqx $'rootfs_archive\tsystem.rootfs.zst' "$profile"
 grep -Fqx $'rootfs_archive_size\t384971555' "$profile"
 grep -Fqx $'rootfs_archive_sha256\t7e3fb88454e1ac633b7488abb72d3ca0cc7d2578a38146fdd7d58b50fcbd60bf' "$profile"
 steamui_holo_count=$(awk -F '\t' '$1 !~ /^#/ && NF >= 5 { count++ } END { print count + 0 }' "$steamui_holo_packages")
-[[ "$steamui_holo_count" == 44 ]]
+[[ "$steamui_holo_count" == 103 ]]
 steamui_holo_sha=$(shasum -a 256 "$steamui_holo_packages" | awk '{ print $1 }')
 grep -Fqx $'steamui_holo_package_closure_sha256\t'"$steamui_holo_sha" "$profile"
-grep -Fqx $'steamui_holo_package_closure_count\t44' "$profile"
+grep -Fqx $'steamui_holo_package_closure_count\t103' "$profile"
 external_asset_count=$(awk -F '\t' '$1 !~ /^#/ && NF >= 5 { count++ } END { print count + 0 }' "$steamui_external_assets")
 [[ "$external_asset_count" == 2 ]]
 grep -Fq -- '-b "$APP_HOME:/home/nova" \' "$supervisor"
