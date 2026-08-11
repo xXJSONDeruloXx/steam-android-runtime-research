@@ -17,7 +17,7 @@ extra	gperftools	2.17.2-1	56257180c947aafe4599da2c8ff97fc02e32057a11e0b9a03f5c50
 extra	gsettings-desktop-schemas	49.1-1	d8c9f6ee16566bbb178eadea307e337a62e19fc6c1c0fed75a355f9d257a8ac0	gsettings-desktop-schemas-49.1-1-any.pkg.tar.zst
 extra	gsettings-system-schemas	49.1-1	46c1684fb36b7601f60d5aca1ac3552b0d9a042278b30fdc393c1dae40303c5d	gsettings-system-schemas-49.1-1-any.pkg.tar.zst
 extra	gtest	1.17.0-1	b21385658d601c17ff55c389b1b3c91bd3e80dcbd73b00dec8f8ef4847b37b6c	gtest-1.17.0-1-aarch64.pkg.tar.zst
-extra	gtk-update-icon-cache	1:4.20.2-3	51279ea2c6d222eb3c4c78d685ea804a684151af234e3c14da3b08b2fa154	gtk-update-icon-cache-1:4.20.2-3-aarch64.pkg.tar.zst
+extra	gtk-update-icon-cache	1:4.20.2-3	51279ea2c6d222eb3c4c78d685ea804a684151da48f234e3c14da3b08b2fa154	gtk-update-icon-cache-1:4.20.2-3-aarch64.pkg.tar.zst
 extra	hicolor-icon-theme	0.18-1	22ec69012b9a55e276b5891f916366f692541dce3793bff3e85a28a10b91990a	hicolor-icon-theme-0.18-1-any.pkg.tar.zst
 extra	highway	1.3.0-1	25ed329d20c0e63eb152ec16f4305e2eb1c21df9688518885d2dacffe8752319	highway-1.3.0-1-aarch64.pkg.tar.zst
 extra	jbigkit	2.1-8.2	7ab8636db9aead92eee46123469adbd2c72775a45af6aa7a6fc766b36b83e319	jbigkit-2.1-8.2-aarch64.pkg.tar.zst
@@ -27,7 +27,7 @@ extra	libasyncns	1:0.8+r3+g68cd5af-3	74d751c640903200413a6f04c633ddcb3195b8024ef
 extra	libcups	2:2.4.14-1	9213aaa189c79e534f014a134b675b18948502ded084542d496d5b0e5a7981f1	libcups-2:2.4.14-1-aarch64.pkg.tar.zst
 extra	libdaemon	0.14-6	2b87acae2cfa1ee3bc1f54304ff88bbbf860dc3c0a5a17d7a6cb721593187fc7	libdaemon-0.14-6-aarch64.pkg.tar.zst
 extra	libdeflate	1.24-1	3f9d7d6e88b00486f91d46acaba0c06205c1cc6e065fc844084431f3f1a873a8	libdeflate-1.24-1-aarch64.pkg.tar.zst
-extra	libjpeg-turbo	3.1.2-1	8511477c4f80dcf368321fb17961a70bf107b7747f3f3a6b594ea69ccbaca1aa	libjpeg-turbo-3.1.2-1-aarch64.pkg.tar.zst
+extra	libjpeg-turbo	3.1.2-1	8511477c4f80dcf368321fb17961a70bf107b7747f7f3a6b594ea69ccbaca1aa	libjpeg-turbo-3.1.2-1-aarch64.pkg.tar.zst
 extra	libjxl	0.11.1-5	4116e3f9726f23cc1c5af3dd6c48b0120016ca9ccb8230ddf48ff8791c9a9196	libjxl-0.11.1-5-aarch64.pkg.tar.zst
 extra	libogg	1.3.6-1	5b9be187865e0aa0fedaa790ad50f08a47d21475e84576f6d524be7b6092dad8	libogg-1.3.6-1-aarch64.pkg.tar.zst
 extra	libpipewire	1:1.4.9-1	e85332b152c7357a684b0f6d623e80e7aeee839877df17a5e9cad6962e863de2	libpipewire-1:1.4.9-1-aarch64.pkg.tar.zst

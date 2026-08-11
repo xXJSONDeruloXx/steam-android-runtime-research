@@ -34,7 +34,7 @@ audio, controller input, Proton, or a game launch.
 - Incremental Holo manifest:
   `android/nova-lab/rootless/nova-rootless-steamui-holo-packages.tsv`, 44
   packages, manifest SHA-256
-  `0746b0a34d155a60a80e4e4c79284493216e998030fe29f930e256eacf2b2eb2`.
+  `6583d0a34da45418d82dba9afa369acc22881fc318550b1a4c876c4235241fae`.
 - External compatibility manifest:
   `android/nova-lab/rootless/nova-rootless-steamui-external-assets.tsv`,
   manifest SHA-256
