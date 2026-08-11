@@ -102,6 +102,7 @@ Read these in order when picking up the project:
 91. [Rootless R14 supervisor preflight predeclaration](00-start-here/431-nova-rootless-r14-supervisor-preflight-predeclaration-2026-08-11.md)
 92. [Rootless R14 supervisor preflight result](00-start-here/432-nova-rootless-r14-supervisor-preflight-result-2026-08-11.md)
 93. [Rootless R15 Steam version predeclaration](00-start-here/433-nova-rootless-r15-steam-version-predeclaration-2026-08-11.md)
+94. [Rootless R15 Steam version result](00-start-here/434-nova-rootless-r15-steam-version-result-2026-08-11.md)
 
 Before any Nova device run, read the lifecycle contract. Before importing
 SteamclientTermux behavior, read the comparison record and inspect the clean

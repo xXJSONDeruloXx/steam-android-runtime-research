@@ -63,7 +63,7 @@ The app should not recreate Steam’s library, login, downloads, or Gamepad UI.
 Armada and PockNix show that the Steam client already supplies the primary UI
 when launched with the Deck session flags.
 
-## 2. Current state — 2026-08-10
+## 2. Current state — 2026-08-11
 
 ### Working baseline
 
@@ -77,7 +77,7 @@ The current Nova direct Termux:X11 session is the comparison baseline:
 | Network | Steam can use the inherited Android data path for client activity and downloads. | Treat Android connectivity as the data plane; do not model Steam’s UI device scan as transport. |
 | Controller | Physical controller input is confirmed in the current signed-in session; see [doc 298](298-nova-physical-controller-live-confirmation-2026-08-10.md). | Remove basic controller transport from the immediate blocker list; retain game controls, rumble, and reattachment as later checks. |
 | Audio | Startup and UI sounds are audible, with substantial observed delay. | Keep the current bridge as baseline; improve device reporting and latency after the runtime A/B gate. |
-| Runtime | Nova has a SteamRT3C profile and Proton 11 ARM64 files/wrapper work, but not yet the target’s clean official Runtime 4 dependency registration. | This is the next substantive integration. |
+| Runtime | The rootless Holo/PRoot closure passes guest startup, native Steam updater, and the X11 update window. R15 then fails before SteamUI because the ARM64 client requests `bin/vgui2_s.dll` while the staged/update layout provides `steamrtarm64/vgui2_s.so`. | Resolve and separately test the client layout/launch-contract boundary before adding Runtime 4 or Proton variables; see [doc 434](434-nova-rootless-r15-steam-version-result-2026-08-11.md). |
 | Games | Proton/FEX/Wine/DXVK startup has been reached, but the first-frame game gate remains unresolved on the current Nova path. | Classify the next result at the Vulkan/WSI boundary. |
 | Gamescope/AHardwareBuffer | Synthetic and SteamUI presentation seams are valuable research evidence, but the product path is not closed. | Defer new low-level compositor work until the runtime A/B result. |
 
@@ -86,10 +86,13 @@ The current Nova direct Termux:X11 session is the comparison baseline:
 The first integration to bring over from
 [SteamclientTermux](333-steamclienttermux-comparison-2026-08-10.md) is its
 official ARM64 compatibility-tool registration, not its complete PRoot or
-compositor architecture. This gives Nova a controlled Runtime 4 versus
-SteamRT3C comparison while preserving the display and Android lifecycle path
-that already works. Use the sibling checkout's current source for follow-up
-details, and record the exact source revision in each experiment.
+compositor architecture. Before that A/B, the rootless branch must close the
+newly observed native-client layout boundary: R15 reached the updater and X11
+update window but exited `255` when `steam` requested `bin/vgui2_s.dll` and
+that path was absent. Use the sibling checkout's current source and the
+upstream client package metadata to determine the intended ARM64 layout; do
+not guess a `.so`-to-`.dll` alias. Record the exact source revision in each
+experiment.
 
 ## 3. Immediate execution queue
 
@@ -99,24 +102,30 @@ The running implementation agent should work this queue in order:
    comparison. Add the target-derived per-run log cap/guard and capture fresh
    Steam, SteamUI, Proton, and Pressure Vessel artifacts. Do not export Steam
    authentication state.
-2. **Stage an isolated official-runtime profile.** Register Proton 11 ARM64
+2. **Close the native ARM64 client layout gate.** Keep the complete R15
+   rootless profile fixed. Inspect the SteamClientTermux/upstream ARM64 seed,
+   package manifest, launch working directory, and any required extraction
+   path. Predeclare one layout or launcher-contract hypothesis at a time; do
+   not patch SteamUI views or create a guessed `vgui2_s.dll` alias. Require a
+   fresh successful `steam --version` and no residual process.
+3. **Stage an isolated official-runtime profile.** Register Proton 11 ARM64
    (`AppID 4628740`, depot `4628741`) with its declared Steam Linux Runtime 4
    ARM64 dependency (`AppID 4185400`, depot `4185401`). Preserve the
    `require_tool_appid` relationship. Do not make the current
    dependency-neutral wrapper the success criterion, and do not overwrite the
    SteamRT3C profile.
-3. **Smoke-test Runtime 4 before launching a game.** Run the runtime’s
+4. **Smoke-test Runtime 4 before launching a game.** Run the runtime’s
    `_v2-entry-point --verb=run -- /bin/true` or the exact equivalent exposed by
    the installed runtime through the same Holo/chroot-visible environment.
    Verify the selected runtime, bind/link cleanliness, ABI startup, and fresh
    logs.
-4. **Run one first-frame game gate.** Use Geometry Wars or another current
+5. **Run one first-frame game gate.** Use Geometry Wars or another current
    small library test with display, input, network, audio, and storage
    variables held constant. Change only the compatibility-tool/runtime
    selection. Require fresh Proton/DXVK/Wine/FEX logs and a screenshot; classify
    the result as game startup, Vulkan device, Vulkan/WSI surface, compositor, or
    game-level failure.
-5. **Only after the gate passes**, promote the profile and take up the
+6. **Only after the gate passes**, promote the profile and take up the
    follow-on work: conventional loopback PulseAudio, `/proc/net`/route
    compatibility, complete APK/OOBE packaging, embedded X11, and
    Gamescope/AHardwareBuffer integration.
