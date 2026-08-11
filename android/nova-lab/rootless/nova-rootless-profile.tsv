@@ -51,7 +51,10 @@ pulseaudio_tcp_endpoint	tcp:127.0.0.1:4713
 session_log_cap_bytes	67108864
 session_stdout_cap_bytes	1048576
 network_transport	android-inherited-namespace
+resolver_transport	android-connectivity-to-app-owned-resolv-conf
+resolver_policy	validated-nameserver-file-bound-to-guest-etc-resolv-conf
 input_transport	user-session-socket-or-android-controller-bridge
+proot_tmp_policy	app-owned-short-path-override
 steam_data_policy	fresh-app-owned-home-only
 auth_secret_policy	never-export-or-back-up
 gamescope_policy	optional-not-required

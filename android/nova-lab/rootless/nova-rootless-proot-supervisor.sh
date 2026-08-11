@@ -17,6 +17,10 @@ APP_HOME="${NOVA_ROOTLESS_HOME:-}"
 STEAM_CLIENT="${NOVA_ROOTLESS_STEAM_CLIENT:-}"
 PROC_NET="${NOVA_ROOTLESS_PROC_NET:-}"
 RUNTIME4_SHADOW="${NOVA_ROOTLESS_RUNTIME4_SHADOW:-}"
+RESOLV_CONF_REQUESTED="${NOVA_ROOTLESS_RESOLV_CONF:-}"
+RESOLV_CONF="$RESOLV_CONF_REQUESTED"
+PROOT_TMP_DIR="${NOVA_ROOTLESS_PROOT_TMP_DIR:-}"
+GUEST_TMP_DIR="${NOVA_ROOTLESS_TMP_DIR:-}"
 DISPLAY_VALUE="${DISPLAY:-:0}"
 X11_SOCKET="${NOVA_ROOTLESS_X11_SOCKET:-}"
 
@@ -97,20 +101,29 @@ prepare_state() {
     require_path directory "$STEAM_CLIENT"
     "$system_mkdir" -p \
         "$STATE/logs" \
-        "$STATE/proot-tmp" \
-        "$STATE/tmp" \
+        "$PROOT_TMP_DIR" \
+        "$GUEST_TMP_DIR" \
         "$STATE/run" \
         "$STATE/config" \
         "$APP_HOME" \
         "$STEAM_CLIENT"
     # These paths are app-owned. Refuse a symlink so a bad configuration cannot
     # redirect Steam writes outside the selected rootless state tree.
-    for path in "$STATE" "$STATE/logs" "$STATE/proot-tmp" "$STATE/tmp" \
-        "$STATE/run" "$STATE/config" "$APP_HOME" "$STEAM_CLIENT"; do
+    for path in "$STATE" "$STATE/logs" "$PROOT_TMP_DIR" "$GUEST_TMP_DIR" \
+        "$STATE/run" "$STATE/config" "$APP_HOME" "$STEAM_CLIENT" \
+        "$RESOLV_CONF"; do
         [ ! -L "$path" ] || fail "symlinked_state_path:$path"
     done
-    chmod 700 "$STATE" "$STATE/logs" "$STATE/proot-tmp" "$STATE/tmp" \
+    if [ -n "$RESOLV_CONF_REQUESTED" ]; then
+        require_path file "$RESOLV_CONF"
+    elif [ -e "$RESOLV_CONF" ]; then
+        require_path file "$RESOLV_CONF"
+    else
+        : >"$RESOLV_CONF"
+    fi
+    chmod 700 "$STATE" "$STATE/logs" "$PROOT_TMP_DIR" "$GUEST_TMP_DIR" \
         "$STATE/run" "$STATE/config" "$APP_HOME" "$STEAM_CLIENT"
+    chmod 600 "$RESOLV_CONF"
     steam_home="$APP_HOME/.steam"
     steam_link="$steam_home/steam"
     "$system_mkdir" -p "$steam_home"
@@ -138,6 +151,15 @@ validate_proc_net() {
         "$PROC_NET/route" || fail "empty_proc_net_route:$PROC_NET/route"
 }
 
+validate_resolv_conf() {
+    require_path file "$RESOLV_CONF"
+    [ ! -L "$RESOLV_CONF" ] || fail "symlinked_resolv_conf:$RESOLV_CONF"
+    if [ -n "$RESOLV_CONF_REQUESTED" ]; then
+        "$system_awk" '/^[[:space:]]*nameserver[[:space:]]+/ { found = 1 } END { exit(found ? 0 : 1) }' \
+            "$RESOLV_CONF" || fail "resolv_conf_has_no_nameserver:$RESOLV_CONF"
+    fi
+}
+
 validate_runtime4_shadow() {
     [ -n "$RUNTIME4_SHADOW" ] || return 0
     require_path directory "$RUNTIME4_SHADOW"
@@ -158,6 +180,9 @@ preflight() {
     [ -n "$STATE" ] || fail missing_state_argument
     [ -n "$APP_HOME" ] || fail missing_app_home_argument
     [ -n "$STEAM_CLIENT" ] || fail missing_steam_client_argument
+    [ -n "$PROOT_TMP_DIR" ] || PROOT_TMP_DIR="$STATE/proot-tmp"
+    [ -n "$GUEST_TMP_DIR" ] || GUEST_TMP_DIR="$STATE/tmp"
+    [ -n "$RESOLV_CONF" ] || RESOLV_CONF="$STATE/config/resolv.conf"
 
     real_uid="$($system_id -u)"
     numeric "$real_uid" || fail "invalid_real_uid:$real_uid"
@@ -189,10 +214,14 @@ preflight() {
         [ -r "$X11_SOCKET" ] || fail "x11_socket_not_readable:$X11_SOCKET"
     }
     validate_proc_net
+    validate_resolv_conf
     validate_runtime4_shadow
     log "nova_rootless_preflight=pass uid=$real_uid rootfs=$ROOTFS proot=$PROOT_BIN"
     log "nova_rootless_state=$STATE home=$APP_HOME steam_client=$STEAM_CLIENT"
     log "nova_rootless_free_kib=$free_kib"
+    log "nova_rootless_proot_tmp_dir=$PROOT_TMP_DIR"
+    log "nova_rootless_guest_tmp_dir=$GUEST_TMP_DIR"
+    log "nova_rootless_resolv_conf=$RESOLV_CONF"
     [ -z "$PROC_NET" ] || log "nova_rootless_proc_net=$PROC_NET"
     [ -z "$RUNTIME4_SHADOW" ] || log "nova_rootless_runtime4_shadow=$RUNTIME4_SHADOW"
 }
@@ -209,8 +238,8 @@ run_guest() {
     # then resolves the guest executable against the Holo glibc tree.
     export LD_LIBRARY_PATH="$PROOT_LIB_DIR${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
     export PROOT_LOADER="$PROOT_LOADER_PATH"
-    export PROOT_TMP_DIR="$STATE/proot-tmp"
-    export TMPDIR="$STATE/tmp"
+    export PROOT_TMP_DIR="$PROOT_TMP_DIR"
+    export TMPDIR="$GUEST_TMP_DIR"
     export NOVA_ROOTLESS_NO_SU=1
 
     log "nova_rootless_exec=proot display=$DISPLAY_VALUE"
@@ -225,9 +254,10 @@ run_guest() {
                 -r "$ROOTFS" \
                 -b /dev:/dev \
                 -b /proc:/proc \
+                -b "$RESOLV_CONF:/etc/resolv.conf" \
                 -b "$APP_HOME:/home/nova" \
                 -b "$STEAM_CLIENT:/opt/nova-steam" \
-                -b "$STATE/tmp:/tmp" \
+                -b "$GUEST_TMP_DIR:/tmp" \
                 -b "$STATE/run:/run" \
                 -b "$PROC_NET:/proc/net" \
                 -b "$RUNTIME4_SHADOW:/opt/nova-steam/steamapps/common/SteamLinuxRuntime_4-arm64" \
@@ -238,6 +268,7 @@ run_guest() {
                 "USER=nova" \
                 "LOGNAME=nova" \
                 "DISPLAY=$DISPLAY_VALUE" \
+                "TMPDIR=/tmp" \
                 "XDG_RUNTIME_DIR=/run/nova" \
                 "PULSE_SERVER=${NOVA_ROOTLESS_PULSE_SERVER:-}" \
                 "NOVA_ROOTLESS_NO_SU=1" \
@@ -251,9 +282,10 @@ run_guest() {
                 -r "$ROOTFS" \
                 -b /dev:/dev \
                 -b /proc:/proc \
+                -b "$RESOLV_CONF:/etc/resolv.conf" \
                 -b "$APP_HOME:/home/nova" \
                 -b "$STEAM_CLIENT:/opt/nova-steam" \
-                -b "$STATE/tmp:/tmp" \
+                -b "$GUEST_TMP_DIR:/tmp" \
                 -b "$STATE/run:/run" \
                 -b "$PROC_NET:/proc/net" \
                 -w /home/nova \
@@ -263,6 +295,7 @@ run_guest() {
                 "USER=nova" \
                 "LOGNAME=nova" \
                 "DISPLAY=$DISPLAY_VALUE" \
+                "TMPDIR=/tmp" \
                 "XDG_RUNTIME_DIR=/run/nova" \
                 "PULSE_SERVER=${NOVA_ROOTLESS_PULSE_SERVER:-}" \
                 "NOVA_ROOTLESS_NO_SU=1" \
@@ -276,9 +309,10 @@ run_guest() {
                 -r "$ROOTFS" \
                 -b /dev:/dev \
                 -b /proc:/proc \
+                -b "$RESOLV_CONF:/etc/resolv.conf" \
                 -b "$APP_HOME:/home/nova" \
                 -b "$STEAM_CLIENT:/opt/nova-steam" \
-                -b "$STATE/tmp:/tmp" \
+                -b "$GUEST_TMP_DIR:/tmp" \
                 -b "$STATE/run:/run" \
                 -b "$RUNTIME4_SHADOW:/opt/nova-steam/steamapps/common/SteamLinuxRuntime_4-arm64" \
                 -w /home/nova \
@@ -288,6 +322,7 @@ run_guest() {
                 "USER=nova" \
                 "LOGNAME=nova" \
                 "DISPLAY=$DISPLAY_VALUE" \
+                "TMPDIR=/tmp" \
                 "XDG_RUNTIME_DIR=/run/nova" \
                 "PULSE_SERVER=${NOVA_ROOTLESS_PULSE_SERVER:-}" \
                 "NOVA_ROOTLESS_NO_SU=1" \
@@ -301,9 +336,10 @@ run_guest() {
                 -r "$ROOTFS" \
                 -b /dev:/dev \
                 -b /proc:/proc \
+                -b "$RESOLV_CONF:/etc/resolv.conf" \
                 -b "$APP_HOME:/home/nova" \
                 -b "$STEAM_CLIENT:/opt/nova-steam" \
-                -b "$STATE/tmp:/tmp" \
+                -b "$GUEST_TMP_DIR:/tmp" \
                 -b "$STATE/run:/run" \
                 -w /home/nova \
                 /usr/bin/env \
@@ -312,6 +348,7 @@ run_guest() {
                 "USER=nova" \
                 "LOGNAME=nova" \
                 "DISPLAY=$DISPLAY_VALUE" \
+                "TMPDIR=/tmp" \
                 "XDG_RUNTIME_DIR=/run/nova" \
                 "PULSE_SERVER=${NOVA_ROOTLESS_PULSE_SERVER:-}" \
                 "NOVA_ROOTLESS_NO_SU=1" \
