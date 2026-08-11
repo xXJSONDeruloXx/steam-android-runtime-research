@@ -58,6 +58,7 @@ Read these in order when picking up the project:
 47. [Rootless R6d complete Holo closure predeclaration](00-start-here/387-nova-rootless-r6d-complete-holo-closure-predeclaration-2026-08-11.md)
 48. [Rootless R6d complete Holo closure result](00-start-here/388-nova-rootless-r6d-complete-holo-closure-result-2026-08-11.md)
 49. [Rootless R6e closure validator predeclaration](00-start-here/389-nova-rootless-r6e-closure-validator-predeclaration-2026-08-11.md)
+50. [Rootless R6e closure validator result](00-start-here/390-nova-rootless-r6e-closure-validator-result-2026-08-11.md)
 
 Before any Nova device run, read the lifecycle contract. Before importing
 SteamclientTermux behavior, read the comparison record and inspect the clean
