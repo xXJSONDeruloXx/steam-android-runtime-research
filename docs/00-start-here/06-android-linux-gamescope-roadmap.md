@@ -117,8 +117,10 @@ The running implementation agent should work this queue in order:
    the stable-channel and conventional-layout behaviors, while R19 and R21
    showed that the actual `steamrtarm64/steam` entry and the no-version
    command both stop at the updater-to-client handoff. R20/R21 ruled out the
-   raw-seed top-level path and symlink as fixes. Predeclare the first sibling
-   flag, `-noverifyfiles`, and then test the remaining flags one at a time.
+   raw-seed top-level path and symlink as fixes. R22 is predeclared in [doc
+   451](451-nova-rootless-r22-noverifyfiles-predeclaration-2026-08-11.md) for
+   the first sibling flag, `-noverifyfiles`; test the remaining flags one at
+   a time.
    Do not patch SteamUI or create a guessed `vgui2_s.dll` alias. Require fresh
    SteamUI/webhelper logs, a visible-frame correlation, and no residual
    process.

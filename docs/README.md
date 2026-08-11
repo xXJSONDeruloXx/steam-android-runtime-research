@@ -119,6 +119,7 @@ Read these in order when picking up the project:
 108. [Rootless R20 client-root Steam entry-point result](00-start-here/448-nova-rootless-r20-client-root-entry-steam-lifecycle-result-2026-08-11.md)
 109. [Rootless R21 client-root seed symlink predeclaration](00-start-here/449-nova-rootless-r21-client-root-symlink-predeclaration-2026-08-11.md)
 110. [Rootless R21 client-root seed symlink result](00-start-here/450-nova-rootless-r21-client-root-symlink-result-2026-08-11.md)
+111. [Rootless R22 `-noverifyfiles` predeclaration](00-start-here/451-nova-rootless-r22-noverifyfiles-predeclaration-2026-08-11.md)
 
 Before any Nova device run, read the lifecycle contract. Before importing
 SteamclientTermux behavior, read the comparison record and inspect the clean
