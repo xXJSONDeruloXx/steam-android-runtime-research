@@ -115,9 +115,11 @@ The running implementation agent should work this queue in order:
 2. **Close the native ARM64 client lifecycle gate.** R17 and R18b isolated
    the stable-channel and conventional-layout behaviors, while R19 showed
    that removing `--version` alone still exits at the updater-to-client
-   handoff. Predeclare R20 against the stable/no-link baseline with only the
-   audited native `/opt/nova-steam/steam` executable path; then test the
-   sibling launch flags separately. Do not patch SteamUI or create a guessed
+   handoff. R20 is predeclared in [doc
+   447](447-nova-rootless-r20-client-root-entry-steam-lifecycle-predeclaration-2026-08-11.md)
+   against the stable/no-link baseline with only the audited native
+   `/opt/nova-steam/steam` executable path; then test the sibling launch flags
+   separately. Do not patch SteamUI or create a guessed
    `vgui2_s.dll` alias. Require fresh SteamUI/webhelper logs, a visible-frame
    correlation, and no residual process.
 3. **Stage an isolated official-runtime profile.** Register Proton 11 ARM64
