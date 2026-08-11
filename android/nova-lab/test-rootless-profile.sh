@@ -46,6 +46,8 @@ grep -Fqx $'steam_seed_sha256\t1c1dd74e63db8d2d64445c7d6156f02e3b2719141e569b52e
 grep -Fq -- '-b "$APP_HOME:/home/nova" \' "$supervisor"
 grep -Fq -- '-b "$STEAM_CLIENT:/opt/nova-steam" \' "$supervisor"
 grep -Fq -- '-b /proc:/proc \' "$supervisor"
+grep -Fq -- 'unexpected_steam_data_link' "$supervisor"
+grep -Fq -- 'refusing_real_steam_data_path' "$supervisor"
 grep -Fq -- '-b "$PROC_NET:/proc/net" \' "$supervisor"
 grep -Fq -- 'NOVA_ROOTLESS_RUNTIME4_SHADOW' "$supervisor"
 grep -Fq -- 'PULSE_SERVER=' "$supervisor"

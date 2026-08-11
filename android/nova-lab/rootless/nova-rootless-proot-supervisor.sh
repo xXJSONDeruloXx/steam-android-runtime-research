@@ -25,6 +25,8 @@ system_df=/system/bin/df
 system_stat=/system/bin/stat
 system_mkdir=/system/bin/mkdir
 system_rm=/system/bin/rm
+system_ln=/system/bin/ln
+system_readlink=/system/bin/readlink
 system_test=/system/bin/test
 system_awk=/system/bin/awk
 system_sed=/system/bin/sed
@@ -109,6 +111,18 @@ prepare_state() {
     done
     chmod 700 "$STATE" "$STATE/logs" "$STATE/proot-tmp" "$STATE/tmp" \
         "$STATE/run" "$STATE/config" "$APP_HOME" "$STEAM_CLIENT"
+    steam_home="$APP_HOME/.steam"
+    steam_link="$steam_home/steam"
+    "$system_mkdir" -p "$steam_home"
+    chmod 700 "$steam_home"
+    if [ -L "$steam_link" ]; then
+        [ "$($system_readlink "$steam_link")" = /opt/nova-steam ] ||
+            fail "unexpected_steam_data_link:$steam_link"
+    elif [ -e "$steam_link" ]; then
+        fail "refusing_real_steam_data_path:$steam_link"
+    else
+        "$system_ln" -s /opt/nova-steam "$steam_link"
+    fi
 }
 
 validate_proc_net() {
