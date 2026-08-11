@@ -158,6 +158,7 @@ Read these in order when picking up the project:
 147. [AYN Thor rootless exact public-beta client replay predeclaration](00-start-here/487-ayn-thor-rootless-exact-public-beta-client-replay-predeclaration-2026-08-11.md)
 148. [AYN Thor rootless exact public-beta recovery gate result](00-start-here/488-ayn-thor-rootless-exact-public-beta-recovery-gate-result-2026-08-11.md)
 149. [AYN Thor rootless current public-beta tree equivalence replay predeclaration](00-start-here/489-ayn-thor-rootless-public-beta-equivalence-replay-predeclaration-2026-08-11.md)
+150. [AYN Thor rootless current public-beta tree equivalence replay result](00-start-here/490-ayn-thor-rootless-public-beta-equivalence-replay-result-2026-08-11.md)
 
 Before any Nova device run, read the lifecycle contract. Before importing
 SteamclientTermux behavior, read the comparison record and inspect the clean

@@ -106,13 +106,20 @@ installed-manifest hashes, but the recreated full archive differs from the
 historical R28 archive. The exact R35 replay was therefore not launched. The
 single next baseline is [doc
 489](489-ayn-thor-rootless-public-beta-equivalence-replay-predeclaration-2026-08-11.md),
-which tests that current sanitized tree under the unchanged doc-485 rootless
-environment while recording that it is selected-tree equivalence, not archive
-identity. If it crosses `vgui2_s`, resume the existing Thor R31
+which tested that current sanitized tree under the unchanged doc-485 rootless
+environment. The result is closed in [doc
+490](490-ayn-thor-rootless-public-beta-equivalence-replay-result-2026-08-11.md):
+the current tree crossed `vgui2_s`, initialized native SteamUI, and reached
+webhelper startup. Rootless is therefore not generically blind to the current
+client; the remaining measured differences from rooted are the absent
+`/dev/shm`, machine-id/D-Bus, SteamOS service, and rooted CEF/display
+contracts. Vulkan provider selection is still unclassified because both
+selectors were unset in R36. Resume the existing Thor R31
 `VK_DRIVER_FILES`-only predeclaration in [doc
-475](475-ayn-thor-rootless-r31-vk-driver-files-replication-predeclaration-2026-08-11.md).
-Do not combine the equivalence replay or R31 with shared memory, D-Bus,
-Runtime 4, Proton, Gamescope/AHardwareBuffer, or packaging changes.
+475](475-ayn-thor-rootless-r31-vk-driver-files-replication-predeclaration-2026-08-11.md),
+then isolate `/dev/shm` and D-Bus as separate experiments only when their
+preceding evidence justifies them. Do not combine R31 with shared memory,
+D-Bus, Runtime 4, Proton, Gamescope/AHardwareBuffer, or packaging changes.
 
 ### Near-term iteration mode
 
