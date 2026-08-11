@@ -146,6 +146,9 @@ Read these in order when picking up the project:
 135. [AYN Thor rootless R31 provider-selector replication predeclaration](00-start-here/475-ayn-thor-rootless-r31-vk-driver-files-replication-predeclaration-2026-08-11.md)
 136. [AYN Thor rootless public-seed refresh probe predeclaration](00-start-here/476-ayn-thor-rootless-public-seed-refresh-predeclaration-2026-08-11.md)
 137. [AYN Thor rootless public-seed refresh X11-foreground rerun predeclaration](00-start-here/477-ayn-thor-rootless-public-seed-refresh-x11-foreground-predeclaration-2026-08-11.md)
+138. [AYN Thor rootless public-seed refresh X11-foreground result](00-start-here/478-ayn-thor-rootless-public-seed-refresh-x11-foreground-result-2026-08-11.md)
+139. [AYN Thor rootless short-temporary-path public-seed rerun predeclaration](00-start-here/479-ayn-thor-rootless-short-temp-public-seed-predeclaration-2026-08-11.md)
+140. [AYN Thor rootless R31 exact-client provenance gate result](00-start-here/480-ayn-thor-r31-exact-client-provenance-gate-result-2026-08-11.md)
 
 Before any Nova device run, read the lifecycle contract. Before importing
 SteamclientTermux behavior, read the comparison record and inspect the clean
