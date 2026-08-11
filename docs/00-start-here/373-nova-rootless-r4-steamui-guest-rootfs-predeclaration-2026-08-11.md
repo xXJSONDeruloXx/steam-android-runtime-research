@@ -24,7 +24,7 @@ audio, controller input, Proton, or a game launch.
 - Branch: `feat/rootless-steamclienttermux-profile`.
 - Starting commit: `dd461ef` (`fix: reconcile Holo SteamUI artifact hashes`).
 - APK: `android/nova-lab/build/nova-lab-debug.apk`, SHA-256
-  `dbea499d4227a3a16df5d10473f2dbf7fc6ba2534098e85f0d11d2f5b0e04675`.
+  `7055f9d8e54e3397c88ccccccac90663d49c351370a67ce70039d431c7fbbbea`.
 - Immutable Holo input rootfs:
   `/data/local/tmp/nova-runtimes/nova-holo-direct-x11-20260810-v4/rootfs`,
   expected SHA-256
