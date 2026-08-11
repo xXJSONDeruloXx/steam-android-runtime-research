@@ -153,6 +153,9 @@ Read these in order when picking up the project:
 142. [AYN Thor rootless stable ARM64 seed short-temporary-path predeclaration](00-start-here/482-ayn-thor-rootless-stable-arm64-seed-short-temp-predeclaration-2026-08-11.md)
 143. [AYN Thor rootless stable ARM64 seed short-temporary-path result](00-start-here/483-ayn-thor-rootless-stable-arm64-seed-short-temp-result-2026-08-11.md)
 144. [AYN Thor rootless verified stable ARM64 payload replay predeclaration](00-start-here/484-ayn-thor-rootless-stable-payload-replay-predeclaration-2026-08-11.md)
+145. [AYN Thor rootless verified stable ARM64 payload replay result](00-start-here/485-ayn-thor-rootless-stable-payload-replay-result-2026-08-11.md)
+146. [AYN Thor rooted known-good OOBE comparison result](00-start-here/486-ayn-thor-rooted-known-good-oobe-comparison-result-2026-08-11.md)
+147. [AYN Thor rootless exact public-beta client replay predeclaration](00-start-here/487-ayn-thor-rootless-exact-public-beta-client-replay-predeclaration-2026-08-11.md)
 
 Before any Nova device run, read the lifecycle contract. Before importing
 SteamclientTermux behavior, read the comparison record and inspect the clean

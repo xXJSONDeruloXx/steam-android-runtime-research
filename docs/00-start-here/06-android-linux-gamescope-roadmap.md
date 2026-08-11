@@ -83,18 +83,31 @@ The current Nova direct Termux:X11 session is the comparison baseline:
 
 ### Current rootless runtime state
 
-R30 is now the current provider control: unsetting
-`VK_ICD_FILENAMES` crossed R29's updater/X11 crash and reached native SteamUI
-and webhelper in the fresh logs, but did not produce a visible Steam frame;
-Vulkan still failed at physical-device enumeration and webhelper still hit
-the independent `/dev/shm` and D-Bus prerequisites. The result is [doc
-472](472-nova-rootless-r30-r29-provider-off-control-result-2026-08-11.md).
-The next and only predeclared variable is the alternate
-`VK_DRIVER_FILES` selector in [doc
-473](473-nova-rootless-r31-vk-driver-files-provider-selector-predeclaration-2026-08-11.md).
-Keep the rooted direct-Termux:X11 path intact and do not combine that selector
-test with shared memory, D-Bus, Runtime 4, Proton, Gamescope/AHardwareBuffer,
-or packaging changes.
+R30 remains the last valid provider control: unsetting `VK_ICD_FILENAMES`
+reached native SteamUI/webhelper but did not enumerate Vulkan and still hit
+the independent `/dev/shm` and D-Bus prerequisites. The Thor stable-payload
+replay then returned to the earlier `vgui2_s` boundary because it used a
+different stable endpoint client (`steam=72f…`, `steamui=25ad…`,
+`vgui2=705f…`). That result is closed in [doc
+485](485-ayn-thor-rootless-stable-payload-replay-result-2026-08-11.md).
+
+The rooted Thor comparator used the R28 public-beta client (`6d6…`, `69d…`,
+`aba…`), allowed the normal updater, and reached language/timezone/network
+OOBE and QR sign-in. It is recorded in [doc
+486](486-ayn-thor-rooted-known-good-oobe-comparison-result-2026-08-11.md).
+This proves that the `vgui2_s` result is not a simple rootless-impossible
+rule, but it does not isolate the root-only services because the rooted path
+changes several contracts together.
+
+The next and only newly predeclared baseline is [doc
+487](487-ayn-thor-rootless-exact-public-beta-client-replay-predeclaration-2026-08-11.md):
+restore only the exact R28 client bytes under the Thor rootless doc-485
+environment, with both Vulkan selectors and all rooted-only preloads/services
+unset. If that crosses `vgui2_s`, resume the existing Thor R31
+`VK_DRIVER_FILES`-only predeclaration in [doc
+475](475-ayn-thor-rootless-r31-vk-driver-files-replication-predeclaration-2026-08-11.md).
+Do not combine the baseline replay or R31 with shared memory, D-Bus, Runtime
+4, Proton, Gamescope/AHardwareBuffer, or packaging changes.
 
 ### Near-term iteration mode
 
