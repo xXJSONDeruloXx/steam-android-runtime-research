@@ -136,6 +136,7 @@ Read these in order when picking up the project:
 125. [Rootless R27 rooted nested-layout replay predeclaration](00-start-here/465-nova-rootless-r27-rooted-layout-predeclaration-2026-08-11.md)
 126. [Rootless R27 rooted nested-layout replay result](00-start-here/466-nova-rootless-r27-rooted-layout-result-2026-08-11.md)
 127. [Rootless R28 rooted launch-environment/library-path parity predeclaration](00-start-here/467-nova-rootless-r28-rooted-launch-environment-predeclaration-2026-08-11.md)
+128. [Rootless R28 rooted launch-environment/library-path parity result](00-start-here/468-nova-rootless-r28-rooted-launch-environment-result-2026-08-11.md)
 
 Before any Nova device run, read the lifecycle contract. Before importing
 SteamclientTermux behavior, read the comparison record and inspect the clean
