@@ -81,6 +81,20 @@ The current Nova direct Termux:X11 session is the comparison baseline:
 | Games | Proton/FEX/Wine/DXVK startup has been reached, but the first-frame game gate remains unresolved on the current Nova path. | Classify the next result at the Vulkan/WSI boundary. |
 | Gamescope/AHardwareBuffer | Synthetic and SteamUI presentation seams are valuable research evidence, but the product path is not closed. | Defer new low-level compositor work until the runtime A/B result. |
 
+### Current rootless runtime state
+
+R30 is now the current provider control: unsetting
+`VK_ICD_FILENAMES` crossed R29's updater/X11 crash and reached native SteamUI
+and webhelper, but Vulkan still failed at physical-device enumeration and
+webhelper still hit the independent `/dev/shm` and D-Bus prerequisites. The
+result is [doc 472](472-nova-rootless-r30-r29-provider-off-control-result-2026-08-11.md).
+The next and only predeclared variable is the alternate
+`VK_DRIVER_FILES` selector in [doc
+473](473-nova-rootless-r31-vk-driver-files-provider-selector-predeclaration-2026-08-11.md).
+Keep the rooted direct-Termux:X11 path intact and do not combine that selector
+test with shared memory, D-Bus, Runtime 4, Proton, Gamescope/AHardwareBuffer,
+or packaging changes.
+
 ### Active decision
 
 The first integration to bring over from
@@ -208,6 +222,20 @@ The running implementation agent should work this queue in order:
    control predeclared in [doc
    471](471-nova-rootless-r30-r29-provider-off-control-predeclaration-2026-08-11.md),
    changing only `VK_ICD_FILENAMES` while keeping the provider files staged.
+   R30 is now closed in [doc
+   472](472-nova-rootless-r30-r29-provider-off-control-result-2026-08-11.md):
+   unsetting the selector crossed R29's updater/X11 `SIGSEGV`, reached the
+   native SteamUI/webhelper boundary, and reproduced the independent Vulkan,
+   `/dev/shm`, and D-Bus failures. It did not enumerate Vulkan, but it makes
+   the selector/provider interaction the nearest discriminant. The single
+   next A/B is [doc
+   473](473-nova-rootless-r31-vk-driver-files-provider-selector-predeclaration-2026-08-11.md),
+   which changes only the selector to `VK_DRIVER_FILES` and keeps
+   `VK_ICD_FILENAMES` plus the broader Mesa environment unset. Handle the
+   Android one-time device-log consent gate before screenshots, as recorded in
+   [doc 34](34-nova-runtime-harness-lifecycle.md). Do not advance to
+   `/dev/shm`, D-Bus, Runtime 4, Proton, Gamescope/AHardwareBuffer, or
+   packaging until R31 is classified.
 3. **Stage an isolated official-runtime profile.** Register Proton 11 ARM64
    (`AppID 4628740`, depot `4628741`) with its declared Steam Linux Runtime 4
    ARM64 dependency (`AppID 4185400`, depot `4185401`). Preserve the

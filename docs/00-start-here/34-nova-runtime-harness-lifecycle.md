@@ -35,6 +35,30 @@ Every Nova run must satisfy this sequence:
 The cleanup scope must not become a broad `pkill`: unrelated Android services,
 other rootfs experiments, and the host shell are outside this test's authority.
 
+## Android foreground consent gate
+
+On a fresh APK install or cleared app state, Android may place an
+`Allow Nova Steam to access all device logs?` system dialog over the Nova
+launcher while the Steam/X11 child is already starting. This is an Android
+foreground-consent state, not Steam readiness or a display-frame result. A
+capture taken under the modal must not be reported as a Steam frame.
+
+Before interpreting an initial screenshot or sending controlled UI input:
+
+1. capture the current screen and verify whether the device-log dialog owns
+   focus;
+2. if present, verify the dialog text, scroll within that dialog to expose the
+   choices, and select `Allow one-time access` through ADB; and
+3. capture the post-consent screen and record both screenshots as lifecycle
+   evidence.
+
+Do not grant persistent all-device-log access, use the modal as a substitute
+for the fresh run logs, or send a blind tap when the dialog is absent. On
+the Nova's current 1280x960 surface the observed scroll/tap sequence was an
+upward swipe inside the modal followed by the one-time-access button, but a
+future harness should verify the visible text and bounds before using those
+coordinates.
+
 ## Implemented fix
 
 `android/nova-lab/device/nova-runtime-cleanup.sh` now:

@@ -140,6 +140,8 @@ Read these in order when picking up the project:
 129. [Rootless R29 rooted KGSL/Turnip provider parity predeclaration](00-start-here/469-nova-rootless-r29-rooted-kgsl-provider-predeclaration-2026-08-11.md)
 130. [Rootless R29 rooted KGSL/Turnip provider parity result](00-start-here/470-nova-rootless-r29-rooted-kgsl-provider-result-2026-08-11.md)
 131. [Rootless R30 R29 provider-off control predeclaration](00-start-here/471-nova-rootless-r30-r29-provider-off-control-predeclaration-2026-08-11.md)
+132. [Rootless R30 R29 provider-off control result](00-start-here/472-nova-rootless-r30-r29-provider-off-control-result-2026-08-11.md)
+133. [Rootless R31 `VK_DRIVER_FILES` provider-selector predeclaration](00-start-here/473-nova-rootless-r31-vk-driver-files-provider-selector-predeclaration-2026-08-11.md)
 
 Before any Nova device run, read the lifecycle contract. Before importing
 SteamclientTermux behavior, read the comparison record and inspect the clean
