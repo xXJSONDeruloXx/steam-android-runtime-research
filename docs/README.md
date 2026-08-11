@@ -33,6 +33,7 @@ Read these in order when picking up the project:
 22. [Rootless R2 PRoot path failure](00-start-here/362-nova-rootless-r2-proot-path-failure-2026-08-10.md)
 23. [Rootless PulseAudio TCP contract](00-start-here/363-nova-rootless-pulseaudio-contract-2026-08-10.md)
 24. [Rootless session/log guard](00-start-here/364-nova-rootless-session-log-guard-2026-08-10.md)
+25. [Rootless R2 SteamRT3C extraction boundary](00-start-here/365-nova-rootless-r2-steamrt-xz-extraction-failure-2026-08-10.md)
 
 Before any Nova device run, read the lifecycle contract. Before importing
 SteamclientTermux behavior, read the comparison record and inspect the clean
