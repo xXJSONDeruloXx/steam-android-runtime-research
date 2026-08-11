@@ -86,6 +86,7 @@ Read these in order when picking up the project:
 75. [Rootless R12 app-owned `bsdtar` bootstrap predeclaration](00-start-here/415-nova-rootless-r12-app-bsdtar-bootstrap-predeclaration-2026-08-11.md)
 76. [Rootless R12 app-owned `bsdtar` bootstrap result](00-start-here/416-nova-rootless-r12-app-bsdtar-bootstrap-result-2026-08-11.md)
 77. [Rootless R12b helper asset retry predeclaration](00-start-here/417-nova-rootless-r12b-helper-assets-predeclaration-2026-08-11.md)
+78. [Rootless R12b helper asset retry result](00-start-here/418-nova-rootless-r12b-helper-assets-result-2026-08-11.md)
 
 Before any Nova device run, read the lifecycle contract. Before importing
 SteamclientTermux behavior, read the comparison record and inspect the clean
