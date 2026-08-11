@@ -216,6 +216,7 @@ run_guest() {
                 -b "$RUNTIME4_SHADOW:/opt/nova-steam/steamapps/common/SteamLinuxRuntime_4-arm64" \
                 -w /home/nova \
                 /usr/bin/env \
+                "PATH=/usr/bin:/bin:/usr/sbin:/sbin" \
                 "HOME=/home/nova" \
                 "USER=nova" \
                 "LOGNAME=nova" \
@@ -237,6 +238,7 @@ run_guest() {
                 -b "$PROC_NET:/proc/net" \
                 -w /home/nova \
                 /usr/bin/env \
+                "PATH=/usr/bin:/bin:/usr/sbin:/sbin" \
                 "HOME=/home/nova" \
                 "USER=nova" \
                 "LOGNAME=nova" \
@@ -258,6 +260,7 @@ run_guest() {
                 -b "$RUNTIME4_SHADOW:/opt/nova-steam/steamapps/common/SteamLinuxRuntime_4-arm64" \
                 -w /home/nova \
                 /usr/bin/env \
+                "PATH=/usr/bin:/bin:/usr/sbin:/sbin" \
                 "HOME=/home/nova" \
                 "USER=nova" \
                 "LOGNAME=nova" \
@@ -278,6 +281,7 @@ run_guest() {
                 -b "$STATE/run:/run" \
                 -w /home/nova \
                 /usr/bin/env \
+                "PATH=/usr/bin:/bin:/usr/sbin:/sbin" \
                 "HOME=/home/nova" \
                 "USER=nova" \
                 "LOGNAME=nova" \
