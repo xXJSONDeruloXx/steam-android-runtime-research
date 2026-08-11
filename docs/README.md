@@ -36,6 +36,7 @@ Read these in order when picking up the project:
 25. [Rootless R2 SteamRT3C extraction boundary](00-start-here/365-nova-rootless-r2-steamrt-xz-extraction-failure-2026-08-10.md)
 26. [Rootless R3 device predeclaration](00-start-here/366-nova-rootless-r3-device-predeclaration-2026-08-11.md)
 27. [Rootless R3 PRoot IPC boundary](00-start-here/367-nova-rootless-r3-proot-ipc-boundary-2026-08-11.md)
+28. [Rootless R3 `/proc` path boundary](00-start-here/368-nova-rootless-r3-proc-path-boundary-2026-08-11.md)
 
 Before any Nova device run, read the lifecycle contract. Before importing
 SteamclientTermux behavior, read the comparison record and inspect the clean

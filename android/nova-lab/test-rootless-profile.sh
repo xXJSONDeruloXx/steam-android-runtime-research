@@ -45,6 +45,7 @@ grep -Fqx $'steam_seed_package\tbins_linuxarm64_linuxarm64.zip.0f238017c65e844f7
 grep -Fqx $'steam_seed_sha256\t1c1dd74e63db8d2d64445c7d6156f02e3b2719141e569b52e91b883d39592e82' "$profile"
 grep -Fq -- '-b "$APP_HOME:/home/nova" \' "$supervisor"
 grep -Fq -- '-b "$STEAM_CLIENT:/opt/nova-steam" \' "$supervisor"
+grep -Fq -- '-b /proc:/proc \' "$supervisor"
 grep -Fq -- '-b "$PROC_NET:/proc/net" \' "$supervisor"
 grep -Fq -- 'NOVA_ROOTLESS_RUNTIME4_SHADOW' "$supervisor"
 grep -Fq -- 'PULSE_SERVER=' "$supervisor"

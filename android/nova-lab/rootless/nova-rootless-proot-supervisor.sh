@@ -209,6 +209,7 @@ run_guest() {
                 --sysvipc \
                 -0 \
                 -r "$ROOTFS" \
+                -b /proc:/proc \
                 -b "$APP_HOME:/home/nova" \
                 -b "$STEAM_CLIENT:/opt/nova-steam" \
                 -b "$STATE/tmp:/tmp" \
@@ -233,6 +234,7 @@ run_guest() {
                 --sysvipc \
                 -0 \
                 -r "$ROOTFS" \
+                -b /proc:/proc \
                 -b "$APP_HOME:/home/nova" \
                 -b "$STEAM_CLIENT:/opt/nova-steam" \
                 -b "$STATE/tmp:/tmp" \
@@ -256,6 +258,7 @@ run_guest() {
                 --sysvipc \
                 -0 \
                 -r "$ROOTFS" \
+                -b /proc:/proc \
                 -b "$APP_HOME:/home/nova" \
                 -b "$STEAM_CLIENT:/opt/nova-steam" \
                 -b "$STATE/tmp:/tmp" \
@@ -279,6 +282,7 @@ run_guest() {
                 --sysvipc \
                 -0 \
                 -r "$ROOTFS" \
+                -b /proc:/proc \
                 -b "$APP_HOME:/home/nova" \
                 -b "$STEAM_CLIENT:/opt/nova-steam" \
                 -b "$STATE/tmp:/tmp" \
