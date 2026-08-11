@@ -501,6 +501,13 @@ public final class LauncherActivity extends Activity {
         if (!directory.exists() && !directory.mkdirs()) {
             throw new IOException("cannot create app launcher directory");
         }
+        // Bootstrap layout is versioned by its APK asset paths. Replace this
+        // exact subtree before copying so an upgrade from the old /lib layout
+        // cannot leave stale libraries beside the current /usr/lib closure.
+        File bootstrapDirectory = new File(directory, "nova-bsdtar-bootstrap");
+        if (bootstrapDirectory.exists() && !deleteRecursively(bootstrapDirectory)) {
+            throw new IOException("cannot replace bootstrap asset directory");
+        }
         for (String name : REQUIRED_ASSETS) {
             copyAsset(name, new File(directory, name), true);
         }
@@ -508,6 +515,21 @@ public final class LauncherActivity extends Activity {
             copyAsset(name, new File(directory, name), false);
         }
         return directory;
+    }
+
+    private boolean deleteRecursively(File target) {
+        if (target.isDirectory()) {
+            File[] children = target.listFiles();
+            if (children == null) {
+                return false;
+            }
+            for (File child : children) {
+                if (!deleteRecursively(child)) {
+                    return false;
+                }
+            }
+        }
+        return target.delete();
     }
 
     private void copyAsset(String name, File target, boolean required) throws IOException {

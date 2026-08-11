@@ -125,6 +125,10 @@ grep -Fq 'nova-bsdtar-bootstrap/usr/bin/env' \
     "$root_dir/src/main/java/com/xjsonderulo/steamandroid/novalab/LauncherActivity.java"
 grep -Fq 'nova-bsdtar-bootstrap/usr/lib/libc.so.6' \
     "$root_dir/src/main/java/com/xjsonderulo/steamandroid/novalab/LauncherActivity.java"
+grep -Fq 'deleteRecursively(bootstrapDirectory)' \
+    "$root_dir/src/main/java/com/xjsonderulo/steamandroid/novalab/LauncherActivity.java"
+grep -Fq 'private boolean deleteRecursively' \
+    "$root_dir/src/main/java/com/xjsonderulo/steamandroid/novalab/LauncherActivity.java"
 grep -Fq '"nova-rootless-extract-rootfs.sh"' \
     "$root_dir/src/main/java/com/xjsonderulo/steamandroid/novalab/LauncherActivity.java"
 grep -Fq '"nova-zstd"' \
