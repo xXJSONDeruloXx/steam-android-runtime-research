@@ -111,6 +111,7 @@ Read these in order when picking up the project:
 100. [Rootless R18 conventional Steam layout links predeclaration](00-start-here/440-nova-rootless-r18-steam-layout-links-predeclaration-2026-08-11.md)
 101. [Rootless R18 beta-seed setup rejection](00-start-here/441-nova-rootless-r18-beta-seed-setup-rejection-2026-08-11.md)
 102. [Rootless R18b corrected Steam layout links predeclaration](00-start-here/442-nova-rootless-r18b-steam-layout-links-predeclaration-2026-08-11.md)
+103. [Rootless R18b Steam layout links result](00-start-here/443-nova-rootless-r18b-steam-layout-links-result-2026-08-11.md)
 
 Before any Nova device run, read the lifecycle contract. Before importing
 SteamclientTermux behavior, read the comparison record and inspect the clean
