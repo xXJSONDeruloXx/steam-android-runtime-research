@@ -79,6 +79,7 @@ public final class LauncherActivity extends Activity {
             "nova-bsdtar-bootstrap/lib/libacl.so.1",
             "nova-bsdtar-bootstrap/lib/libarchive.so.13",
             "nova-bsdtar-bootstrap/lib/libbz2.so.1.0",
+            "nova-bsdtar-bootstrap/lib/libc.so.6",
             "nova-bsdtar-bootstrap/lib/libcrypto.so.3",
             "nova-bsdtar-bootstrap/lib/libgcc_s.so.1",
             "nova-bsdtar-bootstrap/lib/libicuuc.so.78",

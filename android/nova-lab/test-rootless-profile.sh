@@ -118,6 +118,8 @@ grep -Fq 'libxml2.so.16' "$bsdtar_bootstrap_builder"
 grep -Fq 'nova-bsdtar-bootstrap' "$root_dir/build.sh"
 grep -Fq 'nova-bsdtar-bootstrap/usr/bin/bsdtar' \
     "$root_dir/src/main/java/com/xjsonderulo/steamandroid/novalab/LauncherActivity.java"
+grep -Fq 'nova-bsdtar-bootstrap/lib/libc.so.6' \
+    "$root_dir/src/main/java/com/xjsonderulo/steamandroid/novalab/LauncherActivity.java"
 grep -Fq '"nova-rootless-extract-rootfs.sh"' \
     "$root_dir/src/main/java/com/xjsonderulo/steamandroid/novalab/LauncherActivity.java"
 grep -Fq '"nova-zstd"' \
