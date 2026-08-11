@@ -46,6 +46,12 @@ require_directory() {
     "$system_test" -d "$1" || fail "missing_directory:$1"
 }
 
+require_guest_path() {
+    if ! "$system_test" -e "$1" && ! "$system_test" -L "$1"; then
+        fail "missing_guest_path:$1"
+    fi
+}
+
 numeric() {
     case "$1" in
         ''|*[!0-9]*) return 1 ;;
@@ -162,6 +168,7 @@ export PROOT_LOADER="$PROOT_LOADER_PATH"
 export PROOT_TMP_DIR="$STATE/proot-tmp"
 
 guest_install='set -eu
+export PATH=/usr/bin:/bin:/usr/sbin:/sbin
 for archive in /tmp/nova-rootless-steamui-pkgs/*.pkg.tar.zst; do
     [ -f "$archive" ] || exit 41
 done
@@ -207,12 +214,12 @@ fi
     -w / /usr/bin/sh -c "$guest_install" || fail guest_install
 
 require_file "$stage/.nova-rootless-guest-rootfs-check"
-require_file "$stage/usr/lib/libgtk-x11-2.0.so.0"
-require_file "$stage/usr/lib/libgdk-x11-2.0.so.0"
-require_file "$stage/usr/lib/libgdk_pixbuf-2.0.so.0"
-require_file "$stage/usr/lib/libatk-1.0.so.0"
-require_file "$stage/usr/lib/libpipewire-0.3.so.0"
-require_file "$stage/usr/lib/libpulse.so.0"
+require_guest_path "$stage/usr/lib/libgtk-x11-2.0.so.0"
+require_guest_path "$stage/usr/lib/libgdk-x11-2.0.so.0"
+require_guest_path "$stage/usr/lib/libgdk_pixbuf-2.0.so.0"
+require_guest_path "$stage/usr/lib/libatk-1.0.so.0"
+require_guest_path "$stage/usr/lib/libpipewire-0.3.so.0"
+require_guest_path "$stage/usr/lib/libpulse.so.0"
 {
     echo "source_rootfs=$SOURCE_ROOTFS"
     echo "holo_manifest=$HOLO_MANIFEST"
