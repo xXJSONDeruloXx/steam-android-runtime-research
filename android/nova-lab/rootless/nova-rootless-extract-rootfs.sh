@@ -128,6 +128,7 @@ trap cleanup EXIT INT TERM
 "$system_mkdir" -p "$stage"
 echo "nova_rootless_rootfs_archive=extract archive=$ROOTFS_ARCHIVE stage=$stage"
 if [ -n "$BOOTSTRAP_ROOTFS" ]; then
+    "$system_mkdir" -p "$STATE/proot-tmp"
     export LD_LIBRARY_PATH="$PROOT_LIB_DIR${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
     export PROOT_LOADER="$PROOT_LOADER_PATH"
     export PROOT_TMP_DIR="$STATE/proot-tmp"
@@ -136,7 +137,7 @@ if [ -n "$BOOTSTRAP_ROOTFS" ]; then
         -b "$ROOTFS_ARCHIVE:/tmp/nova-rootfs-system.rootfs.zst" \
         -b "$stage:/tmp/nova-rootfs-stage" \
         -w / /usr/bin/bsdtar --no-same-owner --no-same-permissions --zstd \
-        -xpf /tmp/nova-rootfs-system.rootfs.zst -C /tmp/nova-rootfs-stage; then
+        -xf /tmp/nova-rootfs-system.rootfs.zst -C /tmp/nova-rootfs-stage; then
         fail proot_bsdtar_extract
     fi
 else
