@@ -37,6 +37,8 @@ display_transport	termux-x11-user-socket-or-nova-bridge
 audio_transport	loopback-pulseaudio-tcp-or-nova-audiotrack
 termux_audio_package	pulseaudio
 pulseaudio_tcp_endpoint	tcp:127.0.0.1:4713
+session_log_cap_bytes	67108864
+session_stdout_cap_bytes	1048576
 network_transport	android-inherited-namespace
 input_transport	user-session-socket-or-android-controller-bridge
 steam_data_policy	fresh-app-owned-home-only
