@@ -19,6 +19,7 @@ system_id=/system/bin/id
 system_df=/system/bin/df
 system_awk=/system/bin/awk
 system_grep=/system/bin/grep
+system_sed=/system/bin/sed
 system_mkdir=/system/bin/mkdir
 system_mv=/system/bin/mv
 system_rm=/system/bin/rm
@@ -122,11 +123,13 @@ fi
 if ! "$system_tar" -t -f "$archive_tmp" >"$archive_entries"; then
     fail archive_list
 fi
-# This pinned Holo image has no newline-containing filenames. Excluding its
-# directory entries makes toybox create parent paths with app-writable
-# defaults instead of restoring a rootfs directory mode before later files or
-# hardlinks are visited. Required empty directories are created below.
-if ! "$system_grep" -v '/$' "$archive_entries" >"$file_entries"; then
+# This pinned Holo image has no newline-containing filenames. Normalize
+# toybox's display-only " -> target" suffix before excluding directory entries.
+# This makes toybox create parent paths with app-writable defaults instead of
+# restoring a rootfs directory mode before later files or hardlinks are
+# visited. Required empty directories are created below.
+if ! "$system_sed" 's/ -> .*//' "$archive_entries" |
+    "$system_grep" -v '/$' >"$file_entries"; then
     fail archive_file_list
 fi
 if ! "$system_tar" -x -f "$archive_tmp" -C "$stage" -T "$file_entries"; then
