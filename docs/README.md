@@ -75,6 +75,7 @@ Read these in order when picking up the project:
 64. [Rootless R7g full SteamUI dependency closure result](00-start-here/404-nova-rootless-r7g-full-steamui-dependency-closure-result-2026-08-11.md)
 65. [Rootless R8 supervisor and Steam version predeclaration](00-start-here/405-nova-rootless-r8-supervisor-steam-version-predeclaration-2026-08-11.md)
 66. [Rootless R8 supervisor and Steam version result](00-start-here/406-nova-rootless-r8-supervisor-steam-version-result-2026-08-11.md)
+67. [Rootless R9 Termux:X11 and network handoff predeclaration](00-start-here/407-nova-rootless-r9-x11-network-predeclaration-2026-08-11.md)
 
 Before any Nova device run, read the lifecycle contract. Before importing
 SteamclientTermux behavior, read the comparison record and inspect the clean
