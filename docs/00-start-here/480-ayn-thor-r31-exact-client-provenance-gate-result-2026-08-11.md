@@ -122,6 +122,26 @@ $ git rev-list --objects --all | rg 'steam-home\.tar\.gz|nova-r(26|27|28|29).*pu
 No Steam userdata, authenticated home, login state, cookies, or personal
 profile was searched or copied.
 
+## Historical recovery route
+
+The repository records one exact, previously successful recovery route in
+[the Nova R26 result](464-nova-rootless-r26-rooted-device-public-tree-result-2026-08-11.md)
+and [the R28 result](468-nova-rootless-r28-rooted-launch-environment-result-2026-08-11.md):
+recreate the archive from the preserved Nova rooted runtime at:
+
+```text
+/data/local/tmp/nova-runtimes/nova-holo-direct-x11-20260810-v4/rootfs/opt/nova-steam/home/.local/share/Steam
+```
+
+That recipe excluded `appcache/`, `config/`, `logs/`, `steamapps/`,
+`userdata/`, `.crash`, `local.vdf`, and `update_hosts_cached.vdf`, recorded a
+19,557-file sanitized tree, and produced the exact archive and selected-file
+hashes required above. This source is on the Nova device, not the connected
+Thor device; the host-only gate did not access either device or recreate the
+archive from an unverified source. If Nova is reconnected, the next recovery
+operation should use this allowlist and repeat the full archive/hash gate
+before any Thor R31 launch.
+
 ## Vulkan-loader readiness inspection
 
 The fixed R28/R31 library order begins with:
