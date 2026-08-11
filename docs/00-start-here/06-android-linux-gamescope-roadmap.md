@@ -119,7 +119,10 @@ the current rooted public client reproduced the same `vgui2_s` fatal under the
 flattened rootless layout. Do not guess a `.so`-to-`.dll` alias, preload an
 exploratory adapter, or patch SteamUI. The next A/B is R27, changing only the
 rooted nested client-root/HOME/cwd contract while retaining the R26 public
-tree and Holo closure.
+tree and Holo closure. R27 is predeclared in [doc
+465](465-nova-rootless-r27-rooted-layout-predeclaration-2026-08-11.md) to run
+this layout-only A/B before any loader alias, Runtime 4, Proton, or packaging
+work.
 Record the exact source revision and require fresh SteamUI/webhelper evidence
 before advancing to Runtime 4 or Proton; the
 rejected setup is in [doc
@@ -170,7 +173,10 @@ The running implementation agent should work this queue in order:
    with the same `vgui2_s` fatal. The next controlled test is a layout-only
    R27 using the rooted nested client root and corresponding HOME/cwd; keep
    the R26 public bytes, Holo closure, display, and no-patch policy fixed. Do
-   not patch SteamUI or create a guessed alias.
+   not patch SteamUI or create a guessed alias. R27 is predeclared in [doc
+   465](465-nova-rootless-r27-rooted-layout-predeclaration-2026-08-11.md) to
+   replay the same public bytes under the rooted nested client-root/HOME/cwd
+   contract.
    Require fresh SteamUI/webhelper logs, a visible-frame correlation, and no
    residual process.
 3. **Stage an isolated official-runtime profile.** Register Proton 11 ARM64
