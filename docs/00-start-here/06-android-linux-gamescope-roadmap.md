@@ -77,7 +77,7 @@ The current Nova direct Termux:X11 session is the comparison baseline:
 | Network | Steam can use the inherited Android data path for client activity and downloads. | Treat Android connectivity as the data plane; do not model Steam’s UI device scan as transport. |
 | Controller | Physical controller input is confirmed in the current signed-in session; see [doc 298](298-nova-physical-controller-live-confirmation-2026-08-10.md). | Remove basic controller transport from the immediate blocker list; retain game controls, rumble, and reattachment as later checks. |
 | Audio | Startup and UI sounds are audible, with substantial observed delay. | Keep the current bridge as baseline; improve device reporting and latency after the runtime A/B gate. |
-| Runtime | The rootless Holo/PRoot closure and native Steam updater pass. R17's stable/no-link replay stalled before `steamwebhelper`; R18b's stable client plus conventional `.steam` links reproduced the `bin/vgui2_s.dll` fatal. The installed tree still provides `steamrtarm64/vgui2_s.so`, not that DLL. | Remove the layout links from the baseline and trace the exact ARM64 module-resolution/executable-runtime contract; keep Runtime 4 and Proton deferred. See [doc 443](443-nova-rootless-r18b-steam-layout-links-result-2026-08-11.md). |
+| Runtime | The rootless Holo/PRoot closure and native Steam updater pass. R17's stable/no-link replay stalled before `steamwebhelper`; R18b's stable client plus conventional `.steam` links reproduced the `bin/vgui2_s.dll` fatal. The installed tree still provides `steamrtarm64/vgui2_s.so`, not that DLL. Both Nova tests used diagnostic `--version`, unlike the successful SteamClientTermux session contract. | Restore the stable/no-link baseline and test the actual no-version Steam lifecycle before concluding the module boundary; keep Runtime 4 and Proton deferred. See [docs 443](443-nova-rootless-r18b-steam-layout-links-result-2026-08-11.md) and [444](444-nova-rootless-steamclienttermux-launch-contract-host-result-2026-08-11.md). |
 | Games | Proton/FEX/Wine/DXVK startup has been reached, but the first-frame game gate remains unresolved on the current Nova path. | Classify the next result at the Vulkan/WSI boundary. |
 | Gamescope/AHardwareBuffer | Synthetic and SteamUI presentation seams are valuable research evidence, but the product path is not closed. | Defer new low-level compositor work until the runtime A/B result. |
 
@@ -89,16 +89,20 @@ official ARM64 compatibility-tool registration, not its complete PRoot or
 compositor architecture. R17 established that the stable client channel
 crosses the earlier module fatal but still stalls before `steamwebhelper`.
 R18b then showed that the sibling's conventional `.steam` links reproduce
-the fatal rather than fixing it. Remove those links from the baseline and
-trace the exact ARM64 module-resolution/executable-runtime contract. Do not
-guess a `.so`-to-`.dll` alias or patch SteamUI. Record the exact source
-revision and require fresh SteamUI/webhelper evidence before advancing to
-Runtime 4 or Proton; the rejected setup is in [doc
+the fatal rather than fixing it. A host audit also found that successful
+SteamClientTermux sessions launch without Nova's diagnostic `--version`
+argument. Restore the stable/no-link baseline and test that lifecycle shape
+before tracing deeper module resolution. Do not guess a `.so`-to-`.dll` alias
+or patch SteamUI. Record the exact source revision and require fresh
+SteamUI/webhelper evidence before advancing to Runtime 4 or Proton; the
+rejected setup is in [doc
 441](441-nova-rootless-r18-beta-seed-setup-rejection-2026-08-11.md), the
 predeclaration is in [doc
 442](442-nova-rootless-r18b-steam-layout-links-predeclaration-2026-08-11.md),
 and the result is in [doc
 443](443-nova-rootless-r18b-steam-layout-links-result-2026-08-11.md).
+The launch-contract audit is in [doc
+444](444-nova-rootless-steamclienttermux-launch-contract-host-result-2026-08-11.md).
 
 ## 3. Immediate execution queue
 
@@ -110,10 +114,11 @@ The running implementation agent should work this queue in order:
    authentication state.
 2. **Close the native ARM64 client layout gate.** R17 and R18b have isolated
    the stable-channel and conventional-layout behaviors, but neither reaches
-   SteamUI. Remove the R18b links and predeclare one exact module-resolution
-   or executable/runtime trace at a time. Do not patch SteamUI or create a
-   guessed `vgui2_s.dll` alias. Require fresh SteamUI/webhelper logs, a
-   visible-frame correlation, and no residual process.
+   SteamUI. First predeclare the actual no-version native client lifecycle
+   against the stable/no-link baseline; then trace module resolution or
+   executable/runtime behavior one variable at a time. Do not patch SteamUI
+   or create a guessed `vgui2_s.dll` alias. Require fresh SteamUI/webhelper
+   logs, a visible-frame correlation, and no residual process.
 3. **Stage an isolated official-runtime profile.** Register Proton 11 ARM64
    (`AppID 4628740`, depot `4628741`) with its declared Steam Linux Runtime 4
    ARM64 dependency (`AppID 4185400`, depot `4185401`). Preserve the
