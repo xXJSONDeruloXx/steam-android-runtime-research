@@ -1,7 +1,7 @@
 # Nova rootless supervisor R0b result — 2026-08-10
 
-Status: partial pass; guest execution succeeded, configured-home binding was
-corrected before accepting the result.
+Status: pass; guest execution and the configured app-home write contract are
+verified.
 
 ## Run identity
 
@@ -26,20 +26,23 @@ aarch64
 The `uid=0` line is PRoot's virtual guest identity. The real Android UID was
 `10128`, and the supervisor refused a real root UID before starting PRoot.
 
-The write probe succeeded in app-owned storage, but the first implementation
-bound internal `state/home` while validating the caller-provided
-`NOVA_ROOTLESS_HOME`. That meant the guest write landed at the internal path,
-not the configured home. This is a launcher contract bug, not a platform
-failure. The supervisor now binds the validated `NOVA_ROOTLESS_HOME` directly
-to guest `/home/nova`; the next replay is required before calling R0 complete.
+The first replay exposed an implementation mismatch: it bound internal
+`state/home` while validating the caller-provided `NOVA_ROOTLESS_HOME`. That
+was fixed and the fresh R0c replay then placed the marker at the configured
+app-private home:
+
+```text
+app_home_write=pass
+```
+
+This closes the PRoot/app-UID boundary. It does not establish display, audio,
+input, networking semantics, Steam UI, or Proton execution.
 
 The exact staging tree and app-private state were removed after the run. No
 rooted runtime, Steam data, authentication file, X11 socket, or long-lived
 process was changed.
 
-## Next run
+## Next boundary
 
-Repeat with the same pinned artifacts and a new run identity. Require the
-write marker to appear at the configured app-private home, then run the
-read/write probe through the final supervisor and close this R0 boundary. The
-next independent boundary remains rootless X11 transport.
+The next independent boundary is rootless X11 transport. It must be tested
+with a separate run identity and must not reuse the rooted Termux:X11 socket.
