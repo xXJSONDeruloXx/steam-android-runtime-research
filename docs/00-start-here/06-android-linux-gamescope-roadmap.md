@@ -99,15 +99,20 @@ This proves that the `vgui2_s` result is not a simple rootless-impossible
 rule, but it does not isolate the root-only services because the rooted path
 changes several contracts together.
 
-The next and only newly predeclared baseline is [doc
-487](487-ayn-thor-rootless-exact-public-beta-client-replay-predeclaration-2026-08-11.md):
-restore only the exact R28 client bytes under the Thor rootless doc-485
-environment, with both Vulkan selectors and all rooted-only preloads/services
-unset. If that crosses `vgui2_s`, resume the existing Thor R31
+The exact-client recovery gate is closed in [doc
+488](488-ayn-thor-rootless-exact-public-beta-recovery-gate-result-2026-08-11.md):
+the rooted Thor tree still has the R28 selected binaries, package/beta, and
+installed-manifest hashes, but the recreated full archive differs from the
+historical R28 archive. The exact R35 replay was therefore not launched. The
+single next baseline is [doc
+489](489-ayn-thor-rootless-public-beta-equivalence-replay-predeclaration-2026-08-11.md),
+which tests that current sanitized tree under the unchanged doc-485 rootless
+environment while recording that it is selected-tree equivalence, not archive
+identity. If it crosses `vgui2_s`, resume the existing Thor R31
 `VK_DRIVER_FILES`-only predeclaration in [doc
 475](475-ayn-thor-rootless-r31-vk-driver-files-replication-predeclaration-2026-08-11.md).
-Do not combine the baseline replay or R31 with shared memory, D-Bus, Runtime
-4, Proton, Gamescope/AHardwareBuffer, or packaging changes.
+Do not combine the equivalence replay or R31 with shared memory, D-Bus,
+Runtime 4, Proton, Gamescope/AHardwareBuffer, or packaging changes.
 
 ### Near-term iteration mode
 
