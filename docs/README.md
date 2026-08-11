@@ -97,6 +97,7 @@ Read these in order when picking up the project:
 86. [Rootless R12f bootstrap asset replacement result](00-start-here/426-nova-rootless-r12f-bootstrap-asset-replacement-result-2026-08-11.md)
 87. [Rootless R13 guest package closure predeclaration](00-start-here/427-nova-rootless-r13-guest-package-closure-predeclaration-2026-08-11.md)
 88. [Rootless R13 guest package closure result](00-start-here/428-nova-rootless-r13-guest-package-closure-result-2026-08-11.md)
+89. [Rootless R13b closure idempotence predeclaration](00-start-here/429-nova-rootless-r13b-closure-idempotence-predeclaration-2026-08-11.md)
 
 Before any Nova device run, read the lifecycle contract. Before importing
 SteamclientTermux behavior, read the comparison record and inspect the clean
