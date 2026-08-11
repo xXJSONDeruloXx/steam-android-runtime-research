@@ -27,6 +27,7 @@ system_sed=/system/bin/sed
 system_mkdir=/system/bin/mkdir
 system_mv=/system/bin/mv
 system_rm=/system/bin/rm
+system_chmod=/system/bin/chmod
 system_sha256sum=/system/bin/sha256sum
 system_tar=/system/bin/tar
 system_test=/system/bin/test
@@ -157,6 +158,9 @@ else
     if ! "$system_tar" -x -f "$archive_tmp" -C "$stage" -T "$file_entries"; then
         fail archive_extract
     fi
+fi
+if ! "$system_chmod" -R u+rwX "$stage"; then
+    fail rootfs_owner_access
 fi
 "$system_rm" -f "$archive_tmp"
 
