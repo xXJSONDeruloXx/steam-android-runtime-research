@@ -60,6 +60,7 @@ Read these in order when picking up the project:
 49. [Rootless R6e closure validator predeclaration](00-start-here/389-nova-rootless-r6e-closure-validator-predeclaration-2026-08-11.md)
 50. [Rootless R6e closure validator result](00-start-here/390-nova-rootless-r6e-closure-validator-result-2026-08-11.md)
 51. [Rootless R7 public Steam seed and supervisor predeclaration](00-start-here/391-nova-rootless-r7-steam-seed-predeclaration-2026-08-11.md)
+52. [Rootless R7 relative PRoot path result](00-start-here/392-nova-rootless-r7-relative-proot-path-result-2026-08-11.md)
 
 Before any Nova device run, read the lifecycle contract. Before importing
 SteamclientTermux behavior, read the comparison record and inspect the clean
