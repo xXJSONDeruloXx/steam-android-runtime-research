@@ -53,6 +53,7 @@ Read these in order when picking up the project:
 42. [Rootless R6 Holo `bsdtar` result](00-start-here/382-nova-rootless-r6-holo-bsdtar-result-2026-08-11.md)
 43. [Rootless R6b Holo `bsdtar` mode retry predeclaration](00-start-here/383-nova-rootless-r6b-holo-bsdtar-mode-predeclaration-2026-08-11.md)
 44. [Rootless R6b Holo `bsdtar` mode result](00-start-here/384-nova-rootless-r6b-holo-bsdtar-mode-result-2026-08-11.md)
+45. [Rootless R6c owner-access normalization predeclaration](00-start-here/385-nova-rootless-r6c-owner-access-predeclaration-2026-08-11.md)
 
 Before any Nova device run, read the lifecycle contract. Before importing
 SteamclientTermux behavior, read the comparison record and inspect the clean
