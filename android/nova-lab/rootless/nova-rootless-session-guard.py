@@ -10,6 +10,7 @@ exact-scope responsibility.
 import argparse
 import datetime
 import errno
+import fcntl
 import os
 from pathlib import Path
 import shutil
@@ -52,6 +53,12 @@ def describe(path):
         return f"symlink to {os.readlink(path)!r}"
     if stat.S_ISREG(mode):
         return "regular file"
+    if stat.S_ISDIR(mode):
+        return "directory"
+    if stat.S_ISFIFO(mode):
+        return "FIFO"
+    if stat.S_ISSOCK(mode):
+        return "socket"
     return "unexpected file type"
 
 
@@ -118,63 +125,121 @@ def write_all(descriptor, data):
         offset += written
 
 
-def stream(args):
-    log_path = Path(args.log)
+def crash_mode(value):
+    if value in ("", "0"):
+        return "disabled"
+    if value == "1":
+        return "enabled"
+    raise ValueError("PROOT_CRASH_LOG must be unset, 0, or 1")
+
+
+def safe_diagnostic(message):
+    try:
+        write_all(2, (message + "\n").encode("utf-8", "replace"))
+    except OSError:
+        pass
+
+
+class CappedSink:
+    def __init__(self, descriptor, cap_bytes, label, close_descriptor=False):
+        self.descriptor = descriptor
+        self.cap_bytes = cap_bytes
+        self.label = label
+        self.close_descriptor = close_descriptor
+        self.marker = (
+            f"\n[nova rootless logger: {label} truncated at {cap_bytes} bytes; "
+            "remaining child output drained]\n"
+        ).encode()
+        if len(self.marker) >= cap_bytes:
+            raise ValueError(f"{label} cap is too small for its truncation marker")
+        self.payload_limit = cap_bytes - len(self.marker)
+        self.payload_written = 0
+        self.truncated = False
+        self.failed = False
+
+    def _write(self, data):
+        if self.failed or not data:
+            return
+        try:
+            write_all(self.descriptor, data)
+        except OSError as error:
+            self.failed = True
+            safe_diagnostic(
+                f"nova rootless logger: disabling {self.label} after write error: {error}"
+            )
+
+    def feed(self, data):
+        if self.failed or self.truncated or not data:
+            return
+        remaining = self.payload_limit - self.payload_written
+        prefix = data[:remaining]
+        self._write(prefix)
+        if self.failed:
+            return
+        self.payload_written += len(prefix)
+        if len(data) > len(prefix):
+            self._write(self.marker)
+            if not self.failed:
+                self.truncated = True
+
+    def close(self):
+        if self.close_descriptor:
+            try:
+                os.close(self.descriptor)
+            except OSError:
+                pass
+
+
+def open_canonical_log(path):
     flags = os.O_WRONLY | os.O_TRUNC
     if hasattr(os, "O_NOFOLLOW"):
         flags |= os.O_NOFOLLOW
-    try:
-        log_descriptor = os.open(log_path, flags)
-    except OSError as error:
-        print(f"log unavailable: {error}", file=sys.stderr)
-        log_descriptor = None
-    if log_descriptor is not None:
-        metadata = os.fstat(log_descriptor)
-        if not stat.S_ISREG(metadata.st_mode) or metadata.st_nlink != 1:
-            os.close(log_descriptor)
-            raise RuntimeError("session log is not a singly-linked regular file")
+    descriptor = os.open(path, flags)
+    if descriptor <= 2:
+        replacement = fcntl.fcntl(descriptor, fcntl.F_DUPFD_CLOEXEC, 3)
+        os.close(descriptor)
+        descriptor = replacement
+    metadata = os.fstat(descriptor)
+    if not stat.S_ISREG(metadata.st_mode) or metadata.st_nlink != 1:
+        os.close(descriptor)
+        raise RuntimeError("session log is not a singly-linked regular file")
+    return descriptor
 
-    log_written = 0
-    stdout_written = 0
-    log_marker = (
-        f"\n[nova rootless logger: log truncated at {args.log_cap_bytes} bytes]\n"
-    ).encode()
-    stdout_marker = (
-        f"\n[nova rootless logger: stdout truncated at {args.stdout_cap_bytes} bytes]\n"
-    ).encode()
+
+def stream(args):
+    try:
+        log_descriptor = open_canonical_log(Path(args.log))
+    except (OSError, RuntimeError) as error:
+        log_descriptor = None
+        safe_diagnostic(f"nova rootless logger: canonical log unavailable: {error}")
+
+    sinks = [CappedSink(1, args.stdout_cap_bytes, "mirrored stdout")]
+    if log_descriptor is not None:
+        sinks.append(
+            CappedSink(
+                log_descriptor,
+                args.log_cap_bytes,
+                "canonical log",
+                close_descriptor=True,
+            )
+        )
     try:
         while True:
             data = os.read(0, READ_SIZE)
             if not data:
                 break
-            if log_descriptor is not None and log_written < args.log_cap_bytes:
-                room = args.log_cap_bytes - log_written
-                payload = data[:room]
-                if payload:
-                    write_all(log_descriptor, payload)
-                    log_written += len(payload)
-                if log_written == args.log_cap_bytes:
-                    marker = log_marker[: max(0, args.log_cap_bytes - log_written)]
-                    if marker:
-                        write_all(log_descriptor, marker)
-            if stdout_written < args.stdout_cap_bytes:
-                room = args.stdout_cap_bytes - stdout_written
-                payload = data[:room]
-                if payload:
-                    write_all(1, payload)
-                    stdout_written += len(payload)
-                if stdout_written == args.stdout_cap_bytes:
-                    marker = stdout_marker[: max(0, args.stdout_cap_bytes - stdout_written)]
-                    if marker:
-                        write_all(1, marker)
+            for sink in sinks:
+                sink.feed(data)
     finally:
-        if log_descriptor is not None:
-            os.close(log_descriptor)
+        for sink in sinks:
+            sink.close()
 
 
 def parser():
     root = argparse.ArgumentParser()
     commands = root.add_subparsers(dest="command", required=True)
+    crash_command = commands.add_parser("crash-mode")
+    crash_command.add_argument("value")
     preflight_command = commands.add_parser("preflight")
     preflight_command.add_argument("--client-root", required=True)
     preflight_command.add_argument("--logs-dir", required=True)
@@ -195,7 +260,9 @@ def parser():
 def main():
     args = parser().parse_args()
     try:
-        if args.command == "preflight":
+        if args.command == "crash-mode":
+            print(crash_mode(args.value))
+        elif args.command == "preflight":
             preflight(args)
         elif args.command == "create-log":
             create_log(args.logs_dir)
