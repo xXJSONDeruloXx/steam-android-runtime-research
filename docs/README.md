@@ -127,6 +127,7 @@ Read these in order when picking up the project:
 116. [Rootless Steam matched media-suite host audit](00-start-here/456-nova-rootless-steam-media-suite-host-audit-2026-08-11.md)
 117. [Rootless R24 matched media-suite predeclaration](00-start-here/457-nova-rootless-r24-matched-media-suite-predeclaration-2026-08-11.md)
 118. [Rootless R24 matched media-suite result](00-start-here/458-nova-rootless-r24-matched-media-suite-result-2026-08-11.md)
+119. [Rootless Steam SDL3 provider host audit](00-start-here/459-nova-rootless-steam-sdl3-provider-host-audit-2026-08-11.md)
 
 Before any Nova device run, read the lifecycle contract. Before importing
 SteamclientTermux behavior, read the comparison record and inspect the clean
