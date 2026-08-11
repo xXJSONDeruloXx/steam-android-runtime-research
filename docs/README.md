@@ -170,6 +170,8 @@ Read these in order when picking up the project:
 159. [AYN Thor rootless current-tree CEF GPU-disable diagnostic predeclaration](00-start-here/499-ayn-thor-rootless-current-tree-cef-disable-gpu-predeclaration-2026-08-11.md)
 160. [AYN Thor rootless current-tree CEF GPU-disable diagnostic invalid fixture result](00-start-here/500-ayn-thor-rootless-current-tree-cef-disable-gpu-invalid-fixture-result-2026-08-11.md)
 161. [AYN Thor rootless public-client provenance refresh predeclaration](00-start-here/501-ayn-thor-rootless-public-client-provenance-refresh-predeclaration-2026-08-11.md)
+162. [AYN Thor rootless public-client provenance refresh result](00-start-here/502-ayn-thor-rootless-public-client-provenance-refresh-result-2026-08-11.md)
+163. [AYN Thor rootless updater-derived public-client equivalence predeclaration](00-start-here/503-ayn-thor-rootless-public-client-normalized-equivalence-predeclaration-2026-08-11.md)
 
 Before any Nova device run, read the lifecycle contract. Before importing
 SteamclientTermux behavior, read the comparison record and inspect the clean
