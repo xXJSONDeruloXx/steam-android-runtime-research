@@ -122,6 +122,7 @@ Read these in order when picking up the project:
 111. [Rootless R22 `-noverifyfiles` predeclaration](00-start-here/451-nova-rootless-r22-noverifyfiles-predeclaration-2026-08-11.md)
 112. [Rootless R22 `-noverifyfiles` result](00-start-here/452-nova-rootless-r22-noverifyfiles-result-2026-08-11.md)
 113. [Rootless Steam media-provider host audit](00-start-here/453-nova-rootless-steam-media-provider-host-audit-2026-08-11.md)
+114. [Rootless R23 matched `libavutil.so.60` predeclaration](00-start-here/454-nova-rootless-r23-matched-libavutil-predeclaration-2026-08-11.md)
 
 Before any Nova device run, read the lifecycle contract. Before importing
 SteamclientTermux behavior, read the comparison record and inspect the clean
