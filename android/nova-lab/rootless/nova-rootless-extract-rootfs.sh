@@ -11,6 +11,10 @@ ROOTFS_ARCHIVE="${NOVA_ROOTLESS_ROOTFS_ARCHIVE:-}"
 DEST_ROOTFS="${NOVA_ROOTLESS_GUEST_ROOTFS:-}"
 ZSTD="${NOVA_ROOTLESS_ZSTD:-}"
 STATE="${NOVA_ROOTLESS_STATE:-}"
+BOOTSTRAP_ROOTFS="${NOVA_ROOTLESS_BOOTSTRAP_ROOTFS:-}"
+PROOT_BIN="${NOVA_ROOTLESS_PROOT_BIN:-${NOVA_ROOTLESS_PROOT:-}}"
+PROOT_LOADER_PATH="${NOVA_ROOTLESS_PROOT_LOADER:-}"
+PROOT_LIB_DIR="${NOVA_ROOTLESS_PROOT_LIB_DIR:-}"
 EXPECTED_SIZE="${NOVA_ROOTLESS_ROOTFS_ARCHIVE_SIZE:-}"
 EXPECTED_SHA256="${NOVA_ROOTLESS_ROOTFS_ARCHIVE_SHA256:-}"
 MINIMUM_FREE_BYTES="${NOVA_ROOTLESS_MINIMUM_FREE_BYTES:-8589934592}"
@@ -62,6 +66,12 @@ done
 require_file "$ROOTFS_ARCHIVE"
 require_file "$ZSTD"
 require_directory "$STATE"
+if [ -n "$BOOTSTRAP_ROOTFS" ]; then
+    require_directory "$BOOTSTRAP_ROOTFS"
+    require_file "$PROOT_BIN"
+    require_file "$PROOT_LOADER_PATH"
+    require_directory "$PROOT_LIB_DIR"
+fi
 numeric "$EXPECTED_SIZE" || fail invalid_expected_size
 numeric "$MINIMUM_FREE_BYTES" || fail invalid_minimum_free_bytes
 
@@ -117,23 +127,35 @@ trap cleanup EXIT INT TERM
 
 "$system_mkdir" -p "$stage"
 echo "nova_rootless_rootfs_archive=extract archive=$ROOTFS_ARCHIVE stage=$stage"
-if ! "$ZSTD" -q -d -c "$ROOTFS_ARCHIVE" >"$archive_tmp"; then
-    fail archive_decompress
-fi
-if ! "$system_tar" -t -f "$archive_tmp" >"$archive_entries"; then
-    fail archive_list
-fi
-# This pinned Holo image has no newline-containing filenames. Normalize
-# toybox's display-only " -> target" suffix before excluding directory entries.
-# This makes toybox create parent paths with app-writable defaults instead of
-# restoring a rootfs directory mode before later files or hardlinks are
-# visited. Required empty directories are created below.
-if ! "$system_sed" 's/ -> .*//' "$archive_entries" |
-    "$system_grep" -v '/$' >"$file_entries"; then
-    fail archive_file_list
-fi
-if ! "$system_tar" -x -f "$archive_tmp" -C "$stage" -T "$file_entries"; then
-    fail archive_extract
+if [ -n "$BOOTSTRAP_ROOTFS" ]; then
+    export LD_LIBRARY_PATH="$PROOT_LIB_DIR${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+    export PROOT_LOADER="$PROOT_LOADER_PATH"
+    export PROOT_TMP_DIR="$STATE/proot-tmp"
+    if ! "$PROOT_BIN" --kill-on-exit --sysvipc -0 -r "$BOOTSTRAP_ROOTFS" \
+        -b /dev:/dev -b /proc:/proc \
+        -b "$ROOTFS_ARCHIVE:/tmp/nova-rootfs-system.rootfs.zst" \
+        -b "$stage:/tmp/nova-rootfs-stage" \
+        -w / /usr/bin/bsdtar --no-same-owner --no-same-permissions --zstd \
+        -xpf /tmp/nova-rootfs-system.rootfs.zst -C /tmp/nova-rootfs-stage; then
+        fail proot_bsdtar_extract
+    fi
+else
+    if ! "$ZSTD" -q -d -c "$ROOTFS_ARCHIVE" >"$archive_tmp"; then
+        fail archive_decompress
+    fi
+    if ! "$system_tar" -t -f "$archive_tmp" >"$archive_entries"; then
+        fail archive_list
+    fi
+    # This pinned Holo image has no newline-containing filenames. Normalize
+    # toybox's display-only " -> target" suffix before excluding directory
+    # entries. Required empty directories are created below.
+    if ! "$system_sed" 's/ -> .*//' "$archive_entries" |
+        "$system_grep" -v '/$' >"$file_entries"; then
+        fail archive_file_list
+    fi
+    if ! "$system_tar" -x -f "$archive_tmp" -C "$stage" -T "$file_entries"; then
+        fail archive_extract
+    fi
 fi
 "$system_rm" -f "$archive_tmp"
 
