@@ -92,6 +92,7 @@ R18b then showed that the sibling's conventional `.steam` links reproduce
 the fatal rather than fixing it. A host audit also found that successful
 SteamClientTermux sessions launch without Nova's diagnostic `--version`
 argument. Restore the stable/no-link baseline and test that lifecycle shape
+in [doc 445](445-nova-rootless-r19-no-version-steam-lifecycle-predeclaration-2026-08-11.md)
 before tracing deeper module resolution. Do not guess a `.so`-to-`.dll` alias
 or patch SteamUI. Record the exact source revision and require fresh
 SteamUI/webhelper evidence before advancing to Runtime 4 or Proton; the
