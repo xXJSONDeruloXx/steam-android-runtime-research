@@ -26,6 +26,7 @@ grep -Fqx $'proton_required_runtime_appid\t4185400' "$profile"
 grep -Fq -- '-b "$APP_HOME:/home/nova" \' "$supervisor"
 grep -Fq -- '-b "$STEAM_CLIENT:/opt/nova-steam" \' "$supervisor"
 grep -Fq 'rooted_runtime_socket_not_rootless' "$transport"
+grep -Fq 'transport=loopback-tcp' "$transport"
 grep -Fqx 'allow-external-apps=true' "$termux_properties"
 
 if grep -nE '(^|[[:space:]])(su|chroot|mount)([[:space:]]|$)' "$supervisor"; then

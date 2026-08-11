@@ -9,10 +9,12 @@ set -eu
 X11_PACKAGE="${NOVA_ROOTLESS_X11_PACKAGE:-com.termux.x11}"
 TERMUX_PACKAGE="${NOVA_ROOTLESS_TERMUX_PACKAGE:-com.termux}"
 SOCKET="${NOVA_ROOTLESS_X11_SOCKET:-}"
+TCP_HOST="${NOVA_ROOTLESS_X11_HOST:-}"
+TCP_PORT="${NOVA_ROOTLESS_X11_PORT:-}"
 
 id_bin=/system/bin/id
 pm_bin=/system/bin/pm
-cmd_bin=/system/bin/cmd
+toybox_bin=/system/bin/toybox
 test_bin=/system/bin/test
 
 fail() {
@@ -47,6 +49,26 @@ fi
 termux_present=0
 if has_package "$TERMUX_PACKAGE"; then
     termux_present=1
+fi
+
+if [ -n "$TCP_HOST" ] || [ -n "$TCP_PORT" ]; then
+    [ "$termux_present" -eq 1 ] || fail missing_termux_base
+    [ "$TCP_HOST" = 127.0.0.1 ] || fail tcp_host_must_be_loopback
+    case "$TCP_PORT" in
+        ''|*[!0-9]*) fail invalid_tcp_port ;;
+    esac
+    if [ "$TCP_PORT" -lt 1024 ] || [ "$TCP_PORT" -gt 65535 ]; then
+        fail tcp_port_out_of_range
+    fi
+    if ! "$toybox_bin" nc -w 1 "$TCP_HOST" "$TCP_PORT" \
+        </dev/null >/dev/null 2>&1; then
+        fail tcp_endpoint_unreachable
+    fi
+    echo "nova_rootless_transport=pass uid=$($id_bin -u) x11_package=$X11_PACKAGE termux_base=$termux_present transport=loopback-tcp host=$TCP_HOST port=$TCP_PORT"
+    echo "nova_rootless_transport_network=android-inherited-namespace"
+    echo "nova_rootless_transport_audio=unverified"
+    echo "nova_rootless_transport_input=unverified"
+    exit 0
 fi
 
 if [ -z "$SOCKET" ]; then
