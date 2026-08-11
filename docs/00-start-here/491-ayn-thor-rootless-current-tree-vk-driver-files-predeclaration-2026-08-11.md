@@ -73,8 +73,8 @@ No authenticated home, `userdata`, `config`, logs, cookies, tokens, QR state,
 or Steam library may be copied. Require these selected hashes before launch:
 
 ```text
-archive_bytes=3457525760
-archive_sha256=9a3507ce029c0aebe28ebd54ae03f79b56b1899e6ad4e530c88e9d33cbd0e7bb
+archive_bytes=3457524736
+archive_sha256=3b54ebe8dd92ebbe304376335d59da28ebd88b1467999d39fee1c07ec98cee9a
 package/beta_sha256=ef339938036ee25c4f533210a35791d5faf9f69dcbc72cce173263005500f9e4
 steamrtarm64/steam_sha256=6d6c94ef1c8a4d5710bdfac8281090e67b8ef0ea756925daca9ad82c1a024ddf
 steamrtarm64/steamui.so_sha256=69d93a2eae6ff1c6030c2cadf30ca7612b3960a5c6c71bdeb7224ce416325171
@@ -82,6 +82,13 @@ steamrtarm64/vgui2_s.so_sha256=aba9a319c608c64545eb94ca8521349e2dde4d51f0e5e6e3b
 steamrtarm64/steamwebhelper_sha256=7a65e4f7c89dd2eeb0668f85ea0a06cf737507b7f3324407e5fc9a9a488c31d0
 installed_manifest_sha256=4dfe9a40aad3b2362d00961f2f23785745d4e77e59552b7f148c54c20f79d5c7
 ```
+
+The archive hash above is the fresh Thor-side sanitized-tree artifact created
+before launch with Holo `bsdtar 3.8.2` under the source tree's `501:20`
+identity. It is a staging fingerprint for this current-tree A/B, not the
+unavailable historical R28 archive hash and not a claim of byte identity with
+doc 490's host-created container. The selected client hashes and archive
+entry/authentication scans are the equivalence gate for this experiment.
 
 The immutable Holo/PRoot/provider inputs remain:
 
