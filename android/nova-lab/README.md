@@ -19,9 +19,15 @@ The project intentionally uses the Android command-line tools directly so it doe
 depend on Android Studio or a checked-in Gradle wrapper:
 
 ```sh
+android/nova-lab/build-bsdtar-bootstrap.sh
 android/nova-lab/build.sh
 android/nova-lab/deploy-and-test.sh
 ```
+
+`build-bsdtar-bootstrap.sh` must run after the pinned Holo archive has been
+extracted under `build/holo-rootfs/rootfs`. It creates the small app-owned
+ARM64 `bsdtar`/glibc closure used to unpack Holo on a rootless clean device;
+the resulting bootstrap is bundled into the APK and does not copy Steam data.
 
 The default launcher activity is now the first one-click product shell. It
 keeps the diagnostic `MainActivity` available through its diagnostics button,

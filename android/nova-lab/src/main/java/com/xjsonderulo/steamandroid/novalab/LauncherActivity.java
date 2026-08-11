@@ -73,7 +73,24 @@ public final class LauncherActivity extends Activity {
             "freedreno-kgsl.icd.json",
             "nova-proton-11-arm64-wrapper-setup.sh",
             "nova-proton-11-arm64-compatibilitytool.vdf",
-            "nova-proton-11-arm64-wrapper-compatibilitytool.vdf"
+            "nova-proton-11-arm64-wrapper-compatibilitytool.vdf",
+            "nova-bsdtar-bootstrap/usr/bin/bsdtar",
+            "nova-bsdtar-bootstrap/lib/ld-linux-aarch64.so.1",
+            "nova-bsdtar-bootstrap/lib/libacl.so.1",
+            "nova-bsdtar-bootstrap/lib/libarchive.so.13",
+            "nova-bsdtar-bootstrap/lib/libbz2.so.1.0",
+            "nova-bsdtar-bootstrap/lib/libcrypto.so.3",
+            "nova-bsdtar-bootstrap/lib/libgcc_s.so.1",
+            "nova-bsdtar-bootstrap/lib/libicuuc.so.78",
+            "nova-bsdtar-bootstrap/lib/libicudata.so.78",
+            "nova-bsdtar-bootstrap/lib/liblz4.so.1",
+            "nova-bsdtar-bootstrap/lib/liblzma.so.5",
+            "nova-bsdtar-bootstrap/lib/libm.so.6",
+            "nova-bsdtar-bootstrap/lib/libstdc++.so.6",
+            "nova-bsdtar-bootstrap/lib/libxml2.so.16",
+            "nova-bsdtar-bootstrap/lib/libz.so.1",
+            "nova-bsdtar-bootstrap/lib/libzstd.so.1",
+            "nova-bsdtar-bootstrap/manifest.tsv"
     };
     private static final String[] OPTIONAL_ASSETS = {
             "nova-mount-private",
@@ -370,6 +387,13 @@ public final class LauncherActivity extends Activity {
                     "Grant Termux RUN_COMMAND permission in Android settings");
             return;
         }
+        try {
+            prepareLauncherAssets();
+        } catch (IOException error) {
+            RootlessLauncherService.setStatus(
+                    "Cannot prepare rootless assets: " + error.getMessage());
+            return;
+        }
         Intent service = new Intent(this, RootlessLauncherService.class);
         service.setAction(RootlessLauncherService.ACTION_START);
         service.putExtra(RootlessLauncherService.EXTRA_DISPLAY, 77);
@@ -470,8 +494,13 @@ public final class LauncherActivity extends Activity {
     }
 
     private void copyAsset(String name, File target, boolean required) throws IOException {
+        File parent = target.getParentFile();
+        if (parent != null && !parent.isDirectory()
+                && !parent.mkdirs() && !parent.isDirectory()) {
+            throw new IOException("cannot create asset directory: " + parent);
+        }
         try (InputStream input = getAssets().open(name);
-             FileOutputStream output = new FileOutputStream(target)) {
+                FileOutputStream output = new FileOutputStream(target)) {
             byte[] buffer = new byte[8192];
             int read;
             while ((read = input.read(buffer)) >= 0) {

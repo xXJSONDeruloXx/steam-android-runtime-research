@@ -75,6 +75,17 @@ for rootless_asset in \
     cp "$SCRIPT_DIR/rootless/$rootless_asset" "$APK_ASSET_DIR/$rootless_asset"
 done
 
+BOOTSTRAP_DIR="$BUILD_DIR/bsdtar-bootstrap"
+if [ ! -x "$BOOTSTRAP_DIR/rootfs/usr/bin/bsdtar" ] ||
+    [ ! -f "$BOOTSTRAP_DIR/manifest.tsv" ]; then
+    echo "missing rootless archive bootstrap: $BOOTSTRAP_DIR" >&2
+    echo "run android/nova-lab/build-bsdtar-bootstrap.sh first" >&2
+    exit 1
+fi
+mkdir -p "$APK_ASSET_DIR/nova-bsdtar-bootstrap"
+cp -R "$BOOTSTRAP_DIR/rootfs/." "$APK_ASSET_DIR/nova-bsdtar-bootstrap/"
+cp "$BOOTSTRAP_DIR/manifest.tsv" "$APK_ASSET_DIR/nova-bsdtar-bootstrap/manifest.tsv"
+
 for required_artifact in \
     "$BUILD_DIR/nova-zstd" \
     "$BUILD_DIR/nova-zip-rebase" \

@@ -13,6 +13,7 @@ runtime4_helper="$root_dir/rootless/nova-rootless-prepare-runtime4.sh"
 runtime4_vdf="$root_dir/rootless/nova-rootless-steam-arm64-compatibilitytools.vdf.in"
 guest_rootfs_helper="$root_dir/rootless/nova-rootless-prepare-guest-rootfs.sh"
 rootfs_archive_helper="$root_dir/rootless/nova-rootless-extract-rootfs.sh"
+bsdtar_bootstrap_builder="$root_dir/build-bsdtar-bootstrap.sh"
 steamui_holo_packages="$root_dir/rootless/nova-rootless-steamui-holo-packages.tsv"
 steamui_external_assets="$root_dir/rootless/nova-rootless-steamui-external-assets.tsv"
 termux_properties="$root_dir/rootless/termux.properties"
@@ -30,6 +31,7 @@ bridge="$root_dir/src/main/java/com/xjsonderulo/steamandroid/novalab/RootlessTer
 [[ -f "$runtime4_vdf" ]]
 [[ -x "$guest_rootfs_helper" ]]
 [[ -x "$rootfs_archive_helper" ]]
+[[ -x "$bsdtar_bootstrap_builder" ]]
 [[ -f "$steamui_holo_packages" ]]
 [[ -f "$steamui_external_assets" ]]
 [[ -f "$termux_properties" ]]
@@ -110,6 +112,14 @@ grep -Fq -- '--no-same-owner --no-same-permissions --zstd' "$rootfs_archive_help
 grep -Fq -- '-xf /tmp/nova-rootfs-system.rootfs.zst' "$rootfs_archive_helper"
 grep -Fq '"$system_mkdir" -p "$STATE/proot-tmp"' "$rootfs_archive_helper"
 grep -Fq '"$system_chmod" -R u+rwX "$stage"' "$rootfs_archive_helper"
+grep -Fq 'NOVA_BSDTAR_BOOTSTRAP_DIR' "$bsdtar_bootstrap_builder"
+grep -Fq 'libarchive.so.13' "$bsdtar_bootstrap_builder"
+grep -Fq 'libxml2.so.16' "$bsdtar_bootstrap_builder"
+grep -Fq 'nova-bsdtar-bootstrap' "$root_dir/build.sh"
+grep -Fq 'nova-bsdtar-bootstrap/usr/bin/bsdtar' \
+    "$root_dir/src/main/java/com/xjsonderulo/steamandroid/novalab/LauncherActivity.java"
+grep -Fq 'target.getParentFile()' \
+    "$root_dir/src/main/java/com/xjsonderulo/steamandroid/novalab/LauncherActivity.java"
 grep -Fq 'debian-bookworm' "$steamui_external_assets"
 grep -Fq 'libpipewire' "$steamui_holo_packages"
 grep -Fq 'libpulse' "$steamui_holo_packages"
