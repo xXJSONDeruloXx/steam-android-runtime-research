@@ -18,6 +18,7 @@ MINIMUM_FREE_BYTES="${NOVA_ROOTLESS_MINIMUM_FREE_BYTES:-8589934592}"
 system_id=/system/bin/id
 system_df=/system/bin/df
 system_awk=/system/bin/awk
+system_grep=/system/bin/grep
 system_mkdir=/system/bin/mkdir
 system_mv=/system/bin/mv
 system_rm=/system/bin/rm
@@ -96,6 +97,10 @@ stage="$destination_parent/.$(basename "$DEST_ROOTFS").archive-staging.$$"
 [ ! -e "$stage" ] || fail "stale_stage:$stage"
 archive_tmp="$STATE/rootfs.tar.part.$$"
 [ ! -e "$archive_tmp" ] || fail "stale_archive_tmp:$archive_tmp"
+archive_entries="$STATE/rootfs.entries.$$"
+file_entries="$STATE/rootfs.files.$$"
+[ ! -e "$archive_entries" ] || fail "stale_archive_entries:$archive_entries"
+[ ! -e "$file_entries" ] || fail "stale_file_entries:$file_entries"
 stage_cleanup=1
 cleanup() {
     status=$?
@@ -105,6 +110,7 @@ cleanup() {
     if [ -e "$archive_tmp" ]; then
         "$system_rm" -f "$archive_tmp"
     fi
+    "$system_rm" -f "$archive_entries" "$file_entries"
 }
 trap cleanup EXIT INT TERM
 
@@ -113,10 +119,33 @@ echo "nova_rootless_rootfs_archive=extract archive=$ROOTFS_ARCHIVE stage=$stage"
 if ! "$ZSTD" -q -d -c "$ROOTFS_ARCHIVE" >"$archive_tmp"; then
     fail archive_decompress
 fi
-if ! "$system_tar" -x -f "$archive_tmp" -C "$stage"; then
+if ! "$system_tar" -t -f "$archive_tmp" >"$archive_entries"; then
+    fail archive_list
+fi
+# This pinned Holo image has no newline-containing filenames. Excluding its
+# directory entries makes toybox create parent paths with app-writable
+# defaults instead of restoring a rootfs directory mode before later files or
+# hardlinks are visited. Required empty directories are created below.
+if ! "$system_grep" -v '/$' "$archive_entries" >"$file_entries"; then
+    fail archive_file_list
+fi
+if ! "$system_tar" -x -f "$archive_tmp" -C "$stage" -T "$file_entries"; then
     fail archive_extract
 fi
 "$system_rm" -f "$archive_tmp"
+
+for directory in \
+    "$stage/tmp" \
+    "$stage/run" \
+    "$stage/var/tmp" \
+    "$stage/home" \
+    "$stage/root" \
+    "$stage/dev" \
+    "$stage/proc" \
+    "$stage/sys" \
+    "$stage/var/lib/pacman/local"; do
+    "$system_mkdir" -p "$directory"
+done
 
 for required_path in \
     "$stage/usr/bin/sh" \
