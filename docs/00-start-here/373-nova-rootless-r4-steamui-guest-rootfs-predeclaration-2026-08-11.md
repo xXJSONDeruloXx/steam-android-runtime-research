@@ -22,7 +22,7 @@ audio, controller input, Proton, or a game launch.
 
 - Device: Retroid Pocket Nova, serial `675a2365`, Android API 33, arm64-v8a.
 - Branch: `feat/rootless-steamclienttermux-profile`.
-- Starting commit: `7d19834` (`feat: stage rootless SteamUI guest closure`).
+- Starting commit: `dd461ef` (`fix: reconcile Holo SteamUI artifact hashes`).
 - APK: `android/nova-lab/build/nova-lab-debug.apk`, SHA-256
   `dbea499d4227a3a16df5d10473f2dbf7fc6ba2534098e85f0d11d2f5b0e04675`.
 - Immutable Holo input rootfs:
