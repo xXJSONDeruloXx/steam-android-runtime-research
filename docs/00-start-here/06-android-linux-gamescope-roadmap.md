@@ -117,10 +117,12 @@ The running implementation agent should work this queue in order:
    that removing `--version` alone still exits at the updater-to-client
    handoff. R20 established in [doc
    448](448-nova-rootless-r20-client-root-entry-steam-lifecycle-result-2026-08-11.md)
-   that the audited client-root path is absent from the raw stable seed. The
-   next predeclaration should add only the explicit top-level
-   `steam -> steamrtarm64/steam` layout link, then test the sibling launch
-   flags separately. Do not patch SteamUI or create a guessed
+   that the audited client-root path is absent from the raw stable seed. R21
+   is predeclared in [doc
+   449](449-nova-rootless-r21-client-root-symlink-predeclaration-2026-08-11.md)
+   to add only the explicit top-level `steam -> steamrtarm64/steam` layout
+   link, then test the sibling launch flags separately. Do not patch SteamUI
+   or create a guessed
    `vgui2_s.dll` alias. Require fresh SteamUI/webhelper logs, a visible-frame
    correlation, and no residual process.
 3. **Stage an isolated official-runtime profile.** Register Proton 11 ARM64
