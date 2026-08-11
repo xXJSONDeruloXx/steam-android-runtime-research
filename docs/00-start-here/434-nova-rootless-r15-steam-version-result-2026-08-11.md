@@ -1,7 +1,7 @@
 # Nova rootless R15 — Steam version result — 2026-08-11
 
-Run ID: `nova-rootless-r15-steam-version-20260811T094945Z`  
-Sub-run: `R15-rootless-supervisor-steam-version`  
+Run ID: `nova-rootless-r15-steam-version-20260811T094945Z`
+Sub-run: `R15-rootless-supervisor-steam-version`
 Status: rootless runtime, native updater, and X11 update window passed; the
 public ARM64 client then failed at its SteamUI module handoff. The exact run
 was cleaned.
