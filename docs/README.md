@@ -138,6 +138,8 @@ Read these in order when picking up the project:
 127. [Rootless R28 rooted launch-environment/library-path parity predeclaration](00-start-here/467-nova-rootless-r28-rooted-launch-environment-predeclaration-2026-08-11.md)
 128. [Rootless R28 rooted launch-environment/library-path parity result](00-start-here/468-nova-rootless-r28-rooted-launch-environment-result-2026-08-11.md)
 129. [Rootless R29 rooted KGSL/Turnip provider parity predeclaration](00-start-here/469-nova-rootless-r29-rooted-kgsl-provider-predeclaration-2026-08-11.md)
+130. [Rootless R29 rooted KGSL/Turnip provider parity result](00-start-here/470-nova-rootless-r29-rooted-kgsl-provider-result-2026-08-11.md)
+131. [Rootless R30 R29 provider-off control predeclaration](00-start-here/471-nova-rootless-r30-r29-provider-off-control-predeclaration-2026-08-11.md)
 
 Before any Nova device run, read the lifecycle contract. Before importing
 SteamclientTermux behavior, read the comparison record and inspect the clean

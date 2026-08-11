@@ -99,7 +99,9 @@ grep -Fq 'SteamLinuxRuntime_4-arm64' "$runtime4_helper"
 grep -Fq 'rooted_runtime_modified=0' "$guest_rootfs_helper"
 grep -Fq 'steamui_patch=0' "$guest_rootfs_helper"
 grep -Fq 'nova_rootless_guest_rootfs=already-staged' "$guest_rootfs_helper"
-grep -Fq '\[ -L "$DEST_ROOTFS/usr/lib/libgtk-x11-2.0.so.0" \]' \
+grep -Fq 'require_guest_path "$stage/usr/lib/libgtk-x11-2.0.so.0"' \
+    "$guest_rootfs_helper"
+grep -Fq 'require_guest_path "$stage/usr/lib/libgdk-x11-2.0.so.0"' \
     "$guest_rootfs_helper"
 grep -Fq -- '--needed -U' "$guest_rootfs_helper"
 grep -Fq 'export PATH=/usr/bin:/bin:/usr/sbin:/sbin' "$guest_rootfs_helper"

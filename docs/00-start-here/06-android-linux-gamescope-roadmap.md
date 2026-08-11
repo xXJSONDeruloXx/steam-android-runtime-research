@@ -199,7 +199,15 @@ The running implementation agent should work this queue in order:
    R29 is predeclared in [doc
    469](469-nova-rootless-r29-rooted-kgsl-provider-predeclaration-2026-08-11.md)
    with the exact rooted `libvulkan_freedreno.so` and ICD; it must not add
-   `/dev/shm`, D-Bus, a root helper, or any Steam patch.
+   `/dev/shm`, D-Bus, a root helper, or any Steam patch. R29 is now closed in
+   [doc 470](470-nova-rootless-r29-rooted-kgsl-provider-result-2026-08-11.md):
+   the app-owned provider files and ICD selector were staged correctly, but
+   Steam crashed with `SIGSEGV` in updater/X11 startup before Vulkan,
+   `steamsysinfo`, SteamUI, or webhelper evidence. It did not prove provider
+   discovery or an app-UID KGSL denial. The single next A/B is the provider-off
+   control predeclared in [doc
+   471](471-nova-rootless-r30-r29-provider-off-control-predeclaration-2026-08-11.md),
+   changing only `VK_ICD_FILENAMES` while keeping the provider files staged.
 3. **Stage an isolated official-runtime profile.** Register Proton 11 ARM64
    (`AppID 4628740`, depot `4628741`) with its declared Steam Linux Runtime 4
    ARM64 dependency (`AppID 4185400`, depot `4185401`). Preserve the
