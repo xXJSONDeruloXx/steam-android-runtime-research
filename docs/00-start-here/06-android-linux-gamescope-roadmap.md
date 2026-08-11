@@ -180,7 +180,10 @@ The running implementation agent should work this queue in order:
    466](466-nova-rootless-r27-rooted-layout-result-2026-08-11.md) with the same
    `vgui2_s` fatal. Before Runtime 4 or Proton, perform the read-only
    rooted-versus-rootless module-loader/environment audit described in the
-   result; keep the public bytes, Holo closure, display, and no-patch policy
+   result. R28 is predeclared in [doc
+   467](467-nova-rootless-r28-rooted-launch-environment-predeclaration-2026-08-11.md)
+   to carry only the rooted SteamRT-first environment and library path; keep
+   the public bytes, Holo closure, display, PRoot identity, and no-patch policy
    fixed.
    Require fresh SteamUI/webhelper logs, a visible-frame correlation, and no
    residual process.
