@@ -144,6 +144,7 @@ Read these in order when picking up the project:
 133. [Rootless R31 `VK_DRIVER_FILES` provider-selector predeclaration](00-start-here/473-nova-rootless-r31-vk-driver-files-provider-selector-predeclaration-2026-08-11.md)
 134. [Rootless SteamClientTermux upstream audit](00-start-here/474-nova-rootless-steamclienttermux-upstream-audit-2026-08-11.md)
 135. [AYN Thor rootless R31 provider-selector replication predeclaration](00-start-here/475-ayn-thor-rootless-r31-vk-driver-files-replication-predeclaration-2026-08-11.md)
+136. [AYN Thor rootless public-seed refresh probe predeclaration](00-start-here/476-ayn-thor-rootless-public-seed-refresh-predeclaration-2026-08-11.md)
 
 Before any Nova device run, read the lifecycle contract. Before importing
 SteamclientTermux behavior, read the comparison record and inspect the clean
