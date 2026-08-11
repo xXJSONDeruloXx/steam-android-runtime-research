@@ -75,6 +75,7 @@ public final class LauncherActivity extends Activity {
             "nova-proton-11-arm64-compatibilitytool.vdf",
             "nova-proton-11-arm64-wrapper-compatibilitytool.vdf",
             "nova-bsdtar-bootstrap/usr/bin/bsdtar",
+            "nova-bsdtar-bootstrap/usr/bin/env",
             "nova-bsdtar-bootstrap/lib/ld-linux-aarch64.so.1",
             "nova-bsdtar-bootstrap/lib/libacl.so.1",
             "nova-bsdtar-bootstrap/lib/libarchive.so.13",

@@ -137,7 +137,8 @@ if [ -n "$BOOTSTRAP_ROOTFS" ]; then
         -b /dev:/dev -b /proc:/proc \
         -b "$ROOTFS_ARCHIVE:/tmp/nova-rootfs-system.rootfs.zst" \
         -b "$stage:/tmp/nova-rootfs-stage" \
-        -w / /usr/bin/bsdtar --no-same-owner --no-same-permissions --zstd \
+        -w / /usr/bin/env LD_LIBRARY_PATH=/lib:/usr/lib /usr/bin/bsdtar \
+        --no-same-owner --no-same-permissions --zstd \
         -xf /tmp/nova-rootfs-system.rootfs.zst -C /tmp/nova-rootfs-stage; then
         fail proot_bsdtar_extract
     fi
