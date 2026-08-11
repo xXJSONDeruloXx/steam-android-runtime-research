@@ -114,6 +114,7 @@ Read these in order when picking up the project:
 103. [Rootless R18b Steam layout links result](00-start-here/443-nova-rootless-r18b-steam-layout-links-result-2026-08-11.md)
 104. [Rootless SteamClientTermux launch-contract host result](00-start-here/444-nova-rootless-steamclienttermux-launch-contract-host-result-2026-08-11.md)
 105. [Rootless R19 no-version Steam lifecycle predeclaration](00-start-here/445-nova-rootless-r19-no-version-steam-lifecycle-predeclaration-2026-08-11.md)
+106. [Rootless R19 no-version Steam lifecycle result](00-start-here/446-nova-rootless-r19-no-version-steam-lifecycle-result-2026-08-11.md)
 
 Before any Nova device run, read the lifecycle contract. Before importing
 SteamclientTermux behavior, read the comparison record and inspect the clean
