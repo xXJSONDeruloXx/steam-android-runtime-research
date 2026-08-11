@@ -30,16 +30,17 @@ trap cleanup EXIT
 [[ -x "$SOURCE_ROOTFS/usr/bin/env" ]] ||
     die "missing Holo env: $SOURCE_ROOTFS/usr/bin/env"
 
-mkdir -p "$STAGE_ROOTFS/usr/bin" "$STAGE_ROOTFS/lib"
+mkdir -p "$STAGE_ROOTFS/usr/bin" "$STAGE_ROOTFS/lib" "$STAGE_ROOTFS/usr/lib"
 cp -L "$SOURCE_ROOTFS/usr/bin/bsdtar" "$STAGE_ROOTFS/usr/bin/bsdtar"
 chmod 755 "$STAGE_ROOTFS/usr/bin/bsdtar"
 cp -L "$SOURCE_ROOTFS/usr/bin/env" "$STAGE_ROOTFS/usr/bin/env"
 chmod 755 "$STAGE_ROOTFS/usr/bin/env"
 
 # Keep this list explicit and reviewable. These are the recursive DT_NEEDED
-# closure of the pinned Holo bsdtar/libarchive pair. Copies are placed directly
-# in /lib so the bootstrap has no dependency on a generated ld.so.cache or on
-# the layout of the larger Holo image that it is about to extract.
+# closure of the pinned Holo bsdtar/libarchive pair. The interpreter remains
+# in /lib, while regular libraries use Holo's default /usr/lib layout. The
+# bootstrap therefore has no dependency on a generated ld.so.cache or on the
+# rest of the larger Holo image that it is about to extract.
 bootstrap_libraries=(
     ld-linux-aarch64.so.1
     libc.so.6
@@ -77,7 +78,12 @@ find_library() {
 for library in "${bootstrap_libraries[@]}"; do
     source_path=$(find_library "$library")
     [[ -n "$source_path" ]] || die "missing bootstrap library: $library"
-    cp -L "$source_path" "$STAGE_ROOTFS/lib/$library"
+    if [[ "$library" == ld-linux-aarch64.so.1 ]]; then
+        destination="$STAGE_ROOTFS/lib/$library"
+    else
+        destination="$STAGE_ROOTFS/usr/lib/$library"
+    fi
+    cp -L "$source_path" "$destination"
 done
 
 manifest="$STAGE_DIR/manifest.tsv"
@@ -92,9 +98,16 @@ manifest="$STAGE_DIR/manifest.tsv"
         "$(shasum -a 256 "$STAGE_ROOTFS/usr/bin/env" | awk '{print $1}')" \
         "$(wc -c <"$STAGE_ROOTFS/usr/bin/env" | tr -d '[:space:]')"
     for library in "${bootstrap_libraries[@]}"; do
-        printf 'file\tlib/%s\t%s\t%s\n' "$library" \
-            "$(shasum -a 256 "$STAGE_ROOTFS/lib/$library" | awk '{print $1}')" \
-            "$(wc -c <"$STAGE_ROOTFS/lib/$library" | tr -d '[:space:]')"
+        if [[ "$library" == ld-linux-aarch64.so.1 ]]; then
+            manifest_path="lib/$library"
+            staged_path="$STAGE_ROOTFS/lib/$library"
+        else
+            manifest_path="usr/lib/$library"
+            staged_path="$STAGE_ROOTFS/usr/lib/$library"
+        fi
+        printf 'file\t%s\t%s\t%s\n' "$manifest_path" \
+            "$(shasum -a 256 "$staged_path" | awk '{print $1}')" \
+            "$(wc -c <"$staged_path" | tr -d '[:space:]')"
     done
 } >"$manifest"
 

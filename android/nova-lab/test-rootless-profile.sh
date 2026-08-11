@@ -117,12 +117,13 @@ grep -Fq '"$system_chmod" -R u+rwX "$stage"' "$rootfs_archive_helper"
 grep -Fq 'NOVA_BSDTAR_BOOTSTRAP_DIR' "$bsdtar_bootstrap_builder"
 grep -Fq 'libarchive.so.13' "$bsdtar_bootstrap_builder"
 grep -Fq 'libxml2.so.16' "$bsdtar_bootstrap_builder"
+grep -Fq 'STAGE_ROOTFS/usr/lib' "$bsdtar_bootstrap_builder"
 grep -Fq 'nova-bsdtar-bootstrap' "$root_dir/build.sh"
 grep -Fq 'nova-bsdtar-bootstrap/usr/bin/bsdtar' \
     "$root_dir/src/main/java/com/xjsonderulo/steamandroid/novalab/LauncherActivity.java"
 grep -Fq 'nova-bsdtar-bootstrap/usr/bin/env' \
     "$root_dir/src/main/java/com/xjsonderulo/steamandroid/novalab/LauncherActivity.java"
-grep -Fq 'nova-bsdtar-bootstrap/lib/libc.so.6' \
+grep -Fq 'nova-bsdtar-bootstrap/usr/lib/libc.so.6' \
     "$root_dir/src/main/java/com/xjsonderulo/steamandroid/novalab/LauncherActivity.java"
 grep -Fq '"nova-rootless-extract-rootfs.sh"' \
     "$root_dir/src/main/java/com/xjsonderulo/steamandroid/novalab/LauncherActivity.java"
