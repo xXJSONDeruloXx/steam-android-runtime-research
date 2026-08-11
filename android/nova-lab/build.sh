@@ -66,6 +66,7 @@ for rootless_asset in \
     nova-rootless-steam-arm64-compatibilitytools.vdf.in \
     nova-rootless-transport-probe.sh \
     nova-rootless-proot-supervisor.sh \
+    nova-rootless-extract-rootfs.sh \
     nova-rootless-prepare-guest-rootfs.sh \
     nova-rootless-profile.tsv \
     nova-rootless-steamui-holo-packages.tsv \

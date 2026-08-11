@@ -12,6 +12,7 @@ session_guard="$root_dir/rootless/nova-rootless-session-guard.py"
 runtime4_helper="$root_dir/rootless/nova-rootless-prepare-runtime4.sh"
 runtime4_vdf="$root_dir/rootless/nova-rootless-steam-arm64-compatibilitytools.vdf.in"
 guest_rootfs_helper="$root_dir/rootless/nova-rootless-prepare-guest-rootfs.sh"
+rootfs_archive_helper="$root_dir/rootless/nova-rootless-extract-rootfs.sh"
 steamui_holo_packages="$root_dir/rootless/nova-rootless-steamui-holo-packages.tsv"
 steamui_external_assets="$root_dir/rootless/nova-rootless-steamui-external-assets.tsv"
 termux_properties="$root_dir/rootless/termux.properties"
@@ -28,6 +29,7 @@ bridge="$root_dir/src/main/java/com/xjsonderulo/steamandroid/novalab/RootlessTer
 [[ -x "$runtime4_helper" ]]
 [[ -f "$runtime4_vdf" ]]
 [[ -x "$guest_rootfs_helper" ]]
+[[ -x "$rootfs_archive_helper" ]]
 [[ -f "$steamui_holo_packages" ]]
 [[ -f "$steamui_external_assets" ]]
 [[ -f "$termux_properties" ]]
@@ -42,6 +44,7 @@ bash -n "$proc_net_shadow"
 bash -n "$pulseaudio_helper"
 bash -n "$runtime4_helper"
 bash -n "$guest_rootfs_helper"
+bash -n "$rootfs_archive_helper"
 python3 -m py_compile "$session_guard"
 
 grep -Fqx $'profile_version\t2' "$profile"
@@ -50,6 +53,9 @@ grep -Fqx $'auth_secret_policy\tnever-export-or-back-up' "$profile"
 grep -Fqx $'proton_required_runtime_appid\t4185400' "$profile"
 grep -Fqx $'steam_seed_package\tbins_linuxarm64_linuxarm64.zip.0f238017c65e844f71581d1fae8fb42f410e1032' "$profile"
 grep -Fqx $'steam_seed_sha256\t1c1dd74e63db8d2d64445c7d6156f02e3b2719141e569b52e91b883d39592e82' "$profile"
+grep -Fqx $'rootfs_archive\tsystem.rootfs.zst' "$profile"
+grep -Fqx $'rootfs_archive_size\t384971555' "$profile"
+grep -Fqx $'rootfs_archive_sha256\t7e3fb88454e1ac633b7488abb72d3ca0cc7d2578a38146fdd7d58b50fcbd60bf' "$profile"
 steamui_holo_count=$(awk -F '\t' '$1 !~ /^#/ && NF >= 5 { count++ } END { print count + 0 }' "$steamui_holo_packages")
 [[ "$steamui_holo_count" == 44 ]]
 steamui_holo_sha=$(shasum -a 256 "$steamui_holo_packages" | awk '{ print $1 }')
@@ -86,6 +92,9 @@ grep -Fq 'SteamLinuxRuntime_4-arm64' "$runtime4_helper"
 grep -Fq 'rooted_runtime_modified=0' "$guest_rootfs_helper"
 grep -Fq 'steamui_patch=0' "$guest_rootfs_helper"
 grep -Fq -- '--needed -U' "$guest_rootfs_helper"
+grep -Fq 'rootless_archive_extract=1' "$rootfs_archive_helper"
+grep -Fq 'rooted_runtime_modified=0' "$rootfs_archive_helper"
+grep -Fq 'archive_decompress' "$rootfs_archive_helper"
 grep -Fq 'debian-bookworm' "$steamui_external_assets"
 grep -Fq 'libpipewire' "$steamui_holo_packages"
 grep -Fq 'libpulse' "$steamui_holo_packages"
