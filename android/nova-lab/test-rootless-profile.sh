@@ -57,10 +57,10 @@ grep -Fqx $'rootfs_archive\tsystem.rootfs.zst' "$profile"
 grep -Fqx $'rootfs_archive_size\t384971555' "$profile"
 grep -Fqx $'rootfs_archive_sha256\t7e3fb88454e1ac633b7488abb72d3ca0cc7d2578a38146fdd7d58b50fcbd60bf' "$profile"
 steamui_holo_count=$(awk -F '\t' '$1 !~ /^#/ && NF >= 5 { count++ } END { print count + 0 }' "$steamui_holo_packages")
-[[ "$steamui_holo_count" == 103 ]]
+[[ "$steamui_holo_count" == 105 ]]
 steamui_holo_sha=$(shasum -a 256 "$steamui_holo_packages" | awk '{ print $1 }')
 grep -Fqx $'steamui_holo_package_closure_sha256\t'"$steamui_holo_sha" "$profile"
-grep -Fqx $'steamui_holo_package_closure_count\t103' "$profile"
+grep -Fqx $'steamui_holo_package_closure_count\t105' "$profile"
 external_asset_count=$(awk -F '\t' '$1 !~ /^#/ && NF >= 5 { count++ } END { print count + 0 }' "$steamui_external_assets")
 [[ "$external_asset_count" == 2 ]]
 grep -Fq -- '-b "$APP_HOME:/home/nova" \' "$supervisor"
@@ -109,6 +109,8 @@ grep -Fq 'debian-bookworm' "$steamui_external_assets"
 grep -Fq 'libpipewire' "$steamui_holo_packages"
 grep -Fq 'libpulse' "$steamui_holo_packages"
 grep -Fq 'gdk-pixbuf2' "$steamui_holo_packages"
+grep -Fq $'\tsdl3\t3.2.26-1\t' "$steamui_holo_packages"
+grep -Fq $'\tffmpeg\t2:8.0-3\t' "$steamui_holo_packages"
 grep -Fq 'require_tool_appid' "$runtime4_vdf"
 grep -Fq '"appid"               "4628740"' "$runtime4_vdf"
 grep -Fq '"depotid"             "4628741"' "$runtime4_vdf"

@@ -104,3 +104,5 @@ extra	mpg123	1.33.3-1	b4f6497423537bdc11179bc9927bf3014bcf960eb78936eb108a9bbbda
 extra	opus	1.5.2-1	34f280315ceccde55eadbe6d423be541b63af1e932fc7c2bfb7e7c6a8f9a68c7	opus-1.5.2-1-aarch64.pkg.tar.zst
 extra	shared-mime-info	2.4-2	a182bece2fad7340a3753baa669ecf98a44f4acf02f923a96504b2fec4cd40bd	shared-mime-info-2.4-2-aarch64.pkg.tar.zst
 extra	xorg-xprop	1.2.8-1	bdf2eb4cc1bf9650bd4404557e66562e9dfa644d612a12470c46c9b595efdc8a	xorg-xprop-1.2.8-1-aarch64.pkg.tar.zst
+extra	sdl3	3.2.26-1	575ba9be1c53fb7551fe559bd259323d1b3cc27f2ed231114a4fa66e1ed10ad4	sdl3-3.2.26-1-aarch64.pkg.tar.zst
+extra	ffmpeg	2:8.0-3	9be2ecaa588c389bf3847d4275d3f7435f6365a9b23b8aed32276717e871c615	ffmpeg-2:8.0-3-aarch64.pkg.tar.zst
