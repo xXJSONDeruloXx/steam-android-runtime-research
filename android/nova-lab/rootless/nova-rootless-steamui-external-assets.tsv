@@ -1,0 +1,5 @@
+# External ARM64 GTK2 compatibility artifacts. These are deliberately kept
+# outside the Holo package closure because the pinned Holo repository has no
+# gtk2 package. Debian bookworm is used only for the legacy shared libraries.
+debian-bookworm	libgtk2.0-0_2.24.33-2+deb12u1_arm64.deb	1664872	d035cfd259b330a641a6b7310748ba2f42903b795d4923fa4fb23bacb872ac07	https://deb.debian.org/debian/pool/main/g/gtk+2.0/libgtk2.0-0_2.24.33-2+deb12u1_arm64.deb
+debian-bookworm	libgtk2.0-common_2.24.33-2+deb12u1_all.deb	2659900	f55a9800d3721b1de246e4bfaf94a63ca50efdfa49eb5fa2362ed4fa79258299	https://deb.debian.org/debian/pool/main/g/gtk+2.0/libgtk2.0-common_2.24.33-2+deb12u1_all.deb

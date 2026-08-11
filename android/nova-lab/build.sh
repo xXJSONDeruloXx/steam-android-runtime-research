@@ -66,7 +66,10 @@ for rootless_asset in \
     nova-rootless-steam-arm64-compatibilitytools.vdf.in \
     nova-rootless-transport-probe.sh \
     nova-rootless-proot-supervisor.sh \
+    nova-rootless-prepare-guest-rootfs.sh \
     nova-rootless-profile.tsv \
+    nova-rootless-steamui-holo-packages.tsv \
+    nova-rootless-steamui-external-assets.tsv \
     termux.properties; do
     cp "$SCRIPT_DIR/rootless/$rootless_asset" "$APK_ASSET_DIR/$rootless_asset"
 done

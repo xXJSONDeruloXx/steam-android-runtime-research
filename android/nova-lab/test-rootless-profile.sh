@@ -11,6 +11,9 @@ pulseaudio_helper="$root_dir/rootless/nova-rootless-pulseaudio-tcp.sh"
 session_guard="$root_dir/rootless/nova-rootless-session-guard.py"
 runtime4_helper="$root_dir/rootless/nova-rootless-prepare-runtime4.sh"
 runtime4_vdf="$root_dir/rootless/nova-rootless-steam-arm64-compatibilitytools.vdf.in"
+guest_rootfs_helper="$root_dir/rootless/nova-rootless-prepare-guest-rootfs.sh"
+steamui_holo_packages="$root_dir/rootless/nova-rootless-steamui-holo-packages.tsv"
+steamui_external_assets="$root_dir/rootless/nova-rootless-steamui-external-assets.tsv"
 termux_properties="$root_dir/rootless/termux.properties"
 profile="$root_dir/rootless/nova-rootless-profile.tsv"
 manifest="$root_dir/AndroidManifest.xml"
@@ -24,6 +27,9 @@ bridge="$root_dir/src/main/java/com/xjsonderulo/steamandroid/novalab/RootlessTer
 [[ -f "$session_guard" ]]
 [[ -x "$runtime4_helper" ]]
 [[ -f "$runtime4_vdf" ]]
+[[ -x "$guest_rootfs_helper" ]]
+[[ -f "$steamui_holo_packages" ]]
+[[ -f "$steamui_external_assets" ]]
 [[ -f "$termux_properties" ]]
 [[ -f "$profile" ]]
 [[ -f "$manifest" ]]
@@ -35,6 +41,7 @@ bash -n "$termux_launcher"
 bash -n "$proc_net_shadow"
 bash -n "$pulseaudio_helper"
 bash -n "$runtime4_helper"
+bash -n "$guest_rootfs_helper"
 python3 -m py_compile "$session_guard"
 
 grep -Fqx $'profile_version\t2' "$profile"
@@ -43,6 +50,13 @@ grep -Fqx $'auth_secret_policy\tnever-export-or-back-up' "$profile"
 grep -Fqx $'proton_required_runtime_appid\t4185400' "$profile"
 grep -Fqx $'steam_seed_package\tbins_linuxarm64_linuxarm64.zip.0f238017c65e844f71581d1fae8fb42f410e1032' "$profile"
 grep -Fqx $'steam_seed_sha256\t1c1dd74e63db8d2d64445c7d6156f02e3b2719141e569b52e91b883d39592e82' "$profile"
+steamui_holo_count=$(awk -F '\t' '$1 !~ /^#/ && NF >= 5 { count++ } END { print count + 0 }' "$steamui_holo_packages")
+[[ "$steamui_holo_count" == 44 ]]
+steamui_holo_sha=$(shasum -a 256 "$steamui_holo_packages" | awk '{ print $1 }')
+grep -Fqx $'steamui_holo_package_closure_sha256\t'"$steamui_holo_sha" "$profile"
+grep -Fqx $'steamui_holo_package_closure_count\t44' "$profile"
+external_asset_count=$(awk -F '\t' '$1 !~ /^#/ && NF >= 5 { count++ } END { print count + 0 }' "$steamui_external_assets")
+[[ "$external_asset_count" == 2 ]]
 grep -Fq -- '-b "$APP_HOME:/home/nova" \' "$supervisor"
 grep -Fq -- '-b "$STEAM_CLIENT:/opt/nova-steam" \' "$supervisor"
 grep -Fq -- '-b /proc:/proc \' "$supervisor"
@@ -69,6 +83,13 @@ grep -Fq '127.0.0.1' "$pulseaudio_helper"
 grep -Fqx $'session_log_cap_bytes\t67108864' "$profile"
 grep -Fq 'NOISY_LOGS' "$session_guard"
 grep -Fq 'SteamLinuxRuntime_4-arm64' "$runtime4_helper"
+grep -Fq 'rooted_runtime_modified=0' "$guest_rootfs_helper"
+grep -Fq 'steamui_patch=0' "$guest_rootfs_helper"
+grep -Fq -- '--needed -U' "$guest_rootfs_helper"
+grep -Fq 'debian-bookworm' "$steamui_external_assets"
+grep -Fq 'libpipewire' "$steamui_holo_packages"
+grep -Fq 'libpulse' "$steamui_holo_packages"
+grep -Fq 'gdk-pixbuf2' "$steamui_holo_packages"
 grep -Fq 'require_tool_appid' "$runtime4_vdf"
 grep -Fq '"appid"               "4628740"' "$runtime4_vdf"
 grep -Fq '"depotid"             "4628741"' "$runtime4_vdf"
