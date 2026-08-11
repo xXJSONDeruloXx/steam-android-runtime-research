@@ -15,6 +15,8 @@ PROOT_LIB_DIR="${NOVA_ROOTLESS_PROOT_LIB_DIR:-}"
 STATE="${NOVA_ROOTLESS_STATE:-}"
 APP_HOME="${NOVA_ROOTLESS_HOME:-}"
 STEAM_CLIENT="${NOVA_ROOTLESS_STEAM_CLIENT:-}"
+PROC_NET="${NOVA_ROOTLESS_PROC_NET:-}"
+RUNTIME4_SHADOW="${NOVA_ROOTLESS_RUNTIME4_SHADOW:-}"
 DISPLAY_VALUE="${DISPLAY:-:0}"
 X11_SOCKET="${NOVA_ROOTLESS_X11_SOCKET:-}"
 
@@ -96,16 +98,42 @@ prepare_state() {
         "$STATE/proot-tmp" \
         "$STATE/tmp" \
         "$STATE/run" \
+        "$STATE/config" \
         "$APP_HOME" \
         "$STEAM_CLIENT"
     # These paths are app-owned. Refuse a symlink so a bad configuration cannot
     # redirect Steam writes outside the selected rootless state tree.
     for path in "$STATE" "$STATE/logs" "$STATE/proot-tmp" "$STATE/tmp" \
-        "$STATE/run" "$APP_HOME" "$STEAM_CLIENT"; do
+        "$STATE/run" "$STATE/config" "$APP_HOME" "$STEAM_CLIENT"; do
         [ ! -L "$path" ] || fail "symlinked_state_path:$path"
     done
     chmod 700 "$STATE" "$STATE/logs" "$STATE/proot-tmp" "$STATE/tmp" \
-        "$STATE/run" "$APP_HOME" "$STEAM_CLIENT"
+        "$STATE/run" "$STATE/config" "$APP_HOME" "$STEAM_CLIENT"
+}
+
+validate_proc_net() {
+    [ -n "$PROC_NET" ] || return 0
+    require_path directory "$PROC_NET"
+    require_path file "$PROC_NET/route"
+    require_path file "$PROC_NET/ipv6_route"
+    [ ! -L "$PROC_NET" ] || fail "symlinked_proc_net:$PROC_NET"
+    [ ! -L "$PROC_NET/route" ] || fail "symlinked_proc_net_route:$PROC_NET/route"
+    [ ! -L "$PROC_NET/ipv6_route" ] ||
+        fail "symlinked_proc_net_ipv6_route:$PROC_NET/ipv6_route"
+    "$system_awk" 'NR > 1 && $1 != "" { found = 1 } END { exit(found ? 0 : 1) }' \
+        "$PROC_NET/route" || fail "empty_proc_net_route:$PROC_NET/route"
+}
+
+validate_runtime4_shadow() {
+    [ -n "$RUNTIME4_SHADOW" ] || return 0
+    require_path directory "$RUNTIME4_SHADOW"
+    require_path file "$RUNTIME4_SHADOW/_v2-entry-point"
+    require_path executable "$RUNTIME4_SHADOW/pressure-vessel/bin/pressure-vessel-wrap"
+    [ ! -L "$RUNTIME4_SHADOW" ] || fail "symlinked_runtime4_shadow:$RUNTIME4_SHADOW"
+    [ ! -L "$RUNTIME4_SHADOW/_v2-entry-point" ] ||
+        fail "symlinked_runtime4_entry:$RUNTIME4_SHADOW/_v2-entry-point"
+    [ ! -L "$RUNTIME4_SHADOW/pressure-vessel/bin/pressure-vessel-wrap" ] ||
+        fail "symlinked_runtime4_pressure_vessel:$RUNTIME4_SHADOW/pressure-vessel/bin/pressure-vessel-wrap"
 }
 
 preflight() {
@@ -146,9 +174,13 @@ preflight() {
         [ -S "$X11_SOCKET" ] || fail "x11_socket_not_socket:$X11_SOCKET"
         [ -r "$X11_SOCKET" ] || fail "x11_socket_not_readable:$X11_SOCKET"
     }
+    validate_proc_net
+    validate_runtime4_shadow
     log "nova_rootless_preflight=pass uid=$real_uid rootfs=$ROOTFS proot=$PROOT_BIN"
     log "nova_rootless_state=$STATE home=$APP_HOME steam_client=$STEAM_CLIENT"
     log "nova_rootless_free_kib=$free_kib"
+    [ -z "$PROC_NET" ] || log "nova_rootless_proc_net=$PROC_NET"
+    [ -z "$RUNTIME4_SHADOW" ] || log "nova_rootless_runtime4_shadow=$RUNTIME4_SHADOW"
 }
 
 run_guest() {
@@ -168,26 +200,96 @@ run_guest() {
     export NOVA_ROOTLESS_NO_SU=1
 
     log "nova_rootless_exec=proot display=$DISPLAY_VALUE"
-    # Keep the command after -- as argv, not an interpolated shell string.
-    # This prevents Steam URLs or paths from becoming shell syntax.
-    exec "$PROOT_BIN" \
-        --kill-on-exit \
-        -0 \
-        -r "$ROOTFS" \
-        -b "$APP_HOME:/home/nova" \
-        -b "$STEAM_CLIENT:/opt/nova-steam" \
-        -b "$STATE/tmp:/tmp" \
-        -b "$STATE/run:/run" \
-        -w /home/nova \
-        /usr/bin/env \
-        "HOME=/home/nova" \
-        "USER=nova" \
-        "LOGNAME=nova" \
-        "DISPLAY=$DISPLAY_VALUE" \
-        "XDG_RUNTIME_DIR=/run/nova" \
-        "NOVA_ROOTLESS_NO_SU=1" \
-        "NOVA_ROOTLESS_X11_SOCKET=$X11_SOCKET" \
-        "$@"
+    exec_proot() {
+        # Keep the command after -- as argv, not an interpolated shell string.
+        # This prevents Steam URLs or paths from becoming shell syntax.
+        if [ -n "$PROC_NET" ] && [ -n "$RUNTIME4_SHADOW" ]; then
+            exec "$PROOT_BIN" \
+                --kill-on-exit \
+                -0 \
+                -r "$ROOTFS" \
+                -b "$APP_HOME:/home/nova" \
+                -b "$STEAM_CLIENT:/opt/nova-steam" \
+                -b "$STATE/tmp:/tmp" \
+                -b "$STATE/run:/run" \
+                -b "$PROC_NET:/proc/net" \
+                -b "$RUNTIME4_SHADOW:/opt/nova-steam/steamapps/common/SteamLinuxRuntime_4-arm64" \
+                -w /home/nova \
+                /usr/bin/env \
+                "HOME=/home/nova" \
+                "USER=nova" \
+                "LOGNAME=nova" \
+                "DISPLAY=$DISPLAY_VALUE" \
+                "XDG_RUNTIME_DIR=/run/nova" \
+                "PULSE_SERVER=${NOVA_ROOTLESS_PULSE_SERVER:-}" \
+                "NOVA_ROOTLESS_NO_SU=1" \
+                "NOVA_ROOTLESS_X11_SOCKET=$X11_SOCKET" \
+                "$@"
+        elif [ -n "$PROC_NET" ]; then
+            exec "$PROOT_BIN" \
+                --kill-on-exit \
+                -0 \
+                -r "$ROOTFS" \
+                -b "$APP_HOME:/home/nova" \
+                -b "$STEAM_CLIENT:/opt/nova-steam" \
+                -b "$STATE/tmp:/tmp" \
+                -b "$STATE/run:/run" \
+                -b "$PROC_NET:/proc/net" \
+                -w /home/nova \
+                /usr/bin/env \
+                "HOME=/home/nova" \
+                "USER=nova" \
+                "LOGNAME=nova" \
+                "DISPLAY=$DISPLAY_VALUE" \
+                "XDG_RUNTIME_DIR=/run/nova" \
+                "PULSE_SERVER=${NOVA_ROOTLESS_PULSE_SERVER:-}" \
+                "NOVA_ROOTLESS_NO_SU=1" \
+                "NOVA_ROOTLESS_X11_SOCKET=$X11_SOCKET" \
+                "$@"
+        elif [ -n "$RUNTIME4_SHADOW" ]; then
+            exec "$PROOT_BIN" \
+                --kill-on-exit \
+                -0 \
+                -r "$ROOTFS" \
+                -b "$APP_HOME:/home/nova" \
+                -b "$STEAM_CLIENT:/opt/nova-steam" \
+                -b "$STATE/tmp:/tmp" \
+                -b "$STATE/run:/run" \
+                -b "$RUNTIME4_SHADOW:/opt/nova-steam/steamapps/common/SteamLinuxRuntime_4-arm64" \
+                -w /home/nova \
+                /usr/bin/env \
+                "HOME=/home/nova" \
+                "USER=nova" \
+                "LOGNAME=nova" \
+                "DISPLAY=$DISPLAY_VALUE" \
+                "XDG_RUNTIME_DIR=/run/nova" \
+                "PULSE_SERVER=${NOVA_ROOTLESS_PULSE_SERVER:-}" \
+                "NOVA_ROOTLESS_NO_SU=1" \
+                "NOVA_ROOTLESS_X11_SOCKET=$X11_SOCKET" \
+                "$@"
+        else
+            exec "$PROOT_BIN" \
+                --kill-on-exit \
+                -0 \
+                -r "$ROOTFS" \
+                -b "$APP_HOME:/home/nova" \
+                -b "$STEAM_CLIENT:/opt/nova-steam" \
+                -b "$STATE/tmp:/tmp" \
+                -b "$STATE/run:/run" \
+                -w /home/nova \
+                /usr/bin/env \
+                "HOME=/home/nova" \
+                "USER=nova" \
+                "LOGNAME=nova" \
+                "DISPLAY=$DISPLAY_VALUE" \
+                "XDG_RUNTIME_DIR=/run/nova" \
+                "PULSE_SERVER=${NOVA_ROOTLESS_PULSE_SERVER:-}" \
+                "NOVA_ROOTLESS_NO_SU=1" \
+                "NOVA_ROOTLESS_X11_SOCKET=$X11_SOCKET" \
+                "$@"
+        fi
+    }
+    exec_proot "$@"
 }
 
 case "$ACTION" in

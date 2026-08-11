@@ -59,6 +59,9 @@ done
 
 for rootless_asset in \
     nova-rootless-termux-x11.sh \
+    nova-rootless-proc-net-shadow.sh \
+    nova-rootless-prepare-runtime4.sh \
+    nova-rootless-steam-arm64-compatibilitytools.vdf.in \
     nova-rootless-transport-probe.sh \
     nova-rootless-proot-supervisor.sh \
     nova-rootless-profile.tsv \
