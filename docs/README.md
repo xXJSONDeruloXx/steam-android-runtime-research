@@ -47,6 +47,7 @@ Read these in order when picking up the project:
 36. [Rootless R5 toybox tar mode boundary](00-start-here/376-nova-rootless-r5-tar-mode-boundary-2026-08-11.md)
 37. [Rootless R5b tar parent normalization predeclaration](00-start-here/377-nova-rootless-r5b-tar-parent-normalization-predeclaration-2026-08-11.md)
 38. [Rootless R5b tar listing normalization boundary](00-start-here/378-nova-rootless-r5b-tar-listing-boundary-2026-08-11.md)
+39. [Rootless R5c tar symlink normalization predeclaration](00-start-here/379-nova-rootless-r5c-tar-symlink-normalization-predeclaration-2026-08-11.md)
 
 Before any Nova device run, read the lifecycle contract. Before importing
 SteamclientTermux behavior, read the comparison record and inspect the clean
