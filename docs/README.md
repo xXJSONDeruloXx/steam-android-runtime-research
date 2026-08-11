@@ -19,6 +19,7 @@ Read these in order when picking up the project:
 8. [Fresh APK bootstrap, OOBE, and QR result](00-start-here/347-nova-bootstrap-network-fix-result-2026-08-10.md)
 9. [Rootless SteamClientTermux profile predeclaration](00-start-here/348-nova-rootless-steamclienttermux-predeclaration-2026-08-10.md)
 10. [Rootless supervisor contract](00-start-here/350-nova-rootless-supervisor-contract-2026-08-10.md)
+11. [Rootless supervisor R0 replay](00-start-here/351-nova-rootless-supervisor-r0-result-2026-08-10.md)
 
 Before any Nova device run, read the lifecycle contract. Before importing
 SteamclientTermux behavior, read the comparison record; it pins the target

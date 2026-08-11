@@ -9,7 +9,8 @@ set -eu
 ACTION="${1:-}"
 PROFILE="${NOVA_ROOTLESS_PROFILE:-}"
 ROOTFS="${NOVA_ROOTLESS_ROOTFS:-}"
-PROOT="${NOVA_ROOTLESS_PROOT:-}"
+PROOT_BIN="${NOVA_ROOTLESS_PROOT_BIN:-${NOVA_ROOTLESS_PROOT:-}}"
+PROOT_LOADER_PATH="${NOVA_ROOTLESS_PROOT_LOADER:-}"
 PROOT_LIB_DIR="${NOVA_ROOTLESS_PROOT_LIB_DIR:-}"
 STATE="${NOVA_ROOTLESS_STATE:-}"
 APP_HOME="${NOVA_ROOTLESS_HOME:-}"
@@ -109,7 +110,8 @@ prepare_state() {
 
 preflight() {
     [ -n "$ROOTFS" ] || fail missing_rootfs_argument
-    [ -n "$PROOT" ] || fail missing_proot_argument
+    [ -n "$PROOT_BIN" ] || fail missing_proot_argument
+    [ -n "$PROOT_LOADER_PATH" ] || fail missing_proot_loader_argument
     [ -n "$PROOT_LIB_DIR" ] || fail missing_proot_lib_argument
     [ -n "$STATE" ] || fail missing_state_argument
     [ -n "$APP_HOME" ] || fail missing_app_home_argument
@@ -120,9 +122,9 @@ preflight() {
     [ "$real_uid" -ne 0 ] || fail root_detected
 
     require_path directory "$ROOTFS"
-    require_path executable "$PROOT"
+    require_path executable "$PROOT_BIN"
     require_path directory "$PROOT_LIB_DIR"
-    require_path file "$PROOT/loader"
+    require_path file "$PROOT_LOADER_PATH"
     require_path file "$ROOTFS/usr/lib/ld-linux-aarch64.so.1"
     require_path executable "$ROOTFS/usr/bin/id"
     prepare_state
@@ -144,7 +146,7 @@ preflight() {
         [ -S "$X11_SOCKET" ] || fail "x11_socket_not_socket:$X11_SOCKET"
         [ -r "$X11_SOCKET" ] || fail "x11_socket_not_readable:$X11_SOCKET"
     }
-    log "nova_rootless_preflight=pass uid=$real_uid rootfs=$ROOTFS proot=$PROOT"
+    log "nova_rootless_preflight=pass uid=$real_uid rootfs=$ROOTFS proot=$PROOT_BIN"
     log "nova_rootless_state=$STATE home=$APP_HOME steam_client=$STEAM_CLIENT"
     log "nova_rootless_free_kib=$free_kib"
 }
@@ -160,7 +162,7 @@ run_guest() {
     # The outer LD_LIBRARY_PATH is for the Termux PRoot package. PRoot's loader
     # then resolves the guest executable against the Holo glibc tree.
     export LD_LIBRARY_PATH="$PROOT_LIB_DIR${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
-    export PROOT_LOADER="$PROOT/loader"
+    export PROOT_LOADER="$PROOT_LOADER_PATH"
     export PROOT_TMP_DIR="$STATE/proot-tmp"
     export TMPDIR="$STATE/tmp"
     export NOVA_ROOTLESS_NO_SU=1
@@ -168,7 +170,7 @@ run_guest() {
     log "nova_rootless_exec=proot display=$DISPLAY_VALUE"
     # Keep the command after -- as argv, not an interpolated shell string.
     # This prevents Steam URLs or paths from becoming shell syntax.
-    exec "$PROOT" \
+    exec "$PROOT_BIN" \
         --kill-on-exit \
         -0 \
         -r "$ROOTFS" \
