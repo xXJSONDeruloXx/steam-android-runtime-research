@@ -77,7 +77,7 @@ The current Nova direct Termux:X11 session is the comparison baseline:
 | Network | Steam can use the inherited Android data path for client activity and downloads. | Treat Android connectivity as the data plane; do not model Steam’s UI device scan as transport. |
 | Controller | Physical controller input is confirmed in the current signed-in session; see [doc 298](298-nova-physical-controller-live-confirmation-2026-08-10.md). | Remove basic controller transport from the immediate blocker list; retain game controls, rumble, and reattachment as later checks. |
 | Audio | Startup and UI sounds are audible, with substantial observed delay. | Keep the current bridge as baseline; improve device reporting and latency after the runtime A/B gate. |
-| Runtime | The rootless Holo/PRoot closure and native Steam updater pass. R17's stable/no-link replay stalled before `steamwebhelper`; R18b's stable client plus conventional `.steam` links reproduced the `bin/vgui2_s.dll` fatal. R19 and R21 both reached the stable update through `steamrtarm64/steam`, then exited after `Update complete, launching...` without a post-update Steam process. R20's top-level path was absent from the raw seed, and R21's explicit top-level symlink was replaced by a data directory without changing the boundary. R22's `-noverifyfiles` run bypassed the updater and reached Steam's X11 UI, then failed because `libvideo.so` requested `av_malloc_tracked@LIBAVUTIL_60` from a Holo `libavutil.so.60` that does not export it. | Audit the intended `libavutil` provider and source provenance, then predeclare the smallest closure correction; do not add more path or layout guesses or patch SteamUI. Keep Runtime 4 and Proton deferred until the native client boundary is understood. See [docs 443](443-nova-rootless-r18b-steam-layout-links-result-2026-08-11.md), [444](444-nova-rootless-steamclienttermux-launch-contract-host-result-2026-08-11.md), [446](446-nova-rootless-r19-no-version-steam-lifecycle-result-2026-08-11.md), [448](448-nova-rootless-r20-client-root-entry-steam-lifecycle-result-2026-08-11.md), [450](450-nova-rootless-r21-client-root-symlink-result-2026-08-11.md), and [452](452-nova-rootless-r22-noverifyfiles-result-2026-08-11.md). |
+| Runtime | The rootless Holo/PRoot closure and native Steam updater pass. R17's stable/no-link replay stalled before `steamwebhelper`; R18b's stable client plus conventional `.steam` links reproduced the `bin/vgui2_s.dll` fatal. R19 and R21 both reached the stable update through `steamrtarm64/steam`, then exited after `Update complete, launching...` without a post-update Steam process. R20's top-level path was absent from the raw seed, and R21's explicit top-level symlink was replaced by a data directory without changing the boundary. R22's `-noverifyfiles` run bypassed the updater and reached Steam's X11 UI, then failed because `libvideo.so` requested `av_malloc_tracked@LIBAVUTIL_60` from a Holo `libavutil.so.60` that does not export it. The host audit found the matched Valve `steamrtarm64/libavutil.so.60` in the completed bootstrap; the raw seed simply omitted that client-side provider. | Predeclare R23 with only the verified matched Valve `libavutil.so.60` staged beside `libvideo.so`; keep the Holo closure, supervisor, and no-preload policy unchanged. Do not add more path or layout guesses or patch SteamUI. Keep Runtime 4 and Proton deferred until the native client boundary is understood. See [docs 443](443-nova-rootless-r18b-steam-layout-links-result-2026-08-11.md), [444](444-nova-rootless-steamclienttermux-launch-contract-host-result-2026-08-11.md), [446](446-nova-rootless-r19-no-version-steam-lifecycle-result-2026-08-11.md), [448](448-nova-rootless-r20-client-root-entry-steam-lifecycle-result-2026-08-11.md), [450](450-nova-rootless-r21-client-root-symlink-result-2026-08-11.md), [452](452-nova-rootless-r22-noverifyfiles-result-2026-08-11.md), and [453](453-nova-rootless-steam-media-provider-host-audit-2026-08-11.md). |
 | Games | Proton/FEX/Wine/DXVK startup has been reached, but the first-frame game gate remains unresolved on the current Nova path. | Classify the next result at the Vulkan/WSI boundary. |
 | Gamescope/AHardwareBuffer | Synthetic and SteamUI presentation seams are valuable research evidence, but the product path is not closed. | Defer new low-level compositor work until the runtime A/B result. |
 
@@ -94,9 +94,11 @@ boundary through the actual `steamrtarm64/steam` executable; R20/R21 also
 closed the raw-seed top-level path and symlink as explanations. R22's
 diagnostic `-noverifyfiles` run reached Steam's X11 UI but exposed a concrete
 `libvideo.so`/`libavutil.so.60` symbol mismatch. The next controlled step is
-a host/source provenance audit and the smallest closure correction, not
-another path or launch-flag guess. Do not guess a `.so`-to-`.dll` alias or
-patch SteamUI. Record the exact source revision and require fresh
+a host/source provenance audit found that the raw seed omits the matched Valve
+`steamrtarm64/libavutil.so.60`; the smallest closure correction is now clear:
+stage that provider beside `libvideo.so` and leave the Holo closure and
+supervisor unchanged. Do not guess a `.so`-to-`.dll` alias, preload the
+exploratory adapter, or patch SteamUI. Record the exact source revision and require fresh
 SteamUI/webhelper evidence before advancing to Runtime 4 or Proton; the
 rejected setup is in [doc
 441](441-nova-rootless-r18-beta-seed-setup-rejection-2026-08-11.md), the
@@ -121,9 +123,10 @@ The running implementation agent should work this queue in order:
    command both stop at the updater-to-client handoff. R20/R21 ruled out the
    raw-seed top-level path and symlink as fixes. R22's diagnostic
    `-noverifyfiles` run reached Steam's X11 UI but exposed a concrete
-   `libvideo.so`/`libavutil.so.60` symbol mismatch. Audit that ABI against the
-   source and sibling closure, then predeclare the smallest closure
-   correction.
+   `libvideo.so`/`libavutil.so.60` symbol mismatch. The host audit in [doc
+   453](453-nova-rootless-steam-media-provider-host-audit-2026-08-11.md)
+   found the matched Valve provider in the completed client bootstrap;
+   predeclare R23 with only that `libavutil.so.60` staged beside `libvideo.so`.
    Do not patch SteamUI or create a guessed `vgui2_s.dll` alias. Require fresh
    SteamUI/webhelper logs, a visible-frame correlation, and no residual
    process.
