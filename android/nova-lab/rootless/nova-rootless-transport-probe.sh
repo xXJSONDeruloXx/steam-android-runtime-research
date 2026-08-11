@@ -11,6 +11,7 @@ TERMUX_PACKAGE="${NOVA_ROOTLESS_TERMUX_PACKAGE:-com.termux}"
 SOCKET="${NOVA_ROOTLESS_X11_SOCKET:-}"
 TCP_HOST="${NOVA_ROOTLESS_X11_HOST:-}"
 TCP_PORT="${NOVA_ROOTLESS_X11_PORT:-}"
+TERMUX_PRESENT_OVERRIDE="${NOVA_ROOTLESS_TERMUX_PRESENT:-}"
 
 id_bin=/system/bin/id
 pm_bin=/system/bin/pm
@@ -47,7 +48,11 @@ if ! has_package "$X11_PACKAGE"; then
 fi
 
 termux_present=0
-if has_package "$TERMUX_PACKAGE"; then
+if [ "$TERMUX_PRESENT_OVERRIDE" = 1 ]; then
+    termux_present=1
+elif [ "$TERMUX_PRESENT_OVERRIDE" = 0 ]; then
+    termux_present=0
+elif has_package "$TERMUX_PACKAGE"; then
     termux_present=1
 fi
 
