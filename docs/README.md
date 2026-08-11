@@ -43,6 +43,7 @@ Read these in order when picking up the project:
 32. [Rootless R3 updated SteamUI GTK2 boundary](00-start-here/372-nova-rootless-r3-steamui-gtk2-boundary-2026-08-11.md)
 33. [Rootless R4 SteamUI guest-rootfs predeclaration](00-start-here/373-nova-rootless-r4-steamui-guest-rootfs-predeclaration-2026-08-11.md)
 34. [Rootless R4 source-rootfs readability result](00-start-here/374-nova-rootless-r4-rootfs-readability-result-2026-08-11.md)
+35. [Rootless R5 app-private Holo archive extraction predeclaration](00-start-here/375-nova-rootless-r5-archive-extraction-predeclaration-2026-08-11.md)
 
 Before any Nova device run, read the lifecycle contract. Before importing
 SteamclientTermux behavior, read the comparison record and inspect the clean
