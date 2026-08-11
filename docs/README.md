@@ -92,6 +92,7 @@ Read these in order when picking up the project:
 81. [Rootless R12d explicit guest library path predeclaration](00-start-here/421-nova-rootless-r12d-env-library-path-predeclaration-2026-08-11.md)
 82. [Rootless R12d explicit guest library path result](00-start-here/422-nova-rootless-r12d-env-library-path-result-2026-08-11.md)
 83. [Rootless R12e `/usr/lib` bootstrap layout predeclaration](00-start-here/423-nova-rootless-r12e-usr-lib-layout-predeclaration-2026-08-11.md)
+84. [Rootless R12e `/usr/lib` bootstrap layout result](00-start-here/424-nova-rootless-r12e-usr-lib-layout-result-2026-08-11.md)
 
 Before any Nova device run, read the lifecycle contract. Before importing
 SteamclientTermux behavior, read the comparison record and inspect the clean
