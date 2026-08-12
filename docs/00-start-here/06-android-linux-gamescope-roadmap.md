@@ -287,12 +287,17 @@ The running implementation agent should work this queue in order:
    the official stable updater at `Client version: 0`, so it is not a
    `vgui2_s` or Vulkan result. That result is recorded in [doc
    512](512-ayn-thor-rootless-r38-libtalloc-soname-retry-result-2026-08-12.md).
-   The single next A/B is [doc
-   513](513-ayn-thor-rootless-r39-public-beta-cef-disable-replay-predeclaration-2026-08-12.md):
-   reproduce the current public-beta rootless fixture with app-owned file
-   metadata and add only `-cef-disable-gpu`. Do not combine that test with
-   shared `/tmp`, `/dev/shm`, D-Bus, software GL, Runtime 4, Proton, or the
-   sister repository's patched PRoot.
+   R39 is now closed in [doc
+   515](515-ayn-thor-rootless-r39-cef-disable-retry-result-2026-08-12.md):
+   the valid app-UID retry found the pinned Turnip ICD, enumerated Adreno 740,
+   reached `vkCreateDevice`, and reproduced PRoot signal 11 before SteamUI or
+   webhelper. `-cef-disable-gpu` alone did not move the boundary. The single
+   next A/B is [doc
+   516](516-ayn-thor-rootless-r40-steamclienttermux-proot-predeclaration-2026-08-12.md),
+   which changes only the verified SteamClientTermux patched PRoot and loader.
+   Keep shared `/tmp`, `/dev/shm`, D-Bus, software GL, Runtime 4, Proton,
+   Gamescope/AHardwareBuffer, Mesa/WSI variables, and other sister-repository
+   helpers out of R40.
 3. **Stage an isolated official-runtime profile.** Register Proton 11 ARM64
    (`AppID 4628740`, depot `4628741`) with its declared Steam Linux Runtime 4
    ARM64 dependency (`AppID 4185400`, depot `4185401`). Preserve the

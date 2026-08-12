@@ -182,6 +182,9 @@ Read these in order when picking up the project:
 171. [AYN Thor rootless R38 libtalloc soname retry predeclaration](00-start-here/511-ayn-thor-rootless-r38-libtalloc-soname-retry-predeclaration-2026-08-12.md)
 172. [AYN Thor rootless R38 libtalloc soname retry result](00-start-here/512-ayn-thor-rootless-r38-libtalloc-soname-retry-result-2026-08-12.md)
 173. [AYN Thor rootless R39 public-beta CEF-disable replay predeclaration](00-start-here/513-ayn-thor-rootless-r39-public-beta-cef-disable-replay-predeclaration-2026-08-12.md)
+174. [AYN Thor rootless R39 CEF-disable retry predeclaration](00-start-here/514-ayn-thor-rootless-r39-cef-disable-retry-predeclaration-2026-08-12.md)
+175. [AYN Thor rootless R39 CEF-disable retry result](00-start-here/515-ayn-thor-rootless-r39-cef-disable-retry-result-2026-08-12.md)
+176. [AYN Thor rootless R40 patched PRoot predeclaration](00-start-here/516-ayn-thor-rootless-r40-steamclienttermux-proot-predeclaration-2026-08-12.md)
 
 Before any Nova device run, read the lifecycle contract. Before importing
 SteamclientTermux behavior, read the comparison record and inspect the clean
