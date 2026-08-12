@@ -297,7 +297,10 @@ The running implementation agent should work this queue in order:
    which changes only the verified SteamClientTermux patched PRoot and loader.
    Keep shared `/tmp`, `/dev/shm`, D-Bus, software GL, Runtime 4, Proton,
    Gamescope/AHardwareBuffer, Mesa/WSI variables, and other sister-repository
-   helpers out of R40.
+   helpers out of R40. The historical R39 archive is no longer recoverable;
+   the companion selected-tree-equivalence replay is predeclared in [doc
+   517](517-ayn-thor-rootless-r40b-current-public-tree-patched-proot-predeclaration-2026-08-12.md)
+   and must keep that provenance distinction explicit.
 3. **Stage an isolated official-runtime profile.** Register Proton 11 ARM64
    (`AppID 4628740`, depot `4628741`) with its declared Steam Linux Runtime 4
    ARM64 dependency (`AppID 4185400`, depot `4185401`). Preserve the
