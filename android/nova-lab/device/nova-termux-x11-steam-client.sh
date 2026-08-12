@@ -778,7 +778,14 @@ if [ "$STEAM_HARDWARE_ACCEL" -eq 1 ]; then
     unset MESA_LOADER_DRIVER_OVERRIDE
     unset GALLIUM_DRIVER
     unset LIBGL_ALWAYS_SOFTWARE
+    unset LIBGL_DRIVERS_PATH TU_DEBUG MESA_VK_WSI_PRESENT_MODE
     unset VK_ICD_FILENAMES VK_DRIVER_FILES
+    export LIBGL_DRIVERS_PATH=/usr/lib/dri
+    export TU_DEBUG=noconform
+    export MESA_VK_WSI_PRESENT_MODE=mailbox
+    log "client_libgl_drivers_path=$LIBGL_DRIVERS_PATH"
+    log "client_tu_debug=$TU_DEBUG"
+    log "client_mesa_vk_wsi_present_mode=$MESA_VK_WSI_PRESENT_MODE"
     case "$STEAM_VK_SELECTOR" in
         driver-files)
             export VK_DRIVER_FILES="$STEAM_VULKAN_ICD"
@@ -801,14 +808,16 @@ if [ "$STEAM_HARDWARE_ACCEL" -eq 1 ]; then
         log "client_gallium_driver=$GALLIUM_DRIVER"
         log "client_libgl_always_software=1"
     else
+        export MESA_LOADER_DRIVER_OVERRIDE=kgsl
         log "client_gl_mode=hardware"
-        log "client_mesa_driver=unset"
+        log "client_mesa_driver=$MESA_LOADER_DRIVER_OVERRIDE"
         log "client_gallium_driver=unset"
         log "client_libgl_always_software=unset"
     fi
     log "client_vk_icd=${VK_ICD_FILENAMES:-unset}"
 else
     unset VK_ICD_FILENAMES VK_DRIVER_FILES
+    unset LIBGL_DRIVERS_PATH TU_DEBUG MESA_VK_WSI_PRESENT_MODE
     export MESA_LOADER_DRIVER_OVERRIDE=swrast
     export GALLIUM_DRIVER=softpipe
     export LIBGL_ALWAYS_SOFTWARE=1

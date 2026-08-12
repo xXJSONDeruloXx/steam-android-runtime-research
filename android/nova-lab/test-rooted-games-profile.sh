@@ -10,6 +10,7 @@ runtime_helper="$device_dir/nova-rooted-prepare-runtime4.sh"
 official_vdf="$device_dir/nova-steam-arm64-official-compatibilitytools.vdf.in"
 launcher="$root_dir/src/main/assets/nova-one-click-root-launcher.sh"
 build_script="$root_dir/build.sh"
+turnip_build="$root_dir/build-kgsl-turnip.sh"
 activity="$root_dir/src/main/java/com/xjsonderulo/steamandroid/novalab/LauncherActivity.java"
 session_guard="$root_dir/rootless/nova-rootless-session-guard.py"
 
@@ -19,6 +20,7 @@ session_guard="$root_dir/rootless/nova-rootless-session-guard.py"
 [[ -f "$official_vdf" ]]
 [[ -f "$launcher" ]]
 [[ -f "$build_script" ]]
+[[ -f "$turnip_build" ]]
 [[ -f "$activity" ]]
 [[ -f "$session_guard" ]]
 
@@ -26,6 +28,7 @@ sh -n "$client"
 bash -n "$game_runner"
 bash -n "$runtime_helper"
 bash -n "$launcher"
+bash -n "$turnip_build"
 python3 -c 'from pathlib import Path; compile(Path(__import__("sys").argv[1]).read_text(), __import__("sys").argv[1], "exec")' "$session_guard"
 
 grep -Fq '"appid"               "4628740"' "$official_vdf"
@@ -80,6 +83,11 @@ grep -Fq 'pseudo_hardlink_tree' "$game_runner"
 grep -Fq 'nova-rooted-prepare-runtime4.sh' "$build_script"
 grep -Fq 'nova-steam-arm64-official-compatibilitytools.vdf.in' "$build_script"
 grep -Fq 'nova-proton-glibc-geometry-wars.sh' "$build_script"
+grep -Fq 'NOVA_MESA_PLATFORMS' "$turnip_build"
+grep -Fq -- '-Dplatforms="$NOVA_MESA_PLATFORMS"' "$turnip_build"
+grep -Fq 'X11_SYSROOT_HOST' "$turnip_build"
+grep -Fq 'libxshmfence-*.pkg.tar.zst' "$turnip_build"
+grep -Fq 'cp -al' "$turnip_build"
 grep -Fq 'nova-rooted-prepare-runtime4.sh' "$activity"
 grep -Fq 'nova-steam-arm64-official-compatibilitytools.vdf.in' "$activity"
 grep -Fq 'nova-proton-glibc-geometry-wars.sh' "$activity"
