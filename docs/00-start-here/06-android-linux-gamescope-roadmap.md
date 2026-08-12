@@ -275,6 +275,24 @@ The running implementation agent should work this queue in order:
    [doc 34](34-nova-runtime-harness-lifecycle.md). Do not advance to
    `/dev/shm`, D-Bus, Runtime 4, Proton, Gamescope/AHardwareBuffer, or
    packaging until R31 is classified.
+
+   Later Thor evidence refines this sequence. R33 demonstrated that the
+   app-UID rootless path can load the pinned Turnip ICD, enumerate
+   `Turnip Adreno (TM) 740`, and reach `vkCreateDevice`; its crash occurred
+   after device use, not at provider discovery. The rooted comparator in [doc
+   486](486-ayn-thor-rooted-known-good-oobe-comparison-result-2026-08-11.md)
+   reached OOBE and QR with a different compound contract: CEF GPU disabled,
+   software GL, `/dev/shm`, D-Bus, root-side mounts, and lifecycle helpers.
+   R38 then exposed rootless client-staging mode/ownership defects and stalled
+   the official stable updater at `Client version: 0`, so it is not a
+   `vgui2_s` or Vulkan result. That result is recorded in [doc
+   512](512-ayn-thor-rootless-r38-libtalloc-soname-retry-result-2026-08-12.md).
+   The single next A/B is [doc
+   513](513-ayn-thor-rootless-r39-public-beta-cef-disable-replay-predeclaration-2026-08-12.md):
+   reproduce the current public-beta rootless fixture with app-owned file
+   metadata and add only `-cef-disable-gpu`. Do not combine that test with
+   shared `/tmp`, `/dev/shm`, D-Bus, software GL, Runtime 4, Proton, or the
+   sister repository's patched PRoot.
 3. **Stage an isolated official-runtime profile.** Register Proton 11 ARM64
    (`AppID 4628740`, depot `4628741`) with its declared Steam Linux Runtime 4
    ARM64 dependency (`AppID 4185400`, depot `4185401`). Preserve the
