@@ -329,6 +329,16 @@ The running implementation agent should work this queue in order:
    display, flags, and crash tracer fixed, and do not combine this with
    `/dev/shm`, D-Bus, Runtime 4, Proton, Gamescope/AHardwareBuffer, or any
    other sibling-repository helper.
+   R42 is now closed in [doc
+   522](522-ayn-thor-rootless-r42-nodevice-select-result-2026-08-12.md): the
+   selector was effective—the Holo device-select layer was absent from the
+   Vulkan call chain—but the patched PRoot Steam process still crashed after
+   Turnip Adreno 740 selection and `vkCreateDevice`. This does not identify
+   PRoot, KGSL, or SELinux as causal. The single next diagnostic is [doc
+   523](523-ayn-thor-rootless-r43-sysvipc-diagnostic-predeclaration-2026-08-12.md),
+   which adds only `PROOT_SYSVIPC_LOG=1` to observe the patched PRoot's SysV
+   emulation; keep the sibling launcher's D-Bus, `/dev/shm`, Mesa/WSI, audio,
+   route, Runtime 4, Proton, and helper contracts out of R43.
 3. **Stage an isolated official-runtime profile.** Register Proton 11 ARM64
    (`AppID 4628740`, depot `4628741`) with its declared Steam Linux Runtime 4
    ARM64 dependency (`AppID 4185400`, depot `4185401`). Preserve the
