@@ -24,6 +24,9 @@ STEAM_WIDTH=${NOVA_TERMUX_X11_STEAM_WIDTH:-}
 STEAM_HEIGHT=${NOVA_TERMUX_X11_STEAM_HEIGHT:-}
 STEAM_HARDWARE_ACCEL=${NOVA_TERMUX_X11_STEAM_HARDWARE_ACCEL:-0}
 STEAM_VULKAN_ICD=${NOVA_TERMUX_X11_STEAM_VULKAN_ICD:-/opt/nova-kgsl-driver/freedreno-kgsl.icd.json}
+STEAM_VK_SELECTOR=${NOVA_TERMUX_X11_STEAM_VK_SELECTOR:-driver-files}
+STEAM_RUNTIME_PROFILE=${NOVA_TERMUX_X11_STEAM_RUNTIME_PROFILE:-steamrt3c}
+STEAM_RUNTIME4_ROOT=${NOVA_TERMUX_X11_STEAM_RUNTIME4_ROOT:-/opt/nova-steam/runtime/SteamLinuxRuntime_4-arm64}
 CEF_DISABLE_GPU=${NOVA_TERMUX_X11_STEAM_CEF_DISABLE_GPU:-}
 STEAM_UI_MODE=${NOVA_TERMUX_X11_STEAM_UI_MODE:-gamepadui}
 STEAM_DISABLE_PRELOAD=${NOVA_TERMUX_X11_STEAM_DISABLE_PRELOAD:-0}
@@ -33,6 +36,11 @@ CEF_ENV_SPLIT=${NOVA_TERMUX_X11_STEAM_CEF_ENV_SPLIT:-0}
 AUDIO_BRIDGE=${NOVA_TERMUX_X11_STEAM_AUDIO_BRIDGE:-0}
 AUDIO_BRIDGE_PORT=${NOVA_TERMUX_X11_STEAM_AUDIO_BRIDGE_PORT:-29100}
 AUDIO_BRIDGE_LOG=${NOVA_TERMUX_X11_STEAM_AUDIO_BRIDGE_LOG:-/tmp/nova-alsa-audiotrack-bridge.log}
+AUDIO_MODE=${NOVA_TERMUX_X11_STEAM_AUDIO_MODE:-bridge}
+PULSE_SERVER_VALUE=${NOVA_TERMUX_X11_STEAM_PULSE_SERVER:-tcp:127.0.0.1:4713}
+SESSION_LOG_CAP_BYTES=${NOVA_TERMUX_X11_STEAM_SESSION_LOG_CAP_BYTES:-67108864}
+SESSION_MIN_FREE_BYTES=${NOVA_TERMUX_X11_STEAM_MIN_FREE_BYTES:-1073741824}
+SESSION_GUARD=/opt/nova-kgsl-driver/nova-session-guard.py
 STEAM_BOOTSTRAP=${NOVA_TERMUX_X11_STEAM_BOOTSTRAP:-auto}
 DBUS_SESSION_MODE=${NOVA_TERMUX_X11_DBUS_SESSION:-0}
 DBUS_SESSION_USER=${NOVA_TERMUX_X11_DBUS_SESSION_USER:-steam}
@@ -107,6 +115,30 @@ case "$STEAM_HARDWARE_ACCEL" in
         ;;
     *)
         echo "invalid NOVA_TERMUX_X11_STEAM_HARDWARE_ACCEL: $STEAM_HARDWARE_ACCEL" >&2
+        exit 2
+        ;;
+esac
+case "$STEAM_VK_SELECTOR" in
+    driver-files|icd-filenames|none)
+        ;;
+    *)
+        echo "invalid NOVA_TERMUX_X11_STEAM_VK_SELECTOR: $STEAM_VK_SELECTOR" >&2
+        exit 2
+        ;;
+esac
+case "$STEAM_RUNTIME_PROFILE" in
+    steamrt3c|runtime4)
+        ;;
+    *)
+        echo "invalid NOVA_TERMUX_X11_STEAM_RUNTIME_PROFILE: $STEAM_RUNTIME_PROFILE" >&2
+        exit 2
+        ;;
+esac
+case "$STEAM_RUNTIME4_ROOT" in
+    /*)
+        ;;
+    *)
+        echo "NOVA_TERMUX_X11_STEAM_RUNTIME4_ROOT must be absolute: $STEAM_RUNTIME4_ROOT" >&2
         exit 2
         ;;
 esac
@@ -202,6 +234,30 @@ if [ "$AUDIO_BRIDGE_PORT" -lt 1024 ] || [ "$AUDIO_BRIDGE_PORT" -gt 65535 ]; then
     echo "NOVA_TERMUX_X11_STEAM_AUDIO_BRIDGE_PORT out of range: $AUDIO_BRIDGE_PORT" >&2
     exit 2
 fi
+case "$AUDIO_MODE" in
+    bridge|pulse|none)
+        ;;
+    *)
+        echo "invalid NOVA_TERMUX_X11_STEAM_AUDIO_MODE: $AUDIO_MODE" >&2
+        exit 2
+        ;;
+esac
+case "$PULSE_SERVER_VALUE" in
+    ''|*[!A-Za-z0-9:._/-]*)
+        echo "invalid NOVA_TERMUX_X11_STEAM_PULSE_SERVER: $PULSE_SERVER_VALUE" >&2
+        exit 2
+        ;;
+esac
+case "$SESSION_LOG_CAP_BYTES:$SESSION_MIN_FREE_BYTES" in
+    ''|*[!0-9:]*|*:*:*)
+        echo "invalid rooted session guard limits" >&2
+        exit 2
+        ;;
+esac
+if [ "$SESSION_LOG_CAP_BYTES" -lt 256 ] || [ "$SESSION_MIN_FREE_BYTES" -lt 0 ]; then
+    echo "rooted session guard limits are out of range" >&2
+    exit 2
+fi
 case "$DBUS_SESSION_MODE" in
     0|1)
         ;;
@@ -250,14 +306,49 @@ else
 fi
 
 log() {
+    if [ "${log_truncated:-0}" -eq 1 ]; then
+        return 0
+    fi
+    current_size=$(file_size "$CLIENT_LOG")
+    case "$current_size" in
+        ''|*[!0-9]*) current_size=0 ;;
+    esac
+    if [ "$current_size" -ge "$SESSION_LOG_CAP_BYTES" ]; then
+        log_truncated=1
+        return 0
+    fi
     echo "$1" >>"$CLIENT_LOG"
 }
 
 file_size() {
     if [ -f "$1" ]; then
-        /usr/bin/wc -c <"$1" 2>/dev/null || echo 0
+        /usr/bin/wc -c <"$1" 2>/dev/null | /usr/bin/awk '{print $1}'
     else
         echo 0
+    fi
+}
+
+append_capped_file() {
+    append_source=$1
+    if [ ! -f "$append_source" ] || [ "${log_truncated:-0}" -eq 1 ]; then
+        return 0
+    fi
+    append_size=$(file_size "$CLIENT_LOG")
+    case "$append_size" in
+        ''|*[!0-9]*) append_size=0 ;;
+    esac
+    if [ "$append_size" -ge "$SESSION_LOG_CAP_BYTES" ]; then
+        log_truncated=1
+        return 0
+    fi
+    append_remaining=$((SESSION_LOG_CAP_BYTES - append_size))
+    /usr/bin/head -c "$append_remaining" "$append_source" >>"$CLIENT_LOG" 2>/dev/null || true
+    append_size=$(file_size "$CLIENT_LOG")
+    case "$append_size" in
+        ''|*[!0-9]*) append_size=0 ;;
+    esac
+    if [ "$append_size" -ge "$SESSION_LOG_CAP_BYTES" ]; then
+        log_truncated=1
     fi
 }
 
@@ -300,11 +391,80 @@ apply_network_compat() {
         log "client_network_api_compat_status=missing_helper"
         return 1
     fi
-    /opt/nova-kgsl-driver/nova-steam-network-api-compat.sh "$STEAM_ROOT" \
-        >>"$CLIENT_LOG" 2>&1
-    network_status=$?
+    network_output=/tmp/nova-steam-network-api-compat.$$.log
+    if /opt/nova-kgsl-driver/nova-steam-network-api-compat.sh "$STEAM_ROOT" \
+        >"$network_output" 2>&1; then
+        network_status=0
+    else
+        network_status=$?
+    fi
+    append_capped_file "$network_output"
+    /bin/rm -f "$network_output"
     log "client_network_api_compat_status=$network_status"
     return "$network_status"
+}
+
+prepare_session_guard() {
+    if [ ! -f "$SESSION_GUARD" ]; then
+        # Keep direct legacy launchers usable when they have not yet staged
+        # the optional guard; the one-click rooted launcher always stages it.
+        log "client_session_guard=unavailable reason=missing_helper"
+        return 0
+    fi
+    if [ ! -x /usr/bin/python3 ]; then
+        log "client_session_guard=unavailable reason=missing_python3"
+        return 0
+    fi
+    guard_output=/tmp/nova-steam-session-guard.$$.log
+    if /usr/bin/python3 "$SESSION_GUARD" preflight \
+        --client-root "$STEAM_ROOT" \
+        --logs-dir "$STEAM_ROOT/logs" \
+        --min-free-bytes "$SESSION_MIN_FREE_BYTES" \
+        --log-cap-bytes "$SESSION_LOG_CAP_BYTES" \
+        --steam-running no >"$guard_output" 2>&1; then
+        guard_status=0
+        append_capped_file "$guard_output"
+        /bin/rm -f "$guard_output"
+    else
+        guard_status=$?
+        append_capped_file "$guard_output"
+        /bin/rm -f "$guard_output"
+        log "client_session_guard=fail"
+        return "$guard_status"
+    fi
+    log "client_session_guard=pass log_cap_bytes=$SESSION_LOG_CAP_BYTES min_free_bytes=$SESSION_MIN_FREE_BYTES"
+    return 0
+}
+
+prepare_runtime_profile() {
+    if [ "$STEAM_RUNTIME_PROFILE" != runtime4 ]; then
+        log "client_runtime4=deferred profile=$STEAM_RUNTIME_PROFILE"
+        return 0
+    fi
+    for runtime_path in \
+        "$STEAM_RUNTIME4_ROOT/_v2-entry-point" \
+        "$STEAM_RUNTIME4_ROOT/run" \
+        "$STEAM_RUNTIME4_ROOT/pressure-vessel/bin/pressure-vessel-wrap" \
+        "$STEAM_RUNTIME4_ROOT/.nova-rooted-runtime4"; do
+        if [ ! -e "$runtime_path" ]; then
+            log "client_runtime4=fail reason=missing_path path=$runtime_path"
+            return 1
+        fi
+    done
+    if [ ! -x "$STEAM_RUNTIME4_ROOT/_v2-entry-point" ] ||
+        [ ! -x "$STEAM_RUNTIME4_ROOT/run" ] ||
+        [ ! -x "$STEAM_RUNTIME4_ROOT/pressure-vessel/bin/pressure-vessel-wrap" ]; then
+        log "client_runtime4=fail reason=nonexecutable_path"
+        return 1
+    fi
+    runtime4_l2s_path=$(/usr/bin/find "$STEAM_RUNTIME4_ROOT/pressure-vessel" \
+        -type l -lname '*/.l2s/*' -print -quit 2>/dev/null || true)
+    if [ -n "$runtime4_l2s_path" ]; then
+        log "client_runtime4=fail reason=pseudo_hardlink_tree path=$runtime4_l2s_path"
+        return 1
+    fi
+    log "client_runtime4=pass root=$STEAM_RUNTIME4_ROOT"
+    return 0
 }
 
 run_as_steam() {
@@ -402,13 +562,13 @@ finish() {
     stop_dbus_system
     if [ -n "${dbus_system_log:-}" ] && [ -f "$dbus_system_log" ]; then
         log "dbus_system_daemon_output_begin"
-        /bin/cat "$dbus_system_log" >>"$CLIENT_LOG"
+        append_capped_file "$dbus_system_log"
         log "dbus_system_daemon_output_end"
     fi
     stop_dbus_session
     if [ -n "${dbus_session_log:-}" ] && [ -f "$dbus_session_log" ]; then
         log "dbus_session_daemon_output_begin"
-        /bin/cat "$dbus_session_log" >>"$CLIENT_LOG"
+        append_capped_file "$dbus_session_log"
         log "dbus_session_daemon_output_end"
     fi
     if [ -n "${dbus_session_runtime_dir:-}" ]; then
@@ -430,6 +590,17 @@ finish() {
 trap finish EXIT INT TERM
 
 : >"$CLIENT_LOG"
+log_truncated=0
+if ! prepare_session_guard; then
+    log "client_started=fail"
+    log "client_error=session_guard_preflight"
+    exit 1
+fi
+if ! prepare_runtime_profile; then
+    log "client_started=fail"
+    log "client_error=runtime_profile_preflight"
+    exit 1
+fi
 bootstrap_marker_before=0
 if has_installed_client_marker; then
     bootstrap_marker_before=1
@@ -466,6 +637,9 @@ log "client_width=${STEAM_WIDTH:-unset}"
 log "client_height=${STEAM_HEIGHT:-unset}"
 log "client_hardware_accel=$STEAM_HARDWARE_ACCEL"
 log "client_vulkan_icd=$STEAM_VULKAN_ICD"
+log "client_vk_selector=$STEAM_VK_SELECTOR"
+log "client_runtime_profile=$STEAM_RUNTIME_PROFILE"
+log "client_runtime4_root=$STEAM_RUNTIME4_ROOT"
 log "client_cef_disable_gpu=$CEF_DISABLE_GPU"
 log "client_steam_ui_mode=$STEAM_UI_MODE"
 log "client_disable_preload=$STEAM_DISABLE_PRELOAD"
@@ -475,6 +649,10 @@ log "client_cef_env_split=$CEF_ENV_SPLIT"
 log "client_audio_bridge=$AUDIO_BRIDGE"
 log "client_audio_bridge_port=$AUDIO_BRIDGE_PORT"
 log "client_audio_bridge_log=$AUDIO_BRIDGE_LOG"
+log "client_audio_mode=$AUDIO_MODE"
+log "client_pulse_server=$PULSE_SERVER_VALUE"
+log "client_session_guard=$SESSION_GUARD"
+log "client_session_log_cap_bytes=$SESSION_LOG_CAP_BYTES"
 log "client_uid=$STEAM_UID"
 log "client_gid=$STEAM_GID"
 log "client_audio_gid=$STEAM_AUDIO_GID"
@@ -500,7 +678,8 @@ if [ ! -x /usr/bin/setpriv ]; then
     log "client_error=missing_setpriv"
     exit 1
 fi
-if [ "$STEAM_HARDWARE_ACCEL" -eq 1 ] && [ ! -r "$STEAM_VULKAN_ICD" ]; then
+if [ "$STEAM_HARDWARE_ACCEL" -eq 1 ] && [ "$STEAM_VK_SELECTOR" != none ] &&
+    [ ! -r "$STEAM_VULKAN_ICD" ]; then
     log "client_started=fail"
     log "client_error=missing_vulkan_icd path=$STEAM_VULKAN_ICD"
     exit 1
@@ -554,8 +733,16 @@ elif ! apply_network_compat; then
 fi
 
 if [ -x /usr/bin/xhost ]; then
-    env -u LD_PRELOAD DISPLAY=:0 /usr/bin/xhost +local: >>"$CLIENT_LOG" 2>&1
-    log "client_xhost_local_status=$?"
+    xhost_output=/tmp/nova-steam-xhost.$$.log
+    if env -u LD_PRELOAD DISPLAY=:0 /usr/bin/xhost +local: \
+        >"$xhost_output" 2>&1; then
+        xhost_status=0
+    else
+        xhost_status=$?
+    fi
+    append_capped_file "$xhost_output"
+    /bin/rm -f "$xhost_output"
+    log "client_xhost_local_status=$xhost_status"
 fi
 
 export HOME="$STEAM_HOME"
@@ -591,7 +778,20 @@ if [ "$STEAM_HARDWARE_ACCEL" -eq 1 ]; then
     unset MESA_LOADER_DRIVER_OVERRIDE
     unset GALLIUM_DRIVER
     unset LIBGL_ALWAYS_SOFTWARE
-    export VK_ICD_FILENAMES="$STEAM_VULKAN_ICD"
+    unset VK_ICD_FILENAMES VK_DRIVER_FILES
+    case "$STEAM_VK_SELECTOR" in
+        driver-files)
+            export VK_DRIVER_FILES="$STEAM_VULKAN_ICD"
+            log "client_vk_driver_files=$VK_DRIVER_FILES"
+            ;;
+        icd-filenames)
+            export VK_ICD_FILENAMES="$STEAM_VULKAN_ICD"
+            log "client_vk_icd_filenames=$VK_ICD_FILENAMES"
+            ;;
+        none)
+            log "client_vk_selector=none"
+            ;;
+    esac
     if [ "$STEAM_FORCE_SOFTWARE_GL" -eq 1 ]; then
         export MESA_LOADER_DRIVER_OVERRIDE=swrast
         export GALLIUM_DRIVER=softpipe
@@ -606,9 +806,9 @@ if [ "$STEAM_HARDWARE_ACCEL" -eq 1 ]; then
         log "client_gallium_driver=unset"
         log "client_libgl_always_software=unset"
     fi
-    log "client_vk_icd=$VK_ICD_FILENAMES"
+    log "client_vk_icd=${VK_ICD_FILENAMES:-unset}"
 else
-    unset VK_ICD_FILENAMES
+    unset VK_ICD_FILENAMES VK_DRIVER_FILES
     export MESA_LOADER_DRIVER_OVERRIDE=swrast
     export GALLIUM_DRIVER=softpipe
     export LIBGL_ALWAYS_SOFTWARE=1
@@ -617,6 +817,7 @@ else
     log "client_gallium_driver=$GALLIUM_DRIVER"
     log "client_libgl_always_software=1"
     log "client_vk_icd=unset"
+    log "client_vk_driver_files=unset"
 fi
 if [ "$STEAM_HOLO_MESA_FIRST" -eq 1 ]; then
     export LD_LIBRARY_PATH="/usr/lib:$STEAM_ROOT/steamrtarm64:$STEAM_ROOT/lib/aarch64-linux-gnu${steam_runtime_lib:+:$steam_runtime_lib}${steam_runtime_pulse_lib:+:$steam_runtime_pulse_lib}${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
@@ -625,6 +826,21 @@ else
     export LD_LIBRARY_PATH="$STEAM_ROOT/steamrtarm64:$STEAM_ROOT/lib/aarch64-linux-gnu:/usr/lib${steam_runtime_lib:+:$steam_runtime_lib}${steam_runtime_pulse_lib:+:$steam_runtime_pulse_lib}${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
     log "client_library_order=steamrt-first"
 fi
+case "$AUDIO_MODE" in
+    bridge)
+        unset PULSE_SERVER
+        ;;
+    pulse)
+        AUDIO_BRIDGE=0
+        export PULSE_SERVER="$PULSE_SERVER_VALUE"
+        log "client_audio_transport=pulse server=$PULSE_SERVER"
+        ;;
+    none)
+        AUDIO_BRIDGE=0
+        unset PULSE_SERVER
+        log "client_audio_transport=disabled"
+        ;;
+esac
 preload_paths=
 if [ "$STEAM_DISABLE_PRELOAD" -eq 1 ]; then
     log "client_preload_mode=disabled"
@@ -790,7 +1006,7 @@ start_dbus_session() {
     fi
     if [ -f "$dbus_session_probe_log" ]; then
         log "dbus_session_client_probe_output_begin"
-        /bin/cat "$dbus_session_probe_log" >>"$CLIENT_LOG"
+        append_capped_file "$dbus_session_probe_log"
         log "dbus_session_client_probe_output_end"
     fi
     return 0
@@ -867,7 +1083,7 @@ start_dbus_system() {
         log "client_dbus_system_client_probe=fail"
     fi
     log "dbus_system_client_probe_output_begin"
-    /bin/cat "$dbus_system_probe_log" >>"$CLIENT_LOG"
+    append_capped_file "$dbus_system_probe_log"
     log "dbus_system_client_probe_output_end"
     return 0
 }

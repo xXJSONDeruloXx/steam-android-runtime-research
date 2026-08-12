@@ -417,13 +417,22 @@ it is not an end-user APK dependency.
 
 ### Stage 2 — Official Runtime 4 and Proton 11 ARM64 A/B
 
-This is the active stage. Reproduce the target’s explicit manifest semantics in
-a separate Nova profile:
+This is the active stage. The rooted implementation branch now reproduces the
+target’s explicit manifest semantics in a separate Nova profile:
 
 - Proton 11 ARM64: AppID `4628740`, depot `4628741`;
 - Steam Linux Runtime 4 ARM64: AppID `4185400`, depot `4185401`;
 - the Proton-to-runtime `require_tool_appid` relationship; and
 - the exact Steam-owned paths and tool manifests needed by Pressure Vessel.
+
+The implementation is recorded in [doc 524](524-nova-rooted-runtime4-game-profile-2026-08-12.md).
+It registers the official tools, stages a real-file Runtime 4 shadow under
+the private rooted path, and bind-mounts that shadow over Steam’s conventional
+path only inside the launch namespace. It also adds explicit
+`VK_DRIVER_FILES`/`VK_ICD_FILENAMES` selectors, bounded direct-client logs,
+and a sibling-derived PulseAudio TCP profile. These are implementation
+contracts and hypotheses only; no Android result has yet validated the
+Runtime 4 smoke command or a first game frame.
 
 The runtime-only test must prove that the official container starts cleanly
 before a game is involved. The game test must use the same display, input,

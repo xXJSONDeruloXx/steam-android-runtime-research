@@ -29,6 +29,8 @@ DISPLAY_NUMBER="${NOVA_ANDROID_LAUNCHER_DISPLAY:-0}"
 DISPLAY_VALUE=":$DISPLAY_NUMBER"
 HARDWARE_ACCEL="${NOVA_ANDROID_LAUNCHER_HARDWARE_ACCEL:-0}"
 VULKAN_ICD="${NOVA_ANDROID_LAUNCHER_VULKAN_ICD:-/opt/nova-kgsl-driver/freedreno-kgsl.icd.json}"
+VULKAN_SELECTOR="${NOVA_ANDROID_LAUNCHER_VULKAN_SELECTOR:-driver-files}"
+RUNTIME_PROFILE="${NOVA_ANDROID_LAUNCHER_RUNTIME_PROFILE:-steamrt3c}"
 CEF_DISABLE_GPU="${NOVA_ANDROID_LAUNCHER_CEF_DISABLE_GPU:-}"
 STEAM_UI_MODE="${NOVA_ANDROID_LAUNCHER_STEAM_UI_MODE:-gamepadui}"
 STEAM_DISABLE_PRELOAD="${NOVA_ANDROID_LAUNCHER_STEAM_DISABLE_PRELOAD:-0}"
@@ -40,6 +42,8 @@ STEAMOS_UPDATE_COMPAT="${NOVA_ANDROID_LAUNCHER_STEAMOS_UPDATE_COMPAT:-1}"
 STEAM_RESTART_LIMIT="${NOVA_ANDROID_LAUNCHER_STEAM_RESTART_LIMIT:-1}"
 AUDIO_BRIDGE="${NOVA_ANDROID_LAUNCHER_AUDIO_BRIDGE:-0}"
 AUDIO_BRIDGE_PORT="${NOVA_ANDROID_LAUNCHER_AUDIO_BRIDGE_PORT:-29100}"
+AUDIO_MODE="${NOVA_ANDROID_LAUNCHER_AUDIO_MODE:-bridge}"
+PULSE_SERVER="${NOVA_ANDROID_LAUNCHER_PULSE_SERVER:-tcp:127.0.0.1:4713}"
 X11_STRETCH="${NOVA_ANDROID_LAUNCHER_X11_STRETCH:-1}"
 X11_STRETCH_RESOLUTION="${NOVA_ANDROID_LAUNCHER_X11_STRETCH_RESOLUTION:-1280x800}"
 X11_HIDE_EXTRA_KEYBAR="${NOVA_ANDROID_LAUNCHER_X11_HIDE_EXTRA_KEYBAR:-1}"
@@ -52,6 +56,10 @@ RELAY_LAUNCHER="$APP_DIR/nova-uinput-gamepad-relay-launcher.sh"
 MOUNT_PRIVATE="$APP_DIR/nova-mount-private"
 NETWORK_COMPAT_SOURCE="$APP_DIR/nova-steam-network-api-compat.sh"
 STEAMOS_UPDATE_COMPAT_SOURCE="$APP_DIR/nova-steamos-update-compat.sh"
+RUNTIME4_HELPER="$APP_DIR/nova-rooted-prepare-runtime4.sh"
+OFFICIAL_COMPAT_TEMPLATE="$APP_DIR/nova-steam-arm64-official-compatibilitytools.vdf.in"
+GAME_RUNNER_SOURCE="$APP_DIR/nova-proton-glibc-geometry-wars.sh"
+SESSION_GUARD_SOURCE="$APP_DIR/nova-rootless-session-guard.py"
 DRIVER_DIR="$ROOT/opt/nova-kgsl-driver"
 TERMUX_PREFS=/data/user/0/com.termux.x11/shared_prefs/com.termux.x11_preferences.xml
 TERMUX_PREFS_BACKUP="$STATE/termux-x11-preferences.before.xml"
@@ -63,6 +71,22 @@ case "$HARDWARE_ACCEL" in
         ;;
     *)
         echo "invalid NOVA_ANDROID_LAUNCHER_HARDWARE_ACCEL: $HARDWARE_ACCEL" >&2
+        exit 2
+        ;;
+esac
+case "$VULKAN_SELECTOR" in
+    driver-files|icd-filenames|none)
+        ;;
+    *)
+        echo "invalid NOVA_ANDROID_LAUNCHER_VULKAN_SELECTOR: $VULKAN_SELECTOR" >&2
+        exit 2
+        ;;
+esac
+case "$RUNTIME_PROFILE" in
+    steamrt3c|runtime4)
+        ;;
+    *)
+        echo "invalid NOVA_ANDROID_LAUNCHER_RUNTIME_PROFILE: $RUNTIME_PROFILE" >&2
         exit 2
         ;;
 esac
@@ -174,6 +198,20 @@ if [ "$AUDIO_BRIDGE_PORT" -lt 1024 ] || [ "$AUDIO_BRIDGE_PORT" -gt 65535 ]; then
     echo "NOVA_ANDROID_LAUNCHER_AUDIO_BRIDGE_PORT out of range: $AUDIO_BRIDGE_PORT" >&2
     exit 2
 fi
+case "$AUDIO_MODE" in
+    bridge|pulse|none)
+        ;;
+    *)
+        echo "invalid NOVA_ANDROID_LAUNCHER_AUDIO_MODE: $AUDIO_MODE" >&2
+        exit 2
+        ;;
+esac
+case "$PULSE_SERVER" in
+    ''|*[!A-Za-z0-9:._/-]*)
+        echo "invalid NOVA_ANDROID_LAUNCHER_PULSE_SERVER: $PULSE_SERVER" >&2
+        exit 2
+        ;;
+esac
 case "$X11_STRETCH" in
     0|1)
         ;;
@@ -257,6 +295,67 @@ prepare_versioned_runtime_resolver() {
         /system/bin/rm -f "$resolver_tmp"
         log "nova_launcher_resolver=unavailable reason=no_android_dns"
     fi
+}
+
+stage_rooted_runtime_contracts() {
+    if [ ! -f "$OFFICIAL_COMPAT_TEMPLATE" ]; then
+        log "nova_launcher_runtime_contract=fail reason=missing_official_compatibility_template"
+        return 1
+    fi
+    if [ ! -x "$RUNTIME4_HELPER" ]; then
+        log "nova_launcher_runtime_contract=fail reason=missing_runtime4_helper"
+        return 1
+    fi
+    if [ ! -x "$GAME_RUNNER_SOURCE" ]; then
+        log "nova_launcher_runtime_contract=fail reason=missing_game_runner"
+        return 1
+    fi
+    if [ ! -f "$SESSION_GUARD_SOURCE" ]; then
+        log "nova_launcher_runtime_contract=fail reason=missing_session_guard"
+        return 1
+    fi
+
+    /system/bin/cp "$RUNTIME4_HELPER" \
+        "$DRIVER_DIR/nova-rooted-prepare-runtime4.sh"
+    /system/bin/chmod 755 "$DRIVER_DIR/nova-rooted-prepare-runtime4.sh"
+    /system/bin/cp "$GAME_RUNNER_SOURCE" \
+        "$DRIVER_DIR/nova-proton-glibc-geometry-wars.sh"
+    /system/bin/chmod 755 "$DRIVER_DIR/nova-proton-glibc-geometry-wars.sh"
+    /system/bin/cp "$SESSION_GUARD_SOURCE" "$DRIVER_DIR/nova-session-guard.py"
+    /system/bin/chmod 755 "$DRIVER_DIR/nova-session-guard.py"
+
+    client_guest_root=/opt/nova-steam/home/.local/share/Steam
+    compatibility_dir="$ROOT$client_guest_root/compatibilitytools.d/nova-steam-arm64-official"
+    compatibility_manifest="$compatibility_dir/compatibilitytool.vdf"
+    if [ -L "$compatibility_dir" ] || [ -L "$compatibility_manifest" ]; then
+        log "nova_launcher_runtime_contract=fail reason=symlinked_compatibility_path"
+        return 1
+    fi
+    /system/bin/mkdir -p "$compatibility_dir"
+    compatibility_temp="$compatibility_manifest.new.$$"
+    if ! /system/bin/sed "s|@CLIENT_ROOT@|$client_guest_root|g" \
+        "$OFFICIAL_COMPAT_TEMPLATE" >"$compatibility_temp" ||
+        ! /system/bin/mv -f "$compatibility_temp" "$compatibility_manifest"; then
+        /system/bin/rm -f "$compatibility_temp"
+        log "nova_launcher_runtime_contract=fail reason=compatibility_manifest_write"
+        return 1
+    fi
+    /system/bin/chmod 755 "$compatibility_dir"
+    /system/bin/chmod 644 "$compatibility_manifest"
+    log "nova_launcher_official_compatibility=pass manifest=$client_guest_root/compatibilitytools.d/nova-steam-arm64-official/compatibilitytool.vdf"
+
+    if [ "$RUNTIME_PROFILE" = runtime4 ]; then
+        if ! /system/bin/sh "$DRIVER_DIR/nova-rooted-prepare-runtime4.sh" \
+            "$ROOT" "$ROOT$client_guest_root" \
+            "$ROOT/opt/nova-steam/runtime/SteamLinuxRuntime_4-arm64"; then
+            log "nova_launcher_runtime4=fail"
+            return 1
+        fi
+        log "nova_launcher_runtime4=pass"
+    else
+        log "nova_launcher_runtime4=deferred profile=$RUNTIME_PROFILE"
+    fi
+    return 0
 }
 
 log "nova_launcher_root=$ROOT"
@@ -490,7 +589,10 @@ if [ ! -d "$ROOT" ]; then
 fi
 if [ ! -x "$PRIVATE_HELPER" ] || [ ! -x "$CLEANUP_HELPER" ] || \
     [ ! -x "$CLIENT_SOURCE" ] || [ ! -x "$RELAY_LAUNCHER" ] || \
-    [ ! -x "$NETWORK_COMPAT_SOURCE" ] || [ ! -x "$STEAMOS_UPDATE_COMPAT_SOURCE" ]; then
+    [ ! -x "$NETWORK_COMPAT_SOURCE" ] || [ ! -x "$STEAMOS_UPDATE_COMPAT_SOURCE" ] || \
+    [ ! -x "$RUNTIME4_HELPER" ] || [ ! -x "$GAME_RUNNER_SOURCE" ] || \
+    [ ! -f "$OFFICIAL_COMPAT_TEMPLATE" ] || \
+    [ ! -f "$SESSION_GUARD_SOURCE" ]; then
     log "nova_launcher_start=fail reason=missing_launcher_asset"
     exit 1
 fi
@@ -539,9 +641,18 @@ for driver_asset in \
         /system/bin/chmod 755 "$DRIVER_DIR/$driver_asset"
     fi
 done
+/system/bin/cp "$RUNTIME4_HELPER" "$DRIVER_DIR/nova-rooted-prepare-runtime4.sh"
+/system/bin/chmod 755 "$DRIVER_DIR/nova-rooted-prepare-runtime4.sh"
+/system/bin/cp "$SESSION_GUARD_SOURCE" "$DRIVER_DIR/nova-session-guard.py"
+/system/bin/chmod 755 "$DRIVER_DIR/nova-session-guard.py"
+/system/bin/rm -f "$STATE/runtime4-shadow.log"
 /system/bin/rm -f "$STATE/launcher.log" "$STATE/cleanup.log" \
     "$STATE/runtime-cleanup.log" "$STATE/server.log" "$STATE/client.log" \
     "$STATE/relay.log" "$STATE/activity.log" "$STATE/ready"
+if ! stage_rooted_runtime_contracts; then
+    log "nova_launcher_start=fail reason=rooted_runtime_contracts"
+    exit 1
+fi
 
 if [ -f "$TERMUX_PREFS_BACKUP" ]; then
     if ! restore_x11_preferences; then
@@ -586,6 +697,8 @@ printf '%s\n' "$CLIENT_STAGE_NAME" >"$STATE/client-token"
 printf '%s\n' "1" >"$STATE/client-active"
 log "nova_launcher_hardware_accel=$HARDWARE_ACCEL"
 log "nova_launcher_vulkan_icd=$VULKAN_ICD"
+log "nova_launcher_vulkan_selector=$VULKAN_SELECTOR"
+log "nova_launcher_runtime_profile=$RUNTIME_PROFILE"
 log "nova_launcher_cef_disable_gpu=$CEF_DISABLE_GPU"
 log "nova_launcher_steam_ui_mode=$STEAM_UI_MODE"
 log "nova_launcher_steam_disable_preload=$STEAM_DISABLE_PRELOAD"
@@ -596,6 +709,8 @@ log "nova_launcher_steam_cef_env_split=$STEAM_CEF_ENV_SPLIT"
 log "nova_launcher_steam_restart_limit=$STEAM_RESTART_LIMIT"
 log "nova_launcher_audio_bridge=$AUDIO_BRIDGE"
 log "nova_launcher_audio_bridge_port=$AUDIO_BRIDGE_PORT"
+log "nova_launcher_audio_mode=$AUDIO_MODE"
+log "nova_launcher_pulse_server=$PULSE_SERVER"
 log "nova_launcher_x11_hide_extra_keybar=$X11_HIDE_EXTRA_KEYBAR"
 
 if [ -x "$RELAY_BINARY" ]; then
@@ -674,6 +789,13 @@ if [ "$socket_ready" -ne 1 ]; then
     stop_session
 fi
 
+runtime4_shadow_env=
+runtime4_guest_env=
+if [ "$RUNTIME_PROFILE" = runtime4 ]; then
+    runtime4_shadow_env=/opt/nova-steam/runtime/SteamLinuxRuntime_4-arm64
+    runtime4_guest_env=/opt/nova-steam/home/.local/share/Steam/steamapps/common/SteamLinuxRuntime_4-arm64
+fi
+
 /system/bin/env -i \
     PATH=/usr/bin:/bin HOME=/tmp XDG_RUNTIME_DIR=/tmp TMPDIR=/tmp \
     DISPLAY="$DISPLAY_VALUE" XKB_CONFIG_ROOT=/usr/share/X11/xkb \
@@ -686,6 +808,8 @@ fi
     NOVA_TERMUX_X11_STEAM_FULLDESKTOPRES=1 \
     NOVA_TERMUX_X11_STEAM_HARDWARE_ACCEL="$HARDWARE_ACCEL" \
     NOVA_TERMUX_X11_STEAM_VULKAN_ICD="$VULKAN_ICD" \
+    NOVA_TERMUX_X11_STEAM_VK_SELECTOR="$VULKAN_SELECTOR" \
+    NOVA_TERMUX_X11_STEAM_RUNTIME_PROFILE="$RUNTIME_PROFILE" \
     NOVA_TERMUX_X11_STEAM_CEF_DISABLE_GPU="$CEF_DISABLE_GPU" \
     NOVA_TERMUX_X11_STEAM_UI_MODE="$STEAM_UI_MODE" \
     NOVA_TERMUX_X11_STEAM_DISABLE_PRELOAD="$STEAM_DISABLE_PRELOAD" \
@@ -695,6 +819,10 @@ fi
     NOVA_TERMUX_X11_STEAM_RESTART_LIMIT="$STEAM_RESTART_LIMIT" \
     NOVA_TERMUX_X11_STEAM_AUDIO_BRIDGE="$AUDIO_BRIDGE" \
     NOVA_TERMUX_X11_STEAM_AUDIO_BRIDGE_PORT="$AUDIO_BRIDGE_PORT" \
+    NOVA_TERMUX_X11_STEAM_AUDIO_MODE="$AUDIO_MODE" \
+    NOVA_TERMUX_X11_STEAM_PULSE_SERVER="$PULSE_SERVER" \
+    NOVA_X11_RUNTIME4_SHADOW="$runtime4_shadow_env" \
+    NOVA_X11_RUNTIME4_GUEST="$runtime4_guest_env" \
     NOVA_X11_ALLOW_INPUT_EVENTS="$allow_input_events" \
     NOVA_X11_HIDE_INPUT_EVENTS="$hide_input_events" \
     "$PRIVATE_HELPER" chroot-dev "$MOUNT_PRIVATE" "$ROOT" \

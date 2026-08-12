@@ -45,6 +45,9 @@ for helper in \
     nova-steam-network-api-compat.sh \
     nova-steamos-update-compat.sh \
     holo-package-install.sh \
+    nova-rooted-prepare-runtime4.sh \
+    nova-steam-arm64-official-compatibilitytools.vdf.in \
+    nova-proton-glibc-geometry-wars.sh \
     nova-proton-11-arm64-wrapper-setup.sh \
     nova-proton-11-arm64-compatibilitytool.vdf \
     nova-proton-11-arm64-wrapper-compatibilitytool.vdf; do

@@ -41,7 +41,14 @@ case "$mode" in
         shm_dir_created=0
         input_mounted=0
         proc_mounted=0
+        runtime4_mounted=0
+        runtime4_shadow="${NOVA_X11_RUNTIME4_SHADOW:-}"
+        runtime4_guest="${NOVA_X11_RUNTIME4_GUEST:-/opt/nova-steam/home/.local/share/Steam/steamapps/common/SteamLinuxRuntime_4-arm64}"
         cleanup_mount() {
+            if [ "$runtime4_mounted" -eq 1 ]; then
+                /system/bin/umount -l "$root$runtime4_guest" >/dev/null 2>&1 || true
+                runtime4_mounted=0
+            fi
             if [ "$proc_mounted" -eq 1 ]; then
                 /system/bin/umount -l "$root/proc" >/dev/null 2>&1 || true
                 proc_mounted=0
@@ -116,6 +123,27 @@ case "$mode" in
                 input_index=$((input_index + 1))
             done
             echo "x11_namespace_input=pass allowed_events=$allow_input_events hidden_events=$hide_input_events"
+        fi
+        if [ -n "$runtime4_shadow" ]; then
+            case "$runtime4_shadow:$runtime4_guest" in
+                /*:/*)
+                    ;;
+                *)
+                    echo "x11_namespace_error=runtime4_path" >&2
+                    exit 1
+                    ;;
+            esac
+            runtime4_shadow_host="$root$runtime4_shadow"
+            if [ ! -d "$runtime4_shadow_host" ] || [ ! -d "$root$runtime4_guest" ]; then
+                echo "x11_namespace_error=runtime4_path_missing" >&2
+                exit 1
+            fi
+            if ! /system/bin/mount -o bind "$runtime4_shadow_host" "$root$runtime4_guest"; then
+                echo "x11_namespace_error=bind_runtime4" >&2
+                exit 1
+            fi
+            runtime4_mounted=1
+            echo "x11_namespace_runtime4=pass shadow=$runtime4_shadow guest=$runtime4_guest"
         fi
         /system/bin/chroot "$root" "$@"
         status=$?

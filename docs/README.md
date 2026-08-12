@@ -192,6 +192,7 @@ Read these in order when picking up the project:
 181. [AYN Thor rootless R42 Mesa device-select isolation predeclaration](00-start-here/521-ayn-thor-rootless-r42-nodevice-select-predeclaration-2026-08-12.md)
 182. [AYN Thor rootless R42 Mesa device-select isolation result](00-start-here/522-ayn-thor-rootless-r42-nodevice-select-result-2026-08-12.md)
 183. [AYN Thor rootless R43 patched PRoot SysV IPC diagnostic predeclaration](00-start-here/523-ayn-thor-rootless-r43-sysvipc-diagnostic-predeclaration-2026-08-12.md)
+184. [Nova rooted Runtime 4/game profile implementation](00-start-here/524-nova-rooted-runtime4-game-profile-2026-08-12.md)
 
 Before any Nova device run, read the lifecycle contract. Before importing
 SteamclientTermux behavior, read the comparison record and inspect the clean
