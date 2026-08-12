@@ -50,7 +50,7 @@ def describe(path):
     except FileNotFoundError:
         return "missing"
     if stat.S_ISLNK(mode):
-        return f"symlink to {os.readlink(path)!r}"
+        return f"symlink to {os.readlink(path)}"
     if stat.S_ISREG(mode):
         return "regular file"
     if stat.S_ISDIR(mode):

@@ -1,6 +1,6 @@
 #define _GNU_SOURCE
 
-// Keep the direct Steam client on the software GL profile while allowing its
+// Keep the direct Steam client on its rooted GL profile while allowing its
 // steamwebhelper child to choose its own renderer.  Steam launches the
 // webhelper from several code paths, so filter the environment at the exec
 // boundary instead of modifying the persistent Steam installation.
@@ -41,6 +41,10 @@ static int remove_environment_entry(const char *entry) {
         "GALLIUM_DRIVER",
         "LIBGL_ALWAYS_SOFTWARE",
         "LIBGL_ALWAYS_INDIRECT",
+        // Steam sets this for webhelper's store path.  On this rooted X11
+        // stack it disables Mesa's Zink Vulkan path and falls back to
+        // llvmpipe, which makes Chromium's GPU process exit during startup.
+        "LIBGL_KOPPER_DISABLE",
     };
     if (!entry) {
         return 0;

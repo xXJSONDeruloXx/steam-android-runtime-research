@@ -47,6 +47,7 @@ PULSE_SERVER="${NOVA_ANDROID_LAUNCHER_PULSE_SERVER:-tcp:127.0.0.1:4713}"
 X11_STRETCH="${NOVA_ANDROID_LAUNCHER_X11_STRETCH:-1}"
 X11_STRETCH_RESOLUTION="${NOVA_ANDROID_LAUNCHER_X11_STRETCH_RESOLUTION:-1280x800}"
 X11_HIDE_EXTRA_KEYBAR="${NOVA_ANDROID_LAUNCHER_X11_HIDE_EXTRA_KEYBAR:-1}"
+GAMEPAD_SOURCE="${NOVA_ANDROID_LAUNCHER_GAMEPAD_SOURCE:-auto}"
 X11_SOCKET="$ROOT/tmp/.X11-unix/X$DISPLAY_NUMBER"
 PRIVATE_HELPER="$APP_DIR/nova-x11-private-namespace.sh"
 CLEANUP_HELPER="$APP_DIR/nova-termux-x11-cleanup.sh"
@@ -236,10 +237,41 @@ case "$X11_HIDE_EXTRA_KEYBAR" in
         exit 2
         ;;
 esac
+case "$GAMEPAD_SOURCE" in
+    auto|/dev/input/event[0-9]*)
+        ;;
+    *)
+        echo "invalid NOVA_ANDROID_LAUNCHER_GAMEPAD_SOURCE: $GAMEPAD_SOURCE" >&2
+        exit 2
+        ;;
+esac
 X11_EXTRA_KBD_VALUE=true
 if [ "$X11_HIDE_EXTRA_KEYBAR" -eq 1 ]; then
     X11_EXTRA_KBD_VALUE=false
 fi
+
+resolve_gamepad_source() {
+    if [ "$GAMEPAD_SOURCE" != auto ]; then
+        printf '%s\n' "$GAMEPAD_SOURCE"
+        return 0
+    fi
+
+    detected_gamepad_source=
+    if [ -r /proc/bus/input/devices ]; then
+        detected_gamepad_source=$(
+            /system/bin/sed -n \
+                '/N: Name="Xbox Wireless Controller"/,/^$/ s/^H: Handlers=.*\(event[0-9][0-9]*\).*/\/dev\/input\/\1/p' \
+                /proc/bus/input/devices | /system/bin/sed -n '1p'
+        )
+    fi
+    if [ -n "$detected_gamepad_source" ]; then
+        printf '%s\n' "$detected_gamepad_source"
+    else
+        # Preserve the historical Thor source as a last-resort fallback for
+        # kernels that do not expose /proc/bus/input/devices to the launcher.
+        printf '%s\n' /dev/input/event7
+    fi
+}
 
 if [ ! -x "$MOUNT_PRIVATE" ]; then
     if [ -x /data/local/tmp/nova-mount-private ]; then
@@ -716,9 +748,11 @@ log "nova_launcher_x11_hide_extra_keybar=$X11_HIDE_EXTRA_KEYBAR"
 if [ -x "$RELAY_BINARY" ]; then
     allow_input_events=
     hide_input_events=
+    gamepad_source=$(resolve_gamepad_source)
+    log "nova_launcher_gamepad_source=$gamepad_source"
     NOVA_RELAY_MOUNT_PRIVATE_HELPER="$MOUNT_PRIVATE" \
         /system/bin/sh "$RELAY_STAGE" "$ROOT" "$RELAY_BINARY" \
-        /dev/input/event7 86400000 relay >"$STATE/relay.log" 2>&1 &
+        "$gamepad_source" 86400000 relay >"$STATE/relay.log" 2>&1 &
     relay_pid=$!
     printf '%s\n' "$relay_pid" >"$STATE/relay.pid"
     relay_ready=0
