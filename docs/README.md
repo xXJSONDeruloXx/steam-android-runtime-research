@@ -174,6 +174,8 @@ Read these in order when picking up the project:
 163. [AYN Thor rootless updater-derived public-client equivalence predeclaration](00-start-here/503-ayn-thor-rootless-public-client-normalized-equivalence-predeclaration-2026-08-11.md)
 164. [AYN Thor rootless updater-derived public-client equivalence result](00-start-here/504-ayn-thor-rootless-public-client-normalized-equivalence-result-2026-08-11.md)
 165. [AYN Thor rootless public-seed refresh recovery predeclaration](00-start-here/505-ayn-thor-rootless-public-seed-refresh-recovery-predeclaration-2026-08-11.md)
+166. [AYN Thor rootless public-seed refresh recovery result](00-start-here/506-ayn-thor-rootless-public-seed-refresh-recovery-result-2026-08-12.md)
+167. [AYN Thor rootless R38 official stable ARM64 payload replay predeclaration](00-start-here/507-ayn-thor-rootless-r38-stable-payload-replay-predeclaration-2026-08-12.md)
 
 Before any Nova device run, read the lifecycle contract. Before importing
 SteamclientTermux behavior, read the comparison record and inspect the clean
