@@ -188,6 +188,8 @@ Read these in order when picking up the project:
 177. [AYN Thor rootless R40b current-tree patched PRoot predeclaration](00-start-here/517-ayn-thor-rootless-r40b-current-public-tree-patched-proot-predeclaration-2026-08-12.md)
 178. [AYN Thor rootless R40b current-tree patched PRoot result](00-start-here/518-ayn-thor-rootless-r40b-current-tree-patched-proot-result-2026-08-12.md)
 179. [AYN Thor rootless R41 patched PRoot crash-trace predeclaration](00-start-here/519-ayn-thor-rootless-r41-patched-proot-crash-trace-predeclaration-2026-08-12.md)
+180. [AYN Thor rootless R41 patched PRoot crash-trace result](00-start-here/520-ayn-thor-rootless-r41-patched-proot-crash-trace-result-2026-08-12.md)
+181. [AYN Thor rootless R42 Mesa device-select isolation predeclaration](00-start-here/521-ayn-thor-rootless-r42-nodevice-select-predeclaration-2026-08-12.md)
 
 Before any Nova device run, read the lifecycle contract. Before importing
 SteamclientTermux behavior, read the comparison record and inspect the clean

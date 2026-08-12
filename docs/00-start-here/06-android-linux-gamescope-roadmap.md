@@ -311,6 +311,24 @@ The running implementation agent should work this queue in order:
    which adds only the sibling PRoot's opt-in `PROOT_CRASH_LOG=1`; keep all
    shared-`/tmp`, D-Bus, Mesa/WSI, Runtime 4, Proton, Gamescope/AHardwareBuffer,
    and other sibling helpers out of R41.
+
+   R41 is now closed in [doc
+   520](520-ayn-thor-rootless-r41-patched-proot-crash-trace-result-2026-08-12.md):
+   the patched PRoot again reached Turnip Adreno 740 and the `vkCreateDevice`
+   layer callstack, then reported the same guest signal 11. Its trace had
+   `fault=0x0` and `ip=0`, so it was non-discriminating: it did not identify a
+   PRoot translation operation or faulting mapping. The run also showed the
+   Holo `VK_LAYER_MESA_device_select` layer loaded immediately before the
+   boundary; app-UID `/dev/kgsl-3d0` metadata and read/write probes still do
+   not support a simple DAC/SELinux-denial classification. The exact R41
+   scopes were cleaned and the rooted rollback paths remained intact. The
+   single next A/B is [doc
+   521](521-ayn-thor-rootless-r42-nodevice-select-predeclaration-2026-08-12.md),
+   which adds only the manifest-declared `NODEVICE_SELECT=1` guest variable to
+   isolate that implicit layer. Keep the patched PRoot, provider, client,
+   display, flags, and crash tracer fixed, and do not combine this with
+   `/dev/shm`, D-Bus, Runtime 4, Proton, Gamescope/AHardwareBuffer, or any
+   other sibling-repository helper.
 3. **Stage an isolated official-runtime profile.** Register Proton 11 ARM64
    (`AppID 4628740`, depot `4628741`) with its declared Steam Linux Runtime 4
    ARM64 dependency (`AppID 4185400`, depot `4185401`). Preserve the
