@@ -300,7 +300,17 @@ The running implementation agent should work this queue in order:
    helpers out of R40. The historical R39 archive is no longer recoverable;
    the companion selected-tree-equivalence replay is predeclared in [doc
    517](517-ayn-thor-rootless-r40b-current-public-tree-patched-proot-predeclaration-2026-08-12.md)
-   and must keep that provenance distinction explicit.
+   and must keep that provenance distinction explicit. R40b is now closed in
+   [doc 518](518-ayn-thor-rootless-r40b-current-tree-patched-proot-result-2026-08-12.md):
+   the patched PRoot still reached Turnip Adreno 740 and `vkCreateDevice`,
+   then reproduced the post-device-use signal 11 before SteamUI or webhelper.
+   App-UID read/write visibility of `/dev/kgsl-3d0` and the successful Vulkan
+   enumeration do not support a simple DAC/SELinux-denial classification. The
+   single next diagnostic is [doc
+   519](519-ayn-thor-rootless-r41-patched-proot-crash-trace-predeclaration-2026-08-12.md),
+   which adds only the sibling PRoot's opt-in `PROOT_CRASH_LOG=1`; keep all
+   shared-`/tmp`, D-Bus, Mesa/WSI, Runtime 4, Proton, Gamescope/AHardwareBuffer,
+   and other sibling helpers out of R41.
 3. **Stage an isolated official-runtime profile.** Register Proton 11 ARM64
    (`AppID 4628740`, depot `4628741`) with its declared Steam Linux Runtime 4
    ARM64 dependency (`AppID 4185400`, depot `4185401`). Preserve the

@@ -186,6 +186,8 @@ Read these in order when picking up the project:
 175. [AYN Thor rootless R39 CEF-disable retry result](00-start-here/515-ayn-thor-rootless-r39-cef-disable-retry-result-2026-08-12.md)
 176. [AYN Thor rootless R40 patched PRoot predeclaration](00-start-here/516-ayn-thor-rootless-r40-steamclienttermux-proot-predeclaration-2026-08-12.md)
 177. [AYN Thor rootless R40b current-tree patched PRoot predeclaration](00-start-here/517-ayn-thor-rootless-r40b-current-public-tree-patched-proot-predeclaration-2026-08-12.md)
+178. [AYN Thor rootless R40b current-tree patched PRoot result](00-start-here/518-ayn-thor-rootless-r40b-current-tree-patched-proot-result-2026-08-12.md)
+179. [AYN Thor rootless R41 patched PRoot crash-trace predeclaration](00-start-here/519-ayn-thor-rootless-r41-patched-proot-crash-trace-predeclaration-2026-08-12.md)
 
 Before any Nova device run, read the lifecycle contract. Before importing
 SteamclientTermux behavior, read the comparison record and inspect the clean
