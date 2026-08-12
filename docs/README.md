@@ -178,6 +178,8 @@ Read these in order when picking up the project:
 167. [AYN Thor rootless R38 official stable ARM64 payload replay predeclaration](00-start-here/507-ayn-thor-rootless-r38-stable-payload-replay-predeclaration-2026-08-12.md)
 168. [AYN Thor rootless R38 toybox-tar preparation invalid result](00-start-here/508-ayn-thor-rootless-r38-toybox-tar-invalid-result-2026-08-12.md)
 169. [AYN Thor rootless R38 stable payload replay bsdtar retry predeclaration](00-start-here/509-ayn-thor-rootless-r38-stable-payload-replay-retry-predeclaration-2026-08-12.md)
+170. [AYN Thor rootless R38 bsdtar libtalloc loader invalid result](00-start-here/510-ayn-thor-rootless-r38-bsdtar-libtalloc-invalid-result-2026-08-12.md)
+171. [AYN Thor rootless R38 libtalloc soname retry predeclaration](00-start-here/511-ayn-thor-rootless-r38-libtalloc-soname-retry-predeclaration-2026-08-12.md)
 
 Before any Nova device run, read the lifecycle contract. Before importing
 SteamclientTermux behavior, read the comparison record and inspect the clean
