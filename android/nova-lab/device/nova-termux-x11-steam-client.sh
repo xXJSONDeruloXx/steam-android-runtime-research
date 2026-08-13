@@ -12,6 +12,7 @@ RUNTIME_DIR=/tmp/nova-steam-runtime
 STEAM_WEBHELPER_LOG="$STEAM_ROOT/logs/webhelper_js.txt"
 STEAM_UID=${NOVA_TERMUX_X11_STEAM_UID:-501}
 STEAM_GID=${NOVA_TERMUX_X11_STEAM_GID:-20}
+STEAM_RUN_AS_ROOT=${NOVA_TERMUX_X11_STEAM_RUN_AS_ROOT:-0}
 # Android's audio device nodes are normally owned by AID_AUDIO (1005). Keep
 # the Linux Steam identity stable while granting only that supplementary
 # group; callers can override it for a device with a different audio gid.
@@ -30,9 +31,14 @@ STEAM_RUNTIME4_ROOT=${NOVA_TERMUX_X11_STEAM_RUNTIME4_ROOT:-/opt/nova-steam/runti
 CEF_DISABLE_GPU=${NOVA_TERMUX_X11_STEAM_CEF_DISABLE_GPU:-}
 STEAM_UI_MODE=${NOVA_TERMUX_X11_STEAM_UI_MODE:-gamepadui}
 STEAM_DISABLE_PRELOAD=${NOVA_TERMUX_X11_STEAM_DISABLE_PRELOAD:-0}
+STEAM_PRELOAD_LEADING_COLON=${NOVA_TERMUX_X11_STEAM_PRELOAD_LEADING_COLON:-0}
+STEAM_PROTON_LOG=${NOVA_TERMUX_X11_STEAM_PROTON_LOG:-0}
+STEAM_PROTON_LOG_DIR=${NOVA_TERMUX_X11_STEAM_PROTON_LOG_DIR:-/tmp/nova-proton-log}
 STEAM_HOLO_MESA_FIRST=${NOVA_TERMUX_X11_STEAM_HOLO_MESA_FIRST:-0}
 STEAM_FORCE_SOFTWARE_GL=${NOVA_TERMUX_X11_STEAM_FORCE_SOFTWARE_GL:-0}
 CEF_ENV_SPLIT=${NOVA_TERMUX_X11_STEAM_CEF_ENV_SPLIT:-0}
+FEX_PRESET=${NOVA_TERMUX_X11_STEAM_FEX_PRESET:-none}
+ROOT_BWRAP=${NOVA_TERMUX_X11_STEAM_ROOT_BWRAP:-0}
 AUDIO_BRIDGE=${NOVA_TERMUX_X11_STEAM_AUDIO_BRIDGE:-0}
 AUDIO_BRIDGE_PORT=${NOVA_TERMUX_X11_STEAM_AUDIO_BRIDGE_PORT:-29100}
 AUDIO_BRIDGE_LOG=${NOVA_TERMUX_X11_STEAM_AUDIO_BRIDGE_LOG:-/tmp/nova-alsa-audiotrack-bridge.log}
@@ -70,6 +76,22 @@ case "$STEAM_UID:$STEAM_GID" in
         exit 2
         ;;
 esac
+case "$STEAM_RUN_AS_ROOT" in
+    0|1)
+        ;;
+    *)
+        echo "invalid NOVA_TERMUX_X11_STEAM_RUN_AS_ROOT: $STEAM_RUN_AS_ROOT" >&2
+        exit 2
+        ;;
+esac
+if [ "$STEAM_RUN_AS_ROOT" -eq 1 ]; then
+    # The root-only Runtime 4 profile needs the client, its private D-Bus
+    # session, and XDG_RUNTIME_DIR to agree on the same identity. Keep this
+    # opt-in profile internally consistent; the default remains UID 501.
+    STEAM_UID=0
+    STEAM_GID=0
+    STEAM_AUDIO_GID=0
+fi
 case "$STEAM_AUDIO_GID" in
     ''|*[!0-9]*)
         echo "invalid Steam audio gid: $STEAM_AUDIO_GID" >&2
@@ -172,6 +194,30 @@ case "$STEAM_DISABLE_PRELOAD" in
         exit 2
         ;;
 esac
+case "$STEAM_PRELOAD_LEADING_COLON" in
+    0|1)
+        ;;
+    *)
+        echo "invalid NOVA_TERMUX_X11_STEAM_PRELOAD_LEADING_COLON: $STEAM_PRELOAD_LEADING_COLON" >&2
+        exit 2
+        ;;
+esac
+case "$STEAM_PROTON_LOG" in
+    0|1)
+        ;;
+    *)
+        echo "invalid NOVA_TERMUX_X11_STEAM_PROTON_LOG: $STEAM_PROTON_LOG" >&2
+        exit 2
+        ;;
+esac
+case "$STEAM_PROTON_LOG_DIR" in
+    /*)
+        ;;
+    *)
+        echo "NOVA_TERMUX_X11_STEAM_PROTON_LOG_DIR must be absolute: $STEAM_PROTON_LOG_DIR" >&2
+        exit 2
+        ;;
+esac
 case "$STEAM_HOLO_MESA_FIRST" in
     0|1)
         ;;
@@ -193,6 +239,22 @@ case "$CEF_ENV_SPLIT" in
         ;;
     *)
         echo "invalid NOVA_TERMUX_X11_STEAM_CEF_ENV_SPLIT: $CEF_ENV_SPLIT" >&2
+        exit 2
+        ;;
+esac
+case "$FEX_PRESET" in
+    none|compatibility)
+        ;;
+    *)
+        echo "invalid NOVA_TERMUX_X11_STEAM_FEX_PRESET: $FEX_PRESET" >&2
+        exit 2
+        ;;
+esac
+case "$ROOT_BWRAP" in
+    0|1)
+        ;;
+    *)
+        echo "invalid NOVA_TERMUX_X11_STEAM_ROOT_BWRAP: $ROOT_BWRAP" >&2
         exit 2
         ;;
 esac
@@ -468,6 +530,10 @@ prepare_runtime_profile() {
 }
 
 run_as_steam() {
+    if [ "$STEAM_RUN_AS_ROOT" -eq 1 ]; then
+        /usr/bin/env "$@"
+        return $?
+    fi
     /usr/bin/setpriv --reuid="$STEAM_UID" --regid="$STEAM_GID" \
         --groups="$STEAM_AUDIO_GID" "$@"
 }
@@ -656,6 +722,8 @@ log "client_session_log_cap_bytes=$SESSION_LOG_CAP_BYTES"
 log "client_uid=$STEAM_UID"
 log "client_gid=$STEAM_GID"
 log "client_audio_gid=$STEAM_AUDIO_GID"
+log "client_run_as_root=$STEAM_RUN_AS_ROOT"
+log "client_root_bwrap=$ROOT_BWRAP"
 log "client_timeout_seconds=$CLIENT_TIMEOUT"
 log "client_restart_limit=$STEAM_RESTART_LIMIT"
 log "client_xauthority=${XAUTHORITY:-unset}"
@@ -692,6 +760,18 @@ if ! /usr/bin/chown "$STEAM_UID:$STEAM_GID" "$RUNTIME_DIR" ||
     exit 1
 fi
 log "client_runtime_owner_status=pass"
+if [ "$STEAM_RUNTIME_PROFILE" = runtime4 ]; then
+    runtime4_variable_dir="$RUNTIME_DIR/runtime4-var"
+    if ! run_as_steam /usr/bin/mkdir -p "$runtime4_variable_dir" ||
+        ! run_as_steam /usr/bin/chmod 700 "$runtime4_variable_dir"; then
+        log "client_runtime4_variable_dir_status=fail"
+        exit 1
+    fi
+    export PRESSURE_VESSEL_VARIABLE_DIR="$runtime4_variable_dir"
+    log "client_runtime4_variable_dir_status=pass path=$PRESSURE_VESSEL_VARIABLE_DIR"
+else
+    unset PRESSURE_VESSEL_VARIABLE_DIR
+fi
 
 # The ARM64 seed can leave the conventional per-user Steam control directory
 # root-owned. Steam needs to create/update steam.token there during normal
@@ -752,6 +832,32 @@ export DISPLAY=:0
 export XDG_RUNTIME_DIR="$RUNTIME_DIR"
 export LANG=C
 export LC_ALL=C
+# The rooted Android guest has no systemd user manager, systemd journal, or
+# pressure-vessel audio namespace to service steam-launch-wrapper.  Leave the
+# wrapper's game/reaper handoff intact, but disable only those host-service
+# integrations so the authentic Steam-created command can reach Proton.
+export STEAM_LAUNCH_WRAPPER_SCOPE=0
+export STEAM_LAUNCH_WRAPPER_JOURNAL=0
+export STEAM_LAUNCH_WRAPPER_AUDIO_NAMESPACE=0
+log "client_steam_launch_wrapper_scope=disabled"
+log "client_steam_launch_wrapper_journal=disabled"
+log "client_steam_launch_wrapper_audio_namespace=disabled"
+if [ "$FEX_PRESET" = compatibility ]; then
+    export FEX_TSOENABLED=1
+    export FEX_VECTORTSOENABLED=1
+    export FEX_MEMCPYSETTSOENABLED=1
+    export FEX_HALFBARRIERTSOENABLED=1
+    export FEX_X87REDUCEDPRECISION=0
+    export FEX_MULTIBLOCK=1
+    # Proton's ARM64 wrapper translates these STEAM_FEX_* settings into its
+    # per-prefix FEX_APP_CONFIG. Keep the native FEX names above as well for
+    # processes that consume the FEX environment directly.
+    export STEAM_FEX_TSOENABLED=1
+    export STEAM_FEX_MULTIBLOCK=1
+    log "client_fex_preset=compatibility"
+else
+    log "client_fex_preset=none"
+fi
 steam_runtime_files_bin=
 for candidate in "$STEAM_ROOT"/steam-runtime-steamrt-arm64/*/files/bin; do
     if [ -d "$candidate" ]; then
@@ -899,6 +1005,40 @@ elif [ "$STEAM_DISABLE_PRELOAD" -eq 1 ]; then
 else
     unset LD_PRELOAD
     log "client_preload=missing_libsysv_sem_shim"
+fi
+if [ "$STEAM_PRELOAD_LEADING_COLON" -eq 1 ] && [ -n "${LD_PRELOAD:-}" ]; then
+    # Steam's game-overlay injector prepends its renderer path without adding
+    # a separator.  An empty first preload entry keeps the inherited list
+    # valid after that concatenation while remaining a no-op for ld.so.
+    export LD_PRELOAD=":$LD_PRELOAD"
+    log "client_preload_leading_colon=enabled"
+fi
+if [ "$STEAM_PROTON_LOG" -eq 1 ]; then
+    run_as_steam /usr/bin/mkdir -p "$STEAM_PROTON_LOG_DIR"
+    export PROTON_LOG=1
+    export PROTON_LOG_DIR="$STEAM_PROTON_LOG_DIR"
+    log "client_proton_log=enabled dir=$PROTON_LOG_DIR"
+else
+    unset PROTON_LOG PROTON_LOG_DIR
+    log "client_proton_log=disabled"
+fi
+if [ "$ROOT_BWRAP" -eq 1 ]; then
+    if [ "$STEAM_RUNTIME_PROFILE" != runtime4 ] ||
+        [ ! -x /opt/nova-kgsl-driver/nova-runtime4-bwrap-root.sh ] ||
+        [ ! -x /opt/nova-kgsl-driver/nova-runtime4-bwrap-proxy ] ||
+        [ ! -f /opt/nova-kgsl-driver/nova-runtime4-bwrap-proxy-client.py ]; then
+        log "client_root_bwrap_status=fail"
+        log "client_root_bwrap_error=missing_runtime4_root_proxy"
+        exit 1
+    fi
+    STEAM_ARM64_REAL_BWRAP="$STEAM_RUNTIME4_ROOT/pressure-vessel/libexec/steam-runtime-tools-0/srt-bwrap"
+    export STEAM_ARM64_REAL_BWRAP
+    export PRESSURE_VESSEL_BWRAP=/opt/nova-kgsl-driver/nova-runtime4-bwrap-root.sh
+    log "client_root_bwrap_status=enabled"
+    log "client_root_bwrap_real=$STEAM_ARM64_REAL_BWRAP"
+else
+    unset PRESSURE_VESSEL_BWRAP STEAM_ARM64_REAL_BWRAP
+    log "client_root_bwrap_status=disabled"
 fi
 
 start_dbus_session() {

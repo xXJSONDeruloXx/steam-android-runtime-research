@@ -4,7 +4,7 @@
   {
     "proton11_arm64"
     {
-      "install_path" "/opt/nova-steam/home/.local/share/Steam/steamapps/common/Proton 11.0 (ARM64)"
+      "install_path" "/opt/nova-steam/home/.local/share/Steam/compatibilitytools.d/proton-11-arm64"
       "display_name" "Proton 11.0 (ARM64)"
       "from_oslist"  "windows"
       "to_oslist"    "linux"

@@ -17,7 +17,7 @@ system_find=/system/bin/find
 system_mkdir=/system/bin/mkdir
 system_mv=/system/bin/mv
 system_rm=/system/bin/rm
-system_sha256sum=/usr/bin/sha256sum
+system_sha256sum=/system/bin/sha256sum
 system_test=/system/bin/test
 
 fail() {
@@ -32,6 +32,8 @@ require_file() {
 require_directory() {
     "$system_test" -d "$1" || fail "missing_directory:$1"
 }
+
+require_file "$system_sha256sum"
 
 reject_l2s_links() {
     root_path="$1"

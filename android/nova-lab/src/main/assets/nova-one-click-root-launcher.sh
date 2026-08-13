@@ -34,12 +34,21 @@ RUNTIME_PROFILE="${NOVA_ANDROID_LAUNCHER_RUNTIME_PROFILE:-steamrt3c}"
 CEF_DISABLE_GPU="${NOVA_ANDROID_LAUNCHER_CEF_DISABLE_GPU:-}"
 STEAM_UI_MODE="${NOVA_ANDROID_LAUNCHER_STEAM_UI_MODE:-gamepadui}"
 STEAM_DISABLE_PRELOAD="${NOVA_ANDROID_LAUNCHER_STEAM_DISABLE_PRELOAD:-0}"
+STEAM_PRELOAD_LEADING_COLON="${NOVA_ANDROID_LAUNCHER_STEAM_PRELOAD_LEADING_COLON:-0}"
+STEAM_PROTON_LOG="${NOVA_ANDROID_LAUNCHER_STEAM_PROTON_LOG:-0}"
+STEAM_PROTON_LOG_DIR="${NOVA_ANDROID_LAUNCHER_STEAM_PROTON_LOG_DIR:-/tmp/nova-proton-log}"
+STEAM_RUN_AS_ROOT="${NOVA_ANDROID_LAUNCHER_STEAM_RUN_AS_ROOT:-0}"
+X11_BIND_ROOT_MOUNT="${NOVA_ANDROID_LAUNCHER_X11_BIND_ROOT_MOUNT:-0}"
 STEAM_DISABLE_SYSTEM_DBUS="${NOVA_ANDROID_LAUNCHER_STEAM_DISABLE_SYSTEM_DBUS:-0}"
 STEAM_HOLO_MESA_FIRST="${NOVA_ANDROID_LAUNCHER_STEAM_HOLO_MESA_FIRST:-0}"
 STEAM_FORCE_SOFTWARE_GL="${NOVA_ANDROID_LAUNCHER_STEAM_FORCE_SOFTWARE_GL:-0}"
 STEAM_CEF_ENV_SPLIT="${NOVA_ANDROID_LAUNCHER_STEAM_CEF_ENV_SPLIT:-0}"
+STEAM_FEX_PRESET="${NOVA_ANDROID_LAUNCHER_STEAM_FEX_PRESET:-none}"
+STEAM_ROOT_BWRAP="${NOVA_ANDROID_LAUNCHER_STEAM_ROOT_BWRAP:-0}"
 STEAMOS_UPDATE_COMPAT="${NOVA_ANDROID_LAUNCHER_STEAMOS_UPDATE_COMPAT:-1}"
 STEAM_RESTART_LIMIT="${NOVA_ANDROID_LAUNCHER_STEAM_RESTART_LIMIT:-1}"
+STEAM_MIN_FREE_BYTES="${NOVA_ANDROID_LAUNCHER_STEAM_MIN_FREE_BYTES:-1073741824}"
+STEAM_SESSION_LOG_CAP_BYTES="${NOVA_ANDROID_LAUNCHER_STEAM_SESSION_LOG_CAP_BYTES:-67108864}"
 AUDIO_BRIDGE="${NOVA_ANDROID_LAUNCHER_AUDIO_BRIDGE:-0}"
 AUDIO_BRIDGE_PORT="${NOVA_ANDROID_LAUNCHER_AUDIO_BRIDGE_PORT:-29100}"
 AUDIO_MODE="${NOVA_ANDROID_LAUNCHER_AUDIO_MODE:-bridge}"
@@ -60,6 +69,9 @@ STEAMOS_UPDATE_COMPAT_SOURCE="$APP_DIR/nova-steamos-update-compat.sh"
 RUNTIME4_HELPER="$APP_DIR/nova-rooted-prepare-runtime4.sh"
 OFFICIAL_COMPAT_TEMPLATE="$APP_DIR/nova-steam-arm64-official-compatibilitytools.vdf.in"
 GAME_RUNNER_SOURCE="$APP_DIR/nova-proton-glibc-geometry-wars.sh"
+BWRAP_ROOT_SOURCE="$APP_DIR/nova-runtime4-bwrap-root.sh"
+BWRAP_PROXY_SOURCE="$APP_DIR/nova-runtime4-bwrap-proxy"
+BWRAP_PROXY_CLIENT_SOURCE="$APP_DIR/nova-runtime4-bwrap-proxy-client.py"
 SESSION_GUARD_SOURCE="$APP_DIR/nova-rootless-session-guard.py"
 DRIVER_DIR="$ROOT/opt/nova-kgsl-driver"
 TERMUX_PREFS=/data/user/0/com.termux.x11/shared_prefs/com.termux.x11_preferences.xml
@@ -72,6 +84,18 @@ case "$HARDWARE_ACCEL" in
         ;;
     *)
         echo "invalid NOVA_ANDROID_LAUNCHER_HARDWARE_ACCEL: $HARDWARE_ACCEL" >&2
+        exit 2
+        ;;
+esac
+case "$STEAM_MIN_FREE_BYTES" in
+    ''|*[!0-9]*)
+        echo "invalid NOVA_ANDROID_LAUNCHER_STEAM_MIN_FREE_BYTES: $STEAM_MIN_FREE_BYTES" >&2
+        exit 2
+        ;;
+esac
+case "$STEAM_SESSION_LOG_CAP_BYTES" in
+    ''|*[!0-9]*)
+        echo "invalid NOVA_ANDROID_LAUNCHER_STEAM_SESSION_LOG_CAP_BYTES: $STEAM_SESSION_LOG_CAP_BYTES" >&2
         exit 2
         ;;
 esac
@@ -121,6 +145,46 @@ case "$STEAM_DISABLE_PRELOAD" in
         exit 2
         ;;
 esac
+case "$STEAM_PRELOAD_LEADING_COLON" in
+    0|1)
+        ;;
+    *)
+        echo "invalid NOVA_ANDROID_LAUNCHER_STEAM_PRELOAD_LEADING_COLON: $STEAM_PRELOAD_LEADING_COLON" >&2
+        exit 2
+        ;;
+esac
+case "$STEAM_PROTON_LOG" in
+    0|1)
+        ;;
+    *)
+        echo "invalid NOVA_ANDROID_LAUNCHER_STEAM_PROTON_LOG: $STEAM_PROTON_LOG" >&2
+        exit 2
+        ;;
+esac
+case "$STEAM_PROTON_LOG_DIR" in
+    /*)
+        ;;
+    *)
+        echo "NOVA_ANDROID_LAUNCHER_STEAM_PROTON_LOG_DIR must be absolute: $STEAM_PROTON_LOG_DIR" >&2
+        exit 2
+        ;;
+esac
+case "$STEAM_RUN_AS_ROOT" in
+    0|1)
+        ;;
+    *)
+        echo "invalid NOVA_ANDROID_LAUNCHER_STEAM_RUN_AS_ROOT: $STEAM_RUN_AS_ROOT" >&2
+        exit 2
+        ;;
+esac
+case "$X11_BIND_ROOT_MOUNT" in
+    0|1)
+        ;;
+    *)
+        echo "invalid NOVA_ANDROID_LAUNCHER_X11_BIND_ROOT_MOUNT: $X11_BIND_ROOT_MOUNT" >&2
+        exit 2
+        ;;
+esac
 case "$STEAM_DISABLE_SYSTEM_DBUS" in
     0|1)
         ;;
@@ -150,6 +214,22 @@ case "$STEAM_CEF_ENV_SPLIT" in
         ;;
     *)
         echo "invalid NOVA_ANDROID_LAUNCHER_STEAM_CEF_ENV_SPLIT: $STEAM_CEF_ENV_SPLIT" >&2
+        exit 2
+        ;;
+esac
+case "$STEAM_FEX_PRESET" in
+    none|compatibility)
+        ;;
+    *)
+        echo "invalid NOVA_ANDROID_LAUNCHER_STEAM_FEX_PRESET: $STEAM_FEX_PRESET" >&2
+        exit 2
+        ;;
+esac
+case "$STEAM_ROOT_BWRAP" in
+    0|1)
+        ;;
+    *)
+        echo "invalid NOVA_ANDROID_LAUNCHER_STEAM_ROOT_BWRAP: $STEAM_ROOT_BWRAP" >&2
         exit 2
         ;;
 esac
@@ -677,6 +757,25 @@ done
 /system/bin/chmod 755 "$DRIVER_DIR/nova-rooted-prepare-runtime4.sh"
 /system/bin/cp "$SESSION_GUARD_SOURCE" "$DRIVER_DIR/nova-session-guard.py"
 /system/bin/chmod 755 "$DRIVER_DIR/nova-session-guard.py"
+if [ "$STEAM_ROOT_BWRAP" -eq 1 ]; then
+    if [ ! -x "$BWRAP_ROOT_SOURCE" ] ||
+        [ ! -x "$BWRAP_PROXY_SOURCE" ] ||
+        [ ! -f "$BWRAP_PROXY_CLIENT_SOURCE" ]; then
+        log "nova_launcher_runtime_contract=fail reason=missing_root_bwrap_proxy_sources"
+        exit 1
+    fi
+    /system/bin/cp "$BWRAP_ROOT_SOURCE" "$DRIVER_DIR/nova-runtime4-bwrap-root.sh"
+    /system/bin/chmod 755 "$DRIVER_DIR/nova-runtime4-bwrap-root.sh"
+    /system/bin/cp "$BWRAP_PROXY_SOURCE" "$DRIVER_DIR/nova-runtime4-bwrap-proxy"
+    /system/bin/chmod 755 "$DRIVER_DIR/nova-runtime4-bwrap-proxy"
+    /system/bin/cp "$BWRAP_PROXY_CLIENT_SOURCE" \
+        "$DRIVER_DIR/nova-runtime4-bwrap-proxy-client.py"
+    /system/bin/chmod 755 "$DRIVER_DIR/nova-runtime4-bwrap-proxy-client.py"
+else
+    /system/bin/rm -f "$DRIVER_DIR/nova-runtime4-bwrap-root.sh" \
+        "$DRIVER_DIR/nova-runtime4-bwrap-proxy" \
+        "$DRIVER_DIR/nova-runtime4-bwrap-proxy-client.py"
+fi
 /system/bin/rm -f "$STATE/runtime4-shadow.log"
 /system/bin/rm -f "$STATE/launcher.log" "$STATE/cleanup.log" \
     "$STATE/runtime-cleanup.log" "$STATE/server.log" "$STATE/client.log" \
@@ -847,16 +946,26 @@ fi
     NOVA_TERMUX_X11_STEAM_CEF_DISABLE_GPU="$CEF_DISABLE_GPU" \
     NOVA_TERMUX_X11_STEAM_UI_MODE="$STEAM_UI_MODE" \
     NOVA_TERMUX_X11_STEAM_DISABLE_PRELOAD="$STEAM_DISABLE_PRELOAD" \
+    NOVA_TERMUX_X11_STEAM_PRELOAD_LEADING_COLON="$STEAM_PRELOAD_LEADING_COLON" \
+    NOVA_TERMUX_X11_STEAM_PROTON_LOG="$STEAM_PROTON_LOG" \
+    NOVA_TERMUX_X11_STEAM_PROTON_LOG_DIR="$STEAM_PROTON_LOG_DIR" \
+    NOVA_TERMUX_X11_STEAM_RUN_AS_ROOT="$STEAM_RUN_AS_ROOT" \
     NOVA_TERMUX_X11_STEAM_HOLO_MESA_FIRST="$STEAM_HOLO_MESA_FIRST" \
     NOVA_TERMUX_X11_STEAM_FORCE_SOFTWARE_GL="$STEAM_FORCE_SOFTWARE_GL" \
     NOVA_TERMUX_X11_STEAM_CEF_ENV_SPLIT="$STEAM_CEF_ENV_SPLIT" \
+    NOVA_TERMUX_X11_STEAM_FEX_PRESET="$STEAM_FEX_PRESET" \
+    NOVA_TERMUX_X11_STEAM_ROOT_BWRAP="$STEAM_ROOT_BWRAP" \
     NOVA_TERMUX_X11_STEAM_RESTART_LIMIT="$STEAM_RESTART_LIMIT" \
+    NOVA_TERMUX_X11_STEAM_MIN_FREE_BYTES="$STEAM_MIN_FREE_BYTES" \
+    NOVA_TERMUX_X11_STEAM_SESSION_LOG_CAP_BYTES="$STEAM_SESSION_LOG_CAP_BYTES" \
     NOVA_TERMUX_X11_STEAM_AUDIO_BRIDGE="$AUDIO_BRIDGE" \
     NOVA_TERMUX_X11_STEAM_AUDIO_BRIDGE_PORT="$AUDIO_BRIDGE_PORT" \
     NOVA_TERMUX_X11_STEAM_AUDIO_MODE="$AUDIO_MODE" \
     NOVA_TERMUX_X11_STEAM_PULSE_SERVER="$PULSE_SERVER" \
     NOVA_X11_RUNTIME4_SHADOW="$runtime4_shadow_env" \
     NOVA_X11_RUNTIME4_GUEST="$runtime4_guest_env" \
+    NOVA_X11_BIND_ROOT_MOUNT="$X11_BIND_ROOT_MOUNT" \
+    NOVA_X11_ROOT_PROXY="$STEAM_ROOT_BWRAP" \
     NOVA_X11_ALLOW_INPUT_EVENTS="$allow_input_events" \
     NOVA_X11_HIDE_INPUT_EVENTS="$hide_input_events" \
     "$PRIVATE_HELPER" chroot-dev "$MOUNT_PRIVATE" "$ROOT" \

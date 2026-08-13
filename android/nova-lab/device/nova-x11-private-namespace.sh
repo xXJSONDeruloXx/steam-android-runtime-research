@@ -28,11 +28,43 @@ case "$mode" in
             echo "x11_namespace_error=chroot_dev_arguments" >&2
             exit 2
         fi
+        root_bind_enabled="${NOVA_X11_BIND_ROOT_MOUNT:-0}"
+        case "$root_bind_enabled" in
+            0|1)
+                ;;
+            *)
+                echo "x11_namespace_error=invalid_root_bind:$root_bind_enabled" >&2
+                exit 2
+                ;;
+        esac
+        root_proxy_enabled="${NOVA_X11_ROOT_PROXY:-0}"
+        case "$root_proxy_enabled" in
+            0|1)
+                ;;
+            *)
+                echo "x11_namespace_error=invalid_root_proxy:$root_proxy_enabled" >&2
+                exit 2
+                ;;
+        esac
         if ! "$mount_private" /; then
             echo "x11_namespace_error=mount_private" >&2
             exit 1
         fi
+        root_bind_mounted=0
+        root_proxy_pid=
+        root_proxy_socket=/tmp/nova-root-bwrap.sock
+        if [ "$root_bind_enabled" -eq 1 ]; then
+            if ! /system/bin/mount -o bind "$root" "$root"; then
+                echo "x11_namespace_error=bind_root" >&2
+                exit 1
+            fi
+            root_bind_mounted=1
+            echo "x11_namespace_root_bind=pass root=$root"
+        fi
         if ! /system/bin/mount -o bind /dev "$root/dev"; then
+            if [ "$root_bind_mounted" -eq 1 ]; then
+                /system/bin/umount -l "$root" >/dev/null 2>&1 || true
+            fi
             echo "x11_namespace_error=bind_dev" >&2
             exit 1
         fi
@@ -68,6 +100,15 @@ case "$mode" in
             if [ "$mounted" -eq 1 ]; then
                 /system/bin/umount -l "$root/dev" >/dev/null 2>&1 || true
                 mounted=0
+            fi
+            if [ -n "$root_proxy_pid" ]; then
+                /system/bin/kill -TERM "$root_proxy_pid" >/dev/null 2>&1 || true
+                /system/bin/wait "$root_proxy_pid" >/dev/null 2>&1 || true
+                root_proxy_pid=
+            fi
+            if [ "$root_bind_mounted" -eq 1 ]; then
+                /system/bin/umount -l "$root" >/dev/null 2>&1 || true
+                root_bind_mounted=0
             fi
         }
         trap cleanup_mount EXIT INT TERM
@@ -144,6 +185,32 @@ case "$mode" in
             fi
             runtime4_mounted=1
             echo "x11_namespace_runtime4=pass shadow=$runtime4_shadow guest=$runtime4_guest"
+        fi
+        if [ "$root_proxy_enabled" -eq 1 ]; then
+            root_proxy="$root/opt/nova-kgsl-driver/nova-runtime4-bwrap-proxy"
+            if [ ! -x "$root_proxy" ]; then
+                echo "x11_namespace_error=missing_root_proxy path=$root_proxy" >&2
+                exit 1
+            fi
+            /system/bin/rm -f "$root$root_proxy_socket"
+            "$root_proxy" "$root" "$root_proxy_socket" >"$root/tmp/nova-root-bwrap-proxy.log" 2>&1 &
+            root_proxy_pid=$!
+            proxy_attempt=0
+            while [ "$proxy_attempt" -lt 50 ]; do
+                if [ -S "$root$root_proxy_socket" ]; then
+                    break
+                fi
+                if ! /system/bin/kill -0 "$root_proxy_pid" 2>/dev/null; then
+                    break
+                fi
+                /system/bin/sleep 0.1
+                proxy_attempt=$((proxy_attempt + 1))
+            done
+            if [ ! -S "$root$root_proxy_socket" ]; then
+                echo "x11_namespace_error=root_proxy_not_ready" >&2
+                exit 1
+            fi
+            echo "x11_namespace_root_proxy=pass socket=$root_proxy_socket"
         fi
         /system/bin/chroot "$root" "$@"
         status=$?

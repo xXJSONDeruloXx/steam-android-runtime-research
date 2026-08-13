@@ -54,6 +54,12 @@ for helper in \
     cp "$SCRIPT_DIR/device/$helper" "$APK_ASSET_DIR/$helper"
 done
 
+for helper in \
+    nova-runtime4-bwrap-root.sh \
+    nova-runtime4-bwrap-proxy-client.py; do
+    cp "$SCRIPT_DIR/device/$helper" "$APK_ASSET_DIR/$helper"
+done
+
 for provisioning_asset in \
     nova-runtime-manifest.tsv \
     holo-direct-termux-x11.packages.tsv; do
@@ -123,6 +129,16 @@ for optional_helper in \
         cp "$BUILD_DIR/$optional_helper" "$APK_ASSET_DIR/$optional_helper"
     fi
 done
+
+"$NATIVE_COMPILER" \
+    -O2 -std=c11 -Wall -Wextra -Werror \
+    -o "$BUILD_DIR/nova-runtime4-bwrap-proxy" \
+    "$SCRIPT_DIR/device/nova-runtime4-bwrap-proxy.c"
+cp "$BUILD_DIR/nova-runtime4-bwrap-proxy" \
+    "$APK_ASSET_DIR/nova-runtime4-bwrap-proxy"
+chmod 755 "$APK_ASSET_DIR/nova-runtime4-bwrap-proxy" \
+    "$APK_ASSET_DIR/nova-runtime4-bwrap-root.sh" \
+    "$APK_ASSET_DIR/nova-runtime4-bwrap-proxy-client.py"
 
 "$NATIVE_COMPILER" \
     -shared -fPIC -O2 -std=c11 \
