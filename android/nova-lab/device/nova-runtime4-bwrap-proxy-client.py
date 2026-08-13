@@ -11,13 +11,40 @@ MAGIC = 0x4E425750
 SOCKET_PATH = "/tmp/nova-root-bwrap.sock"
 
 
+def drop_container_command(args):
+    uid = os.environ.get("NOVA_ROOT_BWRAP_UID")
+    gid = os.environ.get("NOVA_ROOT_BWRAP_GID")
+    audio_gid = os.environ.get("NOVA_ROOT_BWRAP_AUDIO_GID", gid)
+    if not uid or not gid or not audio_gid or uid == "0":
+        return args
+    if not all(value.isdigit() for value in (uid, gid, audio_gid)):
+        print("proxy_client_error=invalid_root_bwrap_identity", file=sys.stderr)
+        raise SystemExit(125)
+    if any(int(value) > 65535 for value in (uid, gid, audio_gid)):
+        print("proxy_client_error=root_bwrap_identity_out_of_range", file=sys.stderr)
+        raise SystemExit(125)
+    try:
+        command_separator = args.index("--")
+    except ValueError:
+        return args
+    return [
+        *args[:command_separator + 1],
+        "/usr/bin/setpriv",
+        f"--reuid={uid}",
+        f"--regid={gid}",
+        f"--groups={audio_gid}",
+        "--",
+        *args[command_separator + 1:],
+    ]
+
+
 def main() -> int:
     if len(sys.argv) < 2:
         print("usage: proxy-client REAL_BWRAP [BWRAP_ARGS...]", file=sys.stderr)
         return 2
 
     real_bwrap = sys.argv[1]
-    bwrap_args = sys.argv[2:]
+    bwrap_args = drop_container_command(sys.argv[2:])
     environment = [
         f"{key}={value}" for key, value in os.environ.items()
     ]

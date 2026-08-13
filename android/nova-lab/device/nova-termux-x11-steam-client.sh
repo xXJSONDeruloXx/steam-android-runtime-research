@@ -1034,10 +1034,15 @@ if [ "$ROOT_BWRAP" -eq 1 ]; then
     STEAM_ARM64_REAL_BWRAP="$STEAM_RUNTIME4_ROOT/pressure-vessel/libexec/steam-runtime-tools-0/srt-bwrap"
     export STEAM_ARM64_REAL_BWRAP
     export PRESSURE_VESSEL_BWRAP=/opt/nova-kgsl-driver/nova-runtime4-bwrap-root.sh
+    export NOVA_ROOT_BWRAP_UID="$STEAM_UID"
+    export NOVA_ROOT_BWRAP_GID="$STEAM_GID"
+    export NOVA_ROOT_BWRAP_AUDIO_GID="$STEAM_AUDIO_GID"
     log "client_root_bwrap_status=enabled"
     log "client_root_bwrap_real=$STEAM_ARM64_REAL_BWRAP"
+    log "client_root_bwrap_identity=$NOVA_ROOT_BWRAP_UID:$NOVA_ROOT_BWRAP_GID:$NOVA_ROOT_BWRAP_AUDIO_GID"
 else
-    unset PRESSURE_VESSEL_BWRAP STEAM_ARM64_REAL_BWRAP
+    unset PRESSURE_VESSEL_BWRAP STEAM_ARM64_REAL_BWRAP \
+        NOVA_ROOT_BWRAP_UID NOVA_ROOT_BWRAP_GID NOVA_ROOT_BWRAP_AUDIO_GID
     log "client_root_bwrap_status=disabled"
 fi
 
